@@ -1,0 +1,80 @@
+﻿<?xml version="1.0"?>
+<doc>
+<assembly>
+<name>
+Utility
+</name>
+</assembly>
+<members>
+<member name="T:Utility.My.Resources.Resources">
+<summary>
+  A strongly-typed resource class, for looking up localized strings, etc.
+</summary>
+</member>
+<member name="P:Utility.My.Resources.Resources.ResourceManager">
+<summary>
+  Returns the cached ResourceManager instance used by this class.
+</summary>
+</member>
+<member name="P:Utility.My.Resources.Resources.Culture">
+<summary>
+  Overrides the current thread's CurrentUICulture property for all
+  resource lookups using this strongly typed resource class.
+</summary>
+</member>
+<member name="M:Utility.Utility.DeepCopy``1(``0)">
+ <summary>
+ this functions will be used for creating deep copy of objects
+ </summary>
+ <typeparam name="T"></typeparam>
+ <param name="item"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:Utility.Utility.GetSystemConfigurationValue(System.String,System.Boolean,System.Data.SqlClient.SqlTransaction)">
+ <summary>
+ Function to get system configuration value directly from database instead of collections
+ </summary>
+ <param name="Key">System configuration Key for which value require</param>
+ <param name="BackEnd">System will get directly from database and will not filter from collection</param>
+ <returns>Value for the specified key will be return as string</returns>
+ <remarks>New function to get system configuration value directly from database instead of collections.</remarks>
+</member>
+<member name="M:Utility.Utility.GetSystemConfigurationValue(System.String,System.String)">
+ <summary>
+ Function to get system configuration value directly from database instead of collections
+ </summary>
+ <param name="Key">System configuration Key for which value require</param>
+ <param name="ConnectionString">Connection string to get directly from database and will not filter from collection</param>
+ <returns>Value for the specified key will be return as string</returns>
+ <remarks>New function to get system configuration value directly from database instead of collections.</remarks>
+</member>
+<member name="M:Utility.Utility.CheckShowTagPriceforAnyshop(System.String,System.String,System.Int32,System.String)">
+ <summary>
+ ''' CR # 7258 this fucuntion will return weather is there any shop having isShowTagPrice flag is on
+ </summary>
+ <returns>Boolean</returns>
+ <remarks>This function would be calling from multiple locations so thats why written in common location</remarks>
+</member>
+<member name="M:Utility.Utility.BuildEventLog(System.String,System.String,System.String)">
+ <summary>
+  CR#5557 Farooq-H   Event log:replace event log enteries with database table wherever it is used in candela 
+ </summary>applica
+ <param name="LogEventName"> Here we gave the information about The key name i.e it can be the event log name  </param>
+ <param name="MessageEventString"> it will be used for the information which we want to save as a message like we save message in event log  </param>
+ <remarks> This function will be used where we want to make event log in candela and alse we will replace the existing Event log with this funtion 
+ CR Desc:  Event log:replace event log enteries with database table wherever it is used in candela Also change the reports which build from event log   </remarks>
+</member>
+<member name="M:Utility.Utility.GetSystemEventLog(System.String,System.String)">
+ <summary>
+ 5557                                       Farooq-H
+ This function is for getting the Log information regaurding a specific 
+ key named as LogEventName  
+ it will be used where want to view the LOg details to user 
+ </summary>
+ <param name="LogEventName"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+</members>
+</doc>

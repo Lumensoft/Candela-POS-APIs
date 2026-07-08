@@ -1,0 +1,486 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.SqlClient;
+using System.Net;
+using System.Net.Http;
+using System.Web.Http;
+using CandelaPOS.Infrastructure;
+using CandelaPOS.Models;
+using DAL;
+using Model;
+using static Utility.Utility;
+
+namespace CandelaPOS.Controllers
+{
+    [RoutePrefix("api/returns")]
+    public class ReturnsController : ApiController
+    {
+        // POST api/returns/validate
+        // Check if an invoice is returnable and return its items
+        [HttpPost, Route("validate")]
+        public HttpResponseMessage Validate([FromBody] ValidateReturnRequest req)
+        {
+            if (req == null || req.InvoiceNo <= 0)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "invoice_no is required" });
+
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+
+            try
+            {
+                var dal = new SaleAndReturnDAL();
+
+                if (!dal.IsValidInvoiceForReturn(shopId, req.InvoiceNo))
+                    return Request.CreateResponse((HttpStatusCode)422,
+                        new { error = "Invoice not found, already fully returned, or belongs to a different shop" });
+
+                string customerCode = dal.getCustomerAgainstInvoice(shopId, req.InvoiceNo);
+
+                var sale   = QuerySaleHeader(shopId, req.InvoiceNo);
+                var items  = QuerySaleItems(shopId, req.InvoiceNo);
+
+                return Request.CreateResponse(HttpStatusCode.OK, new
+                {
+                    success       = true,
+                    customer_code = customerCode ?? "",
+                    sale,
+                    items
+                });
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message });
+            }
+        }
+
+        // POST api/returns
+        // Process a return — items must have negative quantities
+        [HttpPost, Route("")]
+        public HttpResponseMessage PostReturn([FromBody] ReturnRequest req)
+        {
+            if (req == null)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "Request body is required" });
+
+            if (string.IsNullOrEmpty(req.ClientTxnGuid))
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "client_txn_guid is required" });
+
+            if (req.ReturningInvoiceNo <= 0)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "returning_invoice_no is required" });
+
+            if (req.Items == null || req.Items.Count == 0)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "items cannot be empty" });
+
+            CandelaBootstrap.PrepareRequest();
+
+            int    userId   = (int)   Request.Properties["user_id"];
+            int    shopId   = (int)   Request.Properties["shop_id"];
+            string posCode  = (string)Request.Properties["pos_code"];
+            string userName = (string)Request.Properties["user_name"];
+
+            SaleAndReturn sale = null;
+            try
+            {
+                // Idempotency — same GUID = same return
+                int existingSaleId = GetExistingReturnId(req.ClientTxnGuid, shopId);
+                if (existingSaleId > 0)
+                    return Request.CreateResponse(HttpStatusCode.OK,
+                        ApiResponse<object>.Ok(new { sale_id = existingSaleId, idempotent = true }));
+
+                var dal = new SaleAndReturnDAL();
+
+                if (!dal.IsValidInvoiceForReturn(shopId, req.ReturningInvoiceNo))
+                    return Request.CreateResponse((HttpStatusCode)422,
+                        new { error = "Invoice is not valid for return" });
+
+                // Per-item over-return protection: verify no item is being returned
+                // more than it was originally sold (minus any already-returned qty).
+                string overReturnError = ValidateReturnQuantities(shopId, req.ReturningInvoiceNo, req.Items);
+                if (overReturnError != null)
+                    return Request.CreateResponse((HttpStatusCode)422, new { error = overReturnError });
+
+                sale = BuildReturnModel(req, userId, shopId, posCode, userName);
+
+                // Credit note — build DataTable when caller provides a gift card target.
+                // frmSaleAndReturn.vb:38859: dal.Add(..., myCreditNoteDataTable)
+                DataTable creditNoteTable = null;
+                if (req.CreditNoteGiftCardId > 0)
+                    creditNoteTable = BuildCreditNoteTable(req, shopId, posCode);
+
+                string auditMsg = "";
+                bool ok = dal.Add(sale, EnumActions.Save, ref auditMsg, "", creditNoteTable);
+
+                if (!ok)
+                    return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                        new { error = "SaleAndReturnDAL.Add() returned false. " + auditMsg });
+
+                RecordIdempotencyKey(req.ClientTxnGuid, sale.SaleID, shopId);
+
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
+            }
+            catch (Exception ex)
+            {
+                // dal.Add() can throw a secondary error (e.g., BuildSQLLog truncation or loyalty
+                // reversal) even after tblSales/tblSalesLineItems already committed. If SaleID
+                // was assigned the return was saved — record the idempotency key and return success.
+                if (sale != null && sale.SaleID > 0)
+                {
+                    RecordIdempotencyKey(req.ClientTxnGuid, sale.SaleID, shopId);
+                    return Request.CreateResponse(HttpStatusCode.OK,
+                        ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
+                }
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message });
+            }
+        }
+
+        // Validates that no return line exceeds the returnable quantity for its product.
+        // returnable = original_qty - already_returned_qty.
+        // Returns an error message on the first violation, null if all items are valid.
+        private string ValidateReturnQuantities(int shopId, int invoiceNo, List<SaleLineItem> items)
+        {
+            // original sold quantities per product_item_id
+            var originalQty = new Dictionary<int, double>();
+            // already returned quantities per product_item_id (from prior returns of same invoice)
+            var returnedQty = new Dictionary<int, double>();
+
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+
+                // Original sale line quantities (positive, non-return lines)
+                var origCmd = new SqlCommand(
+                    "SELECT Product_Item_ID, SUM(ABS(qty)) AS qty " +
+                    "FROM tblSalesLineItems " +
+                    "WHERE sale_id = @invoiceNo AND shop_id = @shopId " +
+                    "  AND ISNULL(is_return_item, 0) = 0 " +
+                    "GROUP BY Product_Item_ID", con);
+                origCmd.Parameters.AddWithValue("@invoiceNo", invoiceNo);
+                origCmd.Parameters.AddWithValue("@shopId",    shopId);
+                using (var rdr = origCmd.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        int pid = Convert.ToInt32(rdr["Product_Item_ID"]);
+                        originalQty[pid] = Convert.ToDouble(rdr["qty"]);
+                    }
+                }
+
+                // Already-returned quantities across all prior returns of this invoice.
+                // Returns are tblSales rows with SaleReturningNo = invoiceNo;
+                // their line items have negative qty (or is_return_item=1).
+                var retCmd = new SqlCommand(
+                    "SELECT li.Product_Item_ID, SUM(ABS(li.qty)) AS qty " +
+                    "FROM tblSalesLineItems li " +
+                    "JOIN tblSales s ON s.sale_id = li.sale_id " +
+                    "WHERE s.SaleReturningNo = @invoiceNo AND li.shop_id = @shopId " +
+                    "  AND ISNULL(li.is_return_item, 0) = 1 " +
+                    "GROUP BY li.Product_Item_ID", con);
+                retCmd.Parameters.AddWithValue("@invoiceNo", invoiceNo);
+                retCmd.Parameters.AddWithValue("@shopId",    shopId);
+                using (var rdr = retCmd.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        int pid = Convert.ToInt32(rdr["Product_Item_ID"]);
+                        returnedQty[pid] = Convert.ToDouble(rdr["qty"]);
+                    }
+                }
+            }
+
+            foreach (var item in items)
+            {
+                double requestedQty = Math.Abs(item.Quantity);
+                if (requestedQty <= 0) continue;
+
+                double original  = originalQty.ContainsKey(item.ProductItemId)
+                    ? originalQty[item.ProductItemId] : 0;
+                double alreadyRet = returnedQty.ContainsKey(item.ProductItemId)
+                    ? returnedQty[item.ProductItemId] : 0;
+                double available = original - alreadyRet;
+
+                if (requestedQty > available)
+                    return $"Item {item.ProductItemId}: cannot return {requestedQty} unit(s). " +
+                           $"Original: {original}, already returned: {alreadyRet}, " +
+                           $"available to return: {available}.";
+            }
+
+            return null;
+        }
+
+        private SaleAndReturn BuildReturnModel(ReturnRequest req, int userId, int shopId, string posCode, string userName)
+        {
+            var sale = new SaleAndReturn();
+
+            sale.Shop.ShopID      = shopId;
+            sale.UserInfo.UserID  = userId;
+            sale.UserInfo.POSCode = posCode;
+            sale.SaleDateTime     = DateTime.Now;
+
+            // Returns use negative totals
+            var pt = (req.PaymentType ?? "").ToLower();
+            if      (pt == "card")   sale.TransactionType = EnumSaleTransactionType.CreditCard;
+            else if (pt == "credit") sale.TransactionType = EnumSaleTransactionType.Credit;
+            else if (pt == "split")  sale.TransactionType = EnumSaleTransactionType.Mixed;
+            else                     sale.TransactionType = EnumSaleTransactionType.Cash;
+
+            sale.GrossTotal        = req.GrossTotal;      // negative
+            sale.NetTotal          = req.NetTotal;         // negative
+            sale.CustomerDiscount  = req.CustomerDiscount;
+            sale.MarketingDiscount = req.MarketingDiscount;
+            sale.VATAmount         = req.VatAmount;
+            sale.AdjustmentAmount  = req.AdjustmentAmount;
+            sale.CashAmount        = req.CashAmount;
+            sale.CreditCardAmount  = req.CardAmount;
+            sale.CreditAmount      = (decimal)req.CreditAmount;
+            sale.BalanceAmount     = 0;
+            sale.Comments          = req.Comments ?? "";
+
+            // Link back to the original invoice
+            sale.SaleReturningNo   = req.ReturningInvoiceNo;
+
+            if (req.CustomerId > 0)
+                sale.Customer.MemberID = req.CustomerId;
+            sale.Customer.MemberName = "";
+
+            sale.CreditCard.CreditCardID = req.CreditCardId;
+            // Same logic as SalesController: IsMultiplePyaments gates _CashAmount derivation
+            // in the DAL (line 3776). True whenever more than one tender carries a non-zero amount.
+            int retTenderCount = (req.CashAmount   > 0 ? 1 : 0)
+                               + (req.CardAmount   > 0 ? 1 : 0)
+                               + (req.CreditAmount > 0 ? 1 : 0)
+                               + (req.CreditNoteGiftCardId > 0 ? 1 : 0);
+            sale.IsMultiplePyaments      = (req.PaymentType ?? "").ToLower() == "split" || retTenderCount > 1;
+            sale.HoldingSaleID           = 0;
+
+            sale.CustomerEmployee.EmployeeName     = "";
+            sale.CustomerEmployee.RegisterationNo  = "";
+            sale.CustomerEmployee.Department.ShopDepartmentID   = 0;
+            sale.CustomerEmployee.Department.ShopDepartmentName = "";
+
+            sale.ActivityLog.LogGroup    = "POS API";
+            sale.ActivityLog.ScreenTitle = "Return";
+            sale.ActivityLog.UserID      = userId;
+            sale.ActivityLog.ShopID      = shopId;
+
+            sale.MemberPoints = new MemberEarnedPoints();
+
+            sale.ListOfSaleItems = new List<SaleAndReturnItems>();
+            foreach (var item in req.Items)
+            {
+                // Quantities must be negative for returns
+                double qty = item.Quantity > 0 ? -item.Quantity : item.Quantity;
+
+                var line = new SaleAndReturnItems(0, item.ProductItemId, qty,
+                                                  item.UnitRate, item.TaggedPrice);
+                line.ProductBatchNo             = item.BatchNo ?? "";
+                line.VATValue                   = item.VatValue;
+                line.VatFactor                  = item.VatFactor;
+                line.VatType                    = item.VatType ?? "";
+                line.PriceIncludeVat            = item.PriceIncludeVat;
+                line.ProductUnitDiscount        = item.UnitDiscount;
+                line.ProductDiscountID          = item.DiscountId;
+                line.CustomerDiscountPerUnit     = item.CustomerDiscountPerUnit;
+                line.MarketingDiscountOnProduct  = item.MarketingDiscount;
+                line.LoyalityCashDiscount       = item.LoyaltyCashDiscount;
+                line.AdditionalTaxpercent       = item.AdditionalTaxPercent;
+                line.AdditionalTax              = item.AdditionalTax;
+                line.DiscCategory               = item.DiscCategory ?? "";
+                line.DiscountFromTagPrice       = item.DiscountFromTagPrice;
+                line.LoyalityEarnedPoints       = 0;
+                line.NestedItemId               = item.NestedItemId;
+                line.PackSize                   = item.PackSize;
+                // Con_Factor=0 means unit sale; keep 1.0 so DAL inventory math is correct
+                line.Con_Factor                 = item.ConFactor > 0 ? item.ConFactor : 1.0;
+                line.Con_Unit                   = "";
+                line.AvgCost                    = 0.0;
+                line.VatChargedPerUnit          = 0.0;
+                line.VatOnRetailPrice           = 0.0;
+                line.PriceForDiscount           = item.UnitRate;
+                line.PriceAfterDiscount         = item.NetAmount / (item.Quantity == 0 ? 1 : item.Quantity);
+                line.Employee.Shop.ShopID       = shopId;
+                sale.ListOfSaleItems.Add(line);
+            }
+
+            return sale;
+        }
+
+        // Builds the DataTable expected by SaleAndReturnDAL.Add() for credit-note returns.
+        // Matches the schema built in frmSaleAndReturn.vb:38811-38854.
+        private DataTable BuildCreditNoteTable(ReturnRequest req, int shopId, string posCode)
+        {
+            // Look up expiry days from the card type linked to this gift card.
+            // frmSaleAndReturn.vb:38809
+            int expDays = 0;
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(
+                    "SELECT isnull(ExpireAfterDays,0) FROM tbldefCardType " +
+                    "WHERE id = (SELECT card_type_id FROM tbldefCards WHERE id = @giftCardId)", con);
+                cmd.Parameters.AddWithValue("@giftCardId", req.CreditNoteGiftCardId);
+                var result = cmd.ExecuteScalar();
+                if (result != null && result != DBNull.Value)
+                    expDays = Convert.ToInt32(result);
+            }
+
+            var dt = new DataTable();
+            dt.Columns.Add("GiftCardId",  typeof(int));
+            dt.Columns.Add("GiftCardno",  typeof(int));
+            dt.Columns.Add("topup",       typeof(string));
+            dt.Columns.Add("cashAmt",     typeof(decimal));
+            dt.Columns.Add("cardAmtD",    typeof(decimal));
+            dt.Columns.Add("ShopIdD",     typeof(int));
+            dt.Columns.Add("posCodeD",    typeof(string));
+            dt.Columns.Add("expDays",     typeof(int));
+            dt.Columns.Add("MemberName",  typeof(string));
+            dt.Columns.Add("PhoneMobile", typeof(string));
+
+            // topup = absolute value of the negative net total (return amount loaded to card).
+            // frmSaleAndReturn.vb:38776: Math.Round(txtNetTotal * -1, gintAmountRound)
+            decimal topUpAmt = (decimal)Math.Abs(req.NetTotal);
+
+            // cashAmt/cardAmtD are the tender amounts paid by the customer at time of refund.
+            // For credit-note refunds these are typically 0 (value goes to card, not paid out).
+            dt.Rows.Add(
+                req.CreditNoteGiftCardId,
+                req.CreditNoteGiftCardNo,
+                topUpAmt.ToString(),
+                0m,
+                0m,
+                shopId,
+                posCode,
+                expDays,
+                req.CreditNoteMemberName ?? "",
+                req.CreditNotePhone      ?? ""
+            );
+            return dt;
+        }
+
+        private Dictionary<string, object> QuerySaleHeader(int shopId, int invoiceNo)
+        {
+            const string sql = @"
+SELECT
+    s.sale_id, s.shop_id, s.sale_date,
+    isnull(s.member_id, 0)    AS customer_id,
+    isnull(s.GT_amount, 0)    AS gross_total,
+    isnull(s.NT_amount, 0)    AS net_total,
+    isnull(s.Mark_discount,0) AS marketing_discount,
+    isnull(s.vat, 0)          AS vat_amount,
+    isnull(s.adjustment_amount, 0) AS adjustment_amount,
+    isnull(s.Adjustment_comments,'') AS comments,
+    isnull(s.invoice_type,'') AS invoice_type
+FROM tblSales s
+WHERE s.sale_id = @invoiceNo AND s.shop_id = @shopId";
+
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(sql, con);
+                cmd.Parameters.AddWithValue("@invoiceNo", invoiceNo);
+                cmd.Parameters.AddWithValue("@shopId",    shopId);
+
+                using (var dt = new DataTable())
+                {
+                    new SqlDataAdapter(cmd).Fill(dt);
+                    if (dt.Rows.Count == 0) return null;
+
+                    var d = new Dictionary<string, object>();
+                    foreach (DataColumn col in dt.Columns)
+                        d[col.ColumnName] = dt.Rows[0][col] == DBNull.Value ? null : dt.Rows[0][col];
+                    return d;
+                }
+            }
+        }
+
+        private List<Dictionary<string, object>> QuerySaleItems(int shopId, int invoiceNo)
+        {
+            const string sql = @"
+SELECT
+    li.sale_line_item_id,
+    li.Product_Item_ID          AS product_item_id,
+    pd.item_name,
+    li.qty                      AS quantity,
+    li.Unit_price,
+    isnull(li.product_discount_amount, 0) AS unit_discount,
+    isnull(li.mem_discount_amount, 0)     AS customer_discount_per_unit,
+    isnull(li.pro_vat, 0)        AS vat_value,
+    isnull(li.VatFactor, 0)      AS vat_factor,
+    isnull(li.Vat_Type, '')      AS vat_type,
+    isnull(li.PriceIncludeVat,0) AS price_include_vat,
+    isnull(li.additional_tax_percent,0) AS additional_tax_percent,
+    isnull(li.additional_tax, 0) AS additional_tax,
+    isnull(li.Taged_Price, 0)    AS tagged_price,
+    isnull(li.PriceAfterDiscount,0) AS price_after_discount,
+    isnull(li.DiscountCategory,'')  AS disc_category,
+    isnull(li.discount_ID, 0)       AS discount_id,
+    isnull(li.Loyality_CashDiscount,0) AS loyalty_cash_discount,
+    isnull(li.CustomerDiscount, 0)  AS customer_discount
+FROM tblSalesLineItems li
+JOIN tblProductItem pi   ON pi.Product_Item_ID = li.Product_Item_ID
+JOIN tblDefProducts pd   ON pd.product_id = pi.product_id
+WHERE li.sale_id = @invoiceNo
+  AND li.shop_id = @shopId
+  AND isnull(li.is_return_item, 0) = 0";
+
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(sql, con);
+                cmd.Parameters.AddWithValue("@invoiceNo", invoiceNo);
+                cmd.Parameters.AddWithValue("@shopId",    shopId);
+
+                var list = new List<Dictionary<string, object>>();
+                using (var dt = new DataTable())
+                {
+                    new SqlDataAdapter(cmd).Fill(dt);
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        var d = new Dictionary<string, object>();
+                        foreach (DataColumn col in dt.Columns)
+                            d[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+                        list.Add(d);
+                    }
+                }
+                return list;
+            }
+        }
+
+        private int GetExistingReturnId(string clientGuid, int shopId)
+        {
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(
+                    "SELECT TOP 1 sale_id FROM tblPOSIdempotency " +
+                    "WHERE client_txn_guid = @guid AND shop_id = @sid", con);
+                cmd.Parameters.AddWithValue("@guid", clientGuid);
+                cmd.Parameters.AddWithValue("@sid",  shopId);
+                var result = cmd.ExecuteScalar();
+                return result != null ? Convert.ToInt32(result) : 0;
+            }
+        }
+
+        private void RecordIdempotencyKey(string clientGuid, int saleId, int shopId)
+        {
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(
+                    "INSERT INTO tblPOSIdempotency (client_txn_guid, sale_id, shop_id, created_at) " +
+                    "VALUES (@guid, @sid_sale, @sid_shop, GETDATE())", con);
+                cmd.Parameters.AddWithValue("@guid",     clientGuid);
+                cmd.Parameters.AddWithValue("@sid_sale", saleId);
+                cmd.Parameters.AddWithValue("@sid_shop", shopId);
+                cmd.ExecuteNonQuery();
+            }
+        }
+    }
+}

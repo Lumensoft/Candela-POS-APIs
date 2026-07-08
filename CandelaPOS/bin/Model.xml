@@ -1,0 +1,43 @@
+﻿<?xml version="1.0"?>
+<doc>
+<assembly>
+<name>
+Model
+</name>
+</assembly>
+<members>
+<member name="T:Model.My.Resources.Resources">
+<summary>
+  A strongly-typed resource class, for looking up localized strings, etc.
+</summary>
+</member>
+<member name="P:Model.My.Resources.Resources.ResourceManager">
+<summary>
+  Returns the cached ResourceManager instance used by this class.
+</summary>
+</member>
+<member name="P:Model.My.Resources.Resources.Culture">
+<summary>
+  Overrides the current thread's CurrentUICulture property for all
+  resource lookups using this strongly typed resource class.
+</summary>
+</member>
+<member name="T:Model.DefProductInventoryLevelLog">
+ <summary>
+ this class is needed for saving the log activity on inventory screen
+ </summary>
+ <remarks>added by hafiz ahsan raza against 6306</remarks>
+</member>
+<member name="P:Model.BarcodePrintTemplate.MaxLength">
+------------END of CR # 3350 -----------------
+</member>
+<member name="F:Model.SaleAndReturnItems._CustomerDiscount">
+ <summary>
+ R@! CR 6406 added new property to add customer discount per unit based on pack qty
+ </summary>
+ <value></value>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+</members>
+</doc>

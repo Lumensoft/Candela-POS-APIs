@@ -1,0 +1,4997 @@
+﻿<?xml version="1.0"?>
+<doc>
+<assembly>
+<name>
+DAL
+</name>
+</assembly>
+<members>
+<member name="T:DAL.My.Resources.Resources">
+<summary>
+  A strongly-typed resource class, for looking up localized strings, etc.
+</summary>
+</member>
+<member name="P:DAL.My.Resources.Resources.ResourceManager">
+<summary>
+  Returns the cached ResourceManager instance used by this class.
+</summary>
+</member>
+<member name="P:DAL.My.Resources.Resources.Culture">
+<summary>
+  Overrides the current thread's CurrentUICulture property for all
+  resource lookups using this strongly typed resource class.
+</summary>
+</member>
+<member name="M:DAL.CommonDAL.ReturnExist(System.Int32,System.Int32,System.Int32)">
+ <summary>
+ CR # 4672 parameter name changeed from batchno to invoiceid and new param shopid added
+ </summary>
+ <param name="Supplier_ID"></param>
+ <param name="InvoiceID"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CommonDAL.GetInvoiceID(System.Double,System.Data.SqlClient.SqlTransaction)">
+ <summary>
+ CR # 6705 Add Transaction
+ </summary>
+ <param name="ShopID"></param>
+ <param name="trans"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CommonDAL.GetNextAssemblyInvoiceNo(System.Int32,System.Data.SqlClient.SqlTransaction)">
+ <summary>
+ CR # 6705 Transaction added
+ </summary>
+ <param name="intShopID"></param>
+ <param name="trans"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ReportAlertsDal.IsValidateForSave(Model.ReportAlerts)">
+ <summary>
+ 
+ </summary>
+ <param name="objReportAlerts"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ReportAlertsDal.IsValidateForDelete(Model.ReportAlerts)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objReportAlerts"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ReportAlertsDal.Add(Model.ReportAlerts)">
+ <summary>
+ 
+ </summary>
+ <param name="objReportAlerts"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ReportAlertsDal.Update(Model.ReportAlerts)">
+ <summary>
+ 
+ </summary>
+ <param name="objReportAlerts"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ReportAlertsDal.Deleted(Model.ReportAlerts)">
+ <summary>
+ 
+ </summary>
+ <param name="objReportAlerts"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ReportAlertsDal.DeleteAlertMessages(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+ 
+</member>
+<member name="M:DAL.ReportAlertsDal.GetConfigValue(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+ 
+</member>
+<member name="M:DAL.ReportAlertsDal.IsReportsGenerated">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+ 
+</member>
+<member name="M:DAL.ReportAlertsDal.IsTimeToGenerateReports">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+ 
+</member>
+<member name="M:DAL.AdjustmentReasonDAL.IsValidateForSave(Model.SaleAdjustmentReason)">
+ <summary>
+ 
+ </summary>
+ <param name="objSaleReason"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AdjustmentReasonDAL.Add(Model.SaleAdjustmentReason)">
+ <summary>
+ 
+ </summary>
+ <param name="objSaleReason"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AdjustmentReasonDAL.Update(Model.SaleAdjustmentReason)">
+ <summary>
+ 
+ </summary>
+ <param name="objSaleReason"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AdjustmentReasonDAL.Deleted(Model.SaleAdjustmentReason)">
+ <summary>
+ 
+ </summary>
+ <param name="objSaleReason"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AdjustmentReasonDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.BookOrderDAL.Add(Model.BookOrder)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.BookOrderDAL.Deleted(Model.Patient)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.BookOrderDAL.GetCustomer(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.BuyingPurposeDal.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AdditionalAttributesDAL.Update(Model.AdditionalAttributes)">
+ <summary>
+ 
+ </summary>
+ <param name="objAdditionalAttributes"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AdditionalAttributesDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CurrencyRateDAL.Update(Model.CurrencyRates)">
+ <summary>
+ 
+ </summary>
+ <param name="objCurrencyRates"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CurrencyRateDAL.Deleted(Model.CurrencyRates)">
+ <summary>
+ 
+ </summary>
+ <param name="objCurrencyRates"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CurrencyRateDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CurrencyRateDAL.ShowRateHistory(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CustomerbasedPriceDAL.AlreadyExist(System.Int32,System.Int32)">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.CustomerbasedPriceDAL.Add(System.Collections.Generic.List{Model.CustomerBasedProductPrice},System.String,System.String)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DashboardConfigurationDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DefShopDepartmentsDAL.IsValidateForDelete(Model.DefShopDepartments)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objShopDept"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DefShopDepartmentsDAL.Add(Model.DefShopDepartments)">
+ <summary>
+ 
+ </summary>
+ <param name="objShopDept"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DefShopDepartmentsDAL.Update(Model.DefShopDepartments)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DefShopDepartmentsDAL.Deleted(Model.DefShopDepartments)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DefShopDepartmentsDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DeliveryManDAL.Add(Model.DeliveryMan)">
+ <summary>
+ 
+ </summary>
+ <param name=""></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DeliveryManDAL.Update(Model.DeliveryMan)">
+ <summary>
+ 
+ </summary>
+ <param name=""></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DeliveryManDAL.Deleted(Model.DeliveryMan)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DeliveryManDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DiscountDAL.ValidateDuplicateProducts(Model.Discount,System.Int64)">
+ <summary>
+ this function is written against the CR # 4995 
+ purpose of this function is to validate the duplicate products and return the list of products if found any.
+ </summary>
+ <param name="objdiscount"></param>
+ <param name="lngDiscountID"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DoctorsDAL.Add(Model.Doctors)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DoctorsDAL.Update(Model.Doctors)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DoctorsDAL.Deleted(Model.Doctors)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DoctorsDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SalespersonCommissionSlabDal.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.OrderTypeDal.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PatientDAL.Add(Model.Patient)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PatientDAL.Update(Model.Patient)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PatientDAL.Deleted(Model.Patient)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PatientDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.MultiCurrencyDAL.Update(Model.MultiCurrency)">
+ <summary>
+ 
+ </summary>
+ <param name="objMultyCurrency"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.MultiCurrencyDAL.Deleted(Model.MultiCurrency)">
+ <summary>
+ 
+ </summary>
+ <param name="objMultyCurrency"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.MultiCurrencyDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductItemDAL.IsAssemblyProduct(System.Int64)">
+ <summary>
+ 'CR # 7376 this functino is written to check the product is assembly or not against given Product Item ID
+ </summary>
+ <param name="SKUID"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductItemDAL.GetChildProductStock(System.Int64,System.Double,System.Int32)">
+ <summary>
+ CR # 7604 This function is written to get current Stock and forumla of the child products against the given master product
+ CR # 7727 Added ShopId parameter
+ </summary>
+ <param name="SKUId"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleReasonDAL.IsValidateForSave(Model.SaleReason)">
+ <summary>
+ 
+ </summary>
+ <param name="objSaleReason"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleReasonDAL.IsValidateForDelete(Model.SaleReason)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objSaleReason"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleReasonDAL.Add(Model.SaleReason)">
+ <summary>
+ 
+ </summary>
+ <param name="objSaleReason"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleReasonDAL.Update(Model.SaleReason)">
+ <summary>
+ 
+ </summary>
+ <param name="objSaleReason"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleReasonDAL.Deleted(Model.SaleReason)">
+ <summary>
+ 
+ </summary>
+ <param name="objSaleReason"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleReasonDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAreaDAL.IsValidateForSave(Model.ShopArea)">
+ <summary>
+ Validate Record before Saving
+ </summary>
+ <param name="objShopArea">Object containing Record</param>
+ <returns>True: if validation passed and vice versa.</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAreaDAL.IsValidateForDelete(Model.ShopArea)">
+ <summary>
+ Validate Record before Deleting
+ </summary>
+ <param name="objShopArea">Object containing Record</param>
+ <returns>True: if validation passed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAreaDAL.Add(Model.ShopArea)">
+ <summary>
+ Add Record in Database
+ </summary>
+ <param name="objShopArea">Object containing Record</param>
+ <returns>True: if Record is successfully added and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAreaDAL.GetAll(System.String,Model.ShopArea)">
+ <summary>
+ Get all Records from Database
+ </summary>
+ <param name="strCondition">Condition in order to Filter Records</param>
+ <returns>Data Table containing all Records</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAreaDAL.Update(Model.ShopArea)">
+ <summary>
+ Update Record in Database
+ </summary>
+ <param name="objShopArea">Object containing New Record</param>
+ <returns>True: if Updation is successfully processed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAreaDAL.Deleted(Model.ShopArea)">
+ <summary>
+ Delete Record from Database
+ </summary>
+ <param name="objShopArea">Object containing Record to Delete</param>
+ <returns>True: if Deletion is successfully processed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopbasedPriceDAL.AlreadyExist(System.Int32,System.Int32)">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.ShopbasedPriceDAL.Add(System.Collections.Generic.List{Model.ShopBasedProductPrice},System.String,System.String)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopDiscountSharingDAL.IsValidateForUpdate(Model.ShopCreditCards)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopDiscountSharingDAL.GetCommissionShare(System.Int32,System.Int32,System.Int32,System.DateTime,System.Data.SqlClient.SqlTransaction)">
+ <summary>
+ CR # 6475 this function will retrun Shop Share against Product Item ID, Share Type (General Sales Sahre OR Discounted Sale Share) and Shop ID for the given date
+ </summary>
+ <param name="iProductItemID"></param>
+ <param name="iShopID"></param>
+ <param name="iShareType"></param>
+ <param name="dtDate"></param>
+ <returns></returns>
+ <remarks> iShareType =1 (Regular Sales) 
+ iShareType =3 (Discount Sales (Products)) </remarks>
+</member>
+<member name="M:DAL.ShopLineItemsDAL.IsValidateForUpdate(Model.ShopAccounts)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SMSLogDAL.ReadCurrentBalanceOfBizSMS(System.String,System.String)">
+ This Function is used to get balance information from new SMS service API.
+</member>
+<member name="M:DAL.SMSLogDAL.PackageExpiryOfBizSMS(System.String,System.String)">
+ <summary>
+ This Function is used to get package expiry date from new SMS service API.
+ </summary>
+ <param name="UserName"></param>
+ <param name="Password"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.TemplateDAL.IsValidateForSave(Model.Template)">
+ <summary>
+ 
+ </summary>
+ <param name="objTemplate"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.TemplateDAL.IsValidateForDelete(Model.Template)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objTemplate"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.TemplateDAL.Add(Model.Template)">
+ <summary>
+ 
+ </summary>
+ <param name="objTemplate"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.TemplateDAL.Update(Model.Template)">
+ <summary>
+ 
+ </summary>
+ <param name="objTemplate"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.TemplateDAL.Deleted(Model.Template)">
+ <summary>
+ 
+ </summary>
+ <param name="objTemplate"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.TemplateDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangePorductNoDal.IsValidateForSave(Model.ChangeProductNo)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangePorductNoDal.IsValidateForDelete(Model.ChangeProductNo)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangePorductNoDal.Add(Model.ChangeProductNo)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangePorductNoDal.Update(Model.ChangeProductNo)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangePorductNoDal.Deleted(Model.ChangeProductNo)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangePorductNoDal.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AccountHeadDAL.IsValidateForSave(Model.AccountHead)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AccountHeadDAL.IsValidateForDelete(Model.AccountHead)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AccountHeadDAL.Add(Model.AccountHead)">
+ <summary>
+ 
+ </summary>
+ <param name="objAccountHead"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AccountHeadDAL.Update(Model.AccountHead)">
+ <summary>
+ 
+ </summary>
+ <param name="objAccountHead"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AccountHeadDAL.Deleted(Model.AccountHead)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AccountHeadDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AcquireTypeDAL.IsValidateForSave(Model.AquireType)">
+ <summary>
+ Validate Record before Saving
+ </summary>
+ <param name="objAquireType">Object containing Record</param>
+ <returns>True: if validation passed and vice versa.</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AcquireTypeDAL.IsValidateForDelete(Model.AquireType)">
+ <summary>
+ Validate Record before Deleting
+ </summary>
+ <param name="objAquireType">Object containing Record</param>
+ <returns>True: if validation passed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AcquireTypeDAL.Add(Model.AquireType)">
+ <summary>
+ Add Record in Database
+ </summary>
+ <param name="objAquireType">Object containing Record</param>
+ <returns>True: if Record is successfully added and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AcquireTypeDAL.GetAll(System.String)">
+ <summary>
+ Get all Records from Database
+ </summary>
+ <param name="strCondition">Condition in order to Filter Records</param>
+ <returns>Data Table containing all Records</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AcquireTypeDAL.Update(Model.AquireType)">
+ <summary>
+ Update Record in Database
+ </summary>
+ <param name="objAquireType">Object containing New Record</param>
+ <returns>True: if Updation is successfully processed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AcquireTypeDAL.Deleted(Model.AquireType)">
+ <summary>
+ Delete Record from Database
+ </summary>
+ <param name="objAquireType">Object containing Record to Delete</param>
+ <returns>True: if Deletion is successfully processed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AreaDAL.IsValidateForSave(Model.Area)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AreaDAL.IsValidateForDelete(Model.Area)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AreaDAL.Add(Model.Area)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AreaDAL.Update(Model.Area)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AreaDAL.Deleted(Model.Area)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.AreaDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CalSeasonDAL.Deleted(Model.CalSeason)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CalSeasonDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CategoryDAL.IsValidateForSave(Model.Category)">
+ <summary>
+ 
+ </summary>
+ <param name="objCategory"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CategoryDAL.IsValidateForDelete(Model.Category)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objCategory"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CategoryDAL.Add(Model.Category)">
+ <summary>
+ 
+ </summary>
+ <param name="objCategory"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CategoryDAL.Update(Model.Category)">
+ <summary>
+ 
+ </summary>
+ <param name="objCategory"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CategoryDAL.Deleted(Model.Category)">
+ <summary>
+ 
+ </summary>
+ <param name="objCategory"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CategoryDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+ CR# 2639 Product Screen: All configuration popup should be ordered by sort order then name
+</member>
+<member name="M:DAL.CityDAL.IsValidateForSave(Model.City)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CityDAL.IsValidateForDelete(Model.City)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CityDAL.Add(Model.City)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CityDAL.Update(Model.City)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CityDAL.Deleted(Model.City)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CityDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CombinationDAL.IsValidateForSave(Model.Combinations)">
+ <summary>
+ 
+ </summary>
+ <param name="objCombinations"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CombinationDAL.IsValidateForUpdate(Model.Combinations)">
+ <summary>
+ 
+ </summary>
+ <param name="objCombinations"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CombinationDAL.IsValidateForDelete(Model.Combinations)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objCombinations"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CombinationDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CombinationDAL.Deleted(Model.Combinations)">
+ <summary>
+ 
+ </summary>
+ <param name="objCombinations"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CreditCardDAL.IsValidateForSave(Model.CreditCard)">
+ <summary>
+ 
+ </summary>
+ <param name="objCreditCard"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CreditCardDAL.IsValidateForDelete(Model.CreditCard)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objCreditCard"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CreditCardDAL.Add(Model.CreditCard)">
+ <summary>
+ 
+ </summary>
+ <param name="objCreditCard"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CreditCardDAL.Update(Model.CreditCard)">
+ <summary>
+ 
+ </summary>
+ <param name="objCreditCard"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CreditCardDAL.Deleted(Model.CreditCard)">
+ <summary>
+ 
+ </summary>
+ <param name="objCreditCard"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CreditCardDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CreditCardDAL.GetCreditCards(System.String,System.Int32,System.Int32,System.Int32)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+ CR # 6786
+</member>
+<member name="M:DAL.CustomerDAL.PopulateCustomerList(System.Int32,System.Int32)">
+ <summary>
+ Returns a signle customer with all the columns available in Customer Collection and query to database. This function written in case of CR # 7908 in which we have excluded customer collection not be 
+ filled at the time of login
+ </summary>
+ <param name="CustomerID"></param>
+ <param name="CustomerShopID"></param>
+ <returns> Datatable </returns>
+ <remarks> CR # 7908 </remarks>
+</member>
+<member name="M:DAL.CustomerGroupDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CustomerTypeDAL.IsValidateForSave(Model.CustomerType)">
+ <summary>
+ 
+ </summary>
+ <param name="objCustomerType"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CustomerTypeDAL.IsValidateForDelete(Model.CustomerType)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objCustomerType"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CustomerTypeDAL.Add(Model.CustomerType,System.Data.DataTable)">
+ <summary>
+ 
+ </summary>
+ <param name="objCustomerType"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CustomerTypeDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.GLAccountDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.InventoryLevelTemplateDAL.IsValidateForSave(System.Collections.Generic.List{Model.InventoryLevelTemplate})">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.InventoryLevelTemplateDAL.IsValidateForDelete(System.Collections.Generic.List{Model.InventoryLevelTemplate})">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.InventoryLevelTemplateDAL.Add(System.Collections.Generic.List{Model.InventoryLevelTemplate})">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.InventoryLevelTemplateDAL.Update(System.Collections.Generic.List{Model.InventoryLevelTemplate},System.String)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.InventoryLevelTemplateDAL.Deleted(Model.InventoryLevelTemplate)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.InventoryLevelTemplateDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.LineItemDAL.IsValidateForSave(Model.LineItem)">
+ <summary>
+ 
+ </summary>
+ <param name="objLineItem"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.LineItemDAL.IsValidateForDelete(Model.LineItem)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objLineItem"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.LineItemDAL.Deleted(Model.LineItem)">
+ <summary>
+ 
+ </summary>
+ <param name="objLineItem"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.LineItemDAL.GetPOSBaseLineItemIDs">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+ 
+</member>
+<member name="M:DAL.ManufacturerDAL.IsValidateForSave(Model.ManufacturedBy)">
+ <summary>
+ Validate Record before Saving
+ </summary>
+ <param name="objManufacturedBy">Object containing Record</param>
+ <returns>True: if validation passed and vice versa.</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ManufacturerDAL.IsValidateForDelete(Model.ManufacturedBy)">
+ <summary>
+ Validate Record before Deleting
+ </summary>
+ <param name="objManufacturedBy">Object containing Record</param>
+ <returns>True: if validation passed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ManufacturerDAL.Add(Model.ManufacturedBy)">
+ <summary>
+ Add Record in Database
+ </summary>
+ <param name="objManufacturedBy">Object containing Record</param>
+ <returns>True: if Record is successfully added and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ManufacturerDAL.GetAll(System.String)">
+ <summary>
+ Get all Records from Database
+ </summary>
+ <param name="strCondition">Condition in order to Filter Records</param>
+ <returns>Data Table containing all Records</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ManufacturerDAL.Update(Model.ManufacturedBy)">
+ <summary>
+ Update Record in Database
+ </summary>
+ <param name="objManufacturedBy">Object containing New Record</param>
+ <returns>True: if Updation is successfully processed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ManufacturerDAL.Deleted(Model.ManufacturedBy)">
+ <summary>
+ Delete Record from Database
+ </summary>
+ <param name="objManufacturedBy">Object containing Record to Delete</param>
+ <returns>True: if Deletion is successfully processed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PaymentTypeDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductGroupDAL.IsValidateForSave(Model.ProductGroup)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductGroup"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductGroupDAL.IsValidateForDelete(Model.ProductGroup)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objProductGroup"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductGroupDAL.Add(Model.ProductGroup)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductGroup"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductGroupDAL.Update(Model.ProductGroup)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductGroup"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductGroupDAL.Deleted(Model.ProductGroup)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductGroup"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductGroupDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable1DAL.IsValidateForSave(Model.ProductVariable1)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVariable1"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable1DAL.IsValidateForDelete(Model.ProductVariable1)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable1DAL.Add(Model.ProductVariable1)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVariable1"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable1DAL.Update(Model.ProductVariable1)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVariable1"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable1DAL.Deleted(Model.ProductVariable1)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVariable1"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable1DAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable2DAL.IsValidateForSave(Model.ProductVariable2)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVariable2"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable2DAL.IsValidateForDelete(Model.ProductVariable2)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable2DAL.Add(Model.ProductVariable2)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVariable2"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable2DAL.Update(Model.ProductVariable2)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVariable2"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable2DAL.Deleted(Model.ProductVariable2)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVariable2"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable2DAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable3DAL.IsValidateForSave(Model.ProductVariable3)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVar3"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable3DAL.IsValidateForDelete(Model.ProductVariable3)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objProductVar3"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable3DAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable3DAL.Add(Model.ProductVariable3)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVar3"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable3DAL.Update(Model.ProductVariable3)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVar3"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable3DAL.Deleted(Model.ProductVariable3)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductVar3"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable4DAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductVariable5DAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PurchaseTypeDAL.IsValidateForSave(Model.PurchaseType)">
+ <summary>
+ Validate Record before Saving
+ </summary>
+ <param name="objPurchaseType">Object containing Record</param>
+ <returns>True: if validation passed and vice versa.</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PurchaseTypeDAL.IsValidateForDelete(Model.PurchaseType)">
+ <summary>
+ Validate Record before Deleting
+ </summary>
+ <param name="objPurchaseType">Object containing Record</param>
+ <returns>True: if validation passed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PurchaseTypeDAL.Add(Model.PurchaseType)">
+ <summary>
+ Add Record in Database
+ </summary>
+ <param name="objPurchaseType">Object containing Record</param>
+ <returns>True: if Record is successfully added and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PurchaseTypeDAL.GetAll(System.String)">
+ <summary>
+ Get all Records from Database
+ </summary>
+ <param name="strCondition">Condition in order to Filter Records</param>
+ <returns>Data Table containing all Records</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PurchaseTypeDAL.Update(Model.PurchaseType)">
+ <summary>
+ Update Record in Database
+ </summary>
+ <param name="objPurchaseType">Object containing New Record</param>
+ <returns>True: if Updation is successfully processed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PurchaseTypeDAL.Deleted(Model.PurchaseType)">
+ <summary>
+ Delete Record from Database
+ </summary>
+ <param name="objPurchaseType">Object containing Record to Delete</param>
+ <returns>True: if Deletion is successfully processed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAccountsDAL.IsValidateForUpdate(Model.ShopAccounts)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopCreditCardDAL.IsValidateForUpdate(Model.ShopCreditCards)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopDAL.IsFranchise(System.Int32)">
+ <summary>
+ CR # 6475 this function will tell us weather the shop is franchised of company owned
+ </summary>
+ <param name="iShopID"></param>
+ <param name="trans"></param>
+ <returns>Boolean</returns>
+ <remarks> 1 = Franchised and 2 = Company Owned  </remarks>
+</member>
+<member name="M:DAL.ShopEmployeeDAL.IsValidateForSave(Model.ShopEmployee)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopEmployeeDAL.IsValidateForDelete(Model.ShopEmployee)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopEmployeeDAL.Add(Model.ShopEmployee)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopEmployeeDAL.Update(Model.ShopEmployee)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopEmployeeDAL.Deleted(Model.ShopEmployee)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopEmployeeDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopEmployeeTypeDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopGroupDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopPriorityDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopTypeDAL.IsValidateForSave(Model.ShopType)">
+ <summary>
+ Validate Record before Saving
+ </summary>
+ <param name="objShopType">Object containing Record</param>
+ <returns>True: if validation passed and vice versa.</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopTypeDAL.IsValidateForDelete(Model.ShopType)">
+ <summary>
+ Validate Record before Deleting
+ </summary>
+ <param name="objShopType">Object containing Record</param>
+ <returns>True: if validation passed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopTypeDAL.Add(Model.ShopType)">
+ <summary>
+ Add Record in Database
+ </summary>
+ <param name="objShopType">Object containing Record</param>
+ <returns>True: if Record is successfully added and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopTypeDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopTypeDAL.Update(Model.ShopType)">
+ <summary>
+ Update Record in Database
+ </summary>
+ <param name="objShopType">Object containing New Record</param>
+ <returns>True: if Updation is successfully processed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopTypeDAL.Deleted(Model.ShopType)">
+ <summary>
+ Delete Record from Database
+ </summary>
+ <param name="objShopType">Object containing Record to Delete</param>
+ <returns>True: if Deletion is successfully processed and vice versa</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SizeDAL.IsValidateForSave(Model.Size)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SizeDAL.IsValidateForDelete(Model.Size)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SizeDAL.Deleted(Model.Size)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SizeDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SubCategoryDAL.IsValidateForSave(Model.SubCategory)">
+ <summary>
+ 
+ </summary>
+ <param name="objSubCategory"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SubCategoryDAL.IsValidateForDelete(Model.SubCategory)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objSubCategory"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SubCategoryDAL.Add(Model.SubCategory)">
+ <summary>
+ 
+ </summary>
+ <param name="objSubCategory"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SubCategoryDAL.Update(Model.SubCategory)">
+ <summary>
+ 
+ </summary>
+ <param name="objSubCategory"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SubCategoryDAL.Deleted(Model.SubCategory)">
+ <summary>
+ 
+ </summary>
+ <param name="objSubCategory"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SubCategoryDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SystemConfigurationDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SystemConfigurationDAL.GetByKey(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.UnitDAL.IsValidateForSave(Model.Unit)">
+ <summary>
+ 
+ </summary>
+ <param name="objUnit"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.UnitDAL.IsValidateForDelete(Model.Unit)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objUnit"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.UnitDAL.Add(Model.Unit)">
+ <summary>
+ 
+ </summary>
+ <param name="objUnit"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.UnitDAL.Update(Model.Unit)">
+ <summary>
+ 
+ </summary>
+ <param name="objUnit"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.UnitDAL.Deleted(Model.Unit)">
+ <summary>
+ 
+ </summary>
+ <param name="objUnit"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.UnitDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangeProductCostPriceDAL.IsValidateForSave(Model.Area)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangeProductCostPriceDAL.IsValidateForDelete(Model.Area)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangeProductCostPriceDAL.Add(Model.Area)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangeProductCostPriceDAL.Update(System.Collections.Generic.List{Model.ProductItem})">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangeProductCostPriceDAL.Deleted(Model.Area)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ChangeProductCostPriceDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.MembershipPolicyDal.GetGroupPolicyDetail(System.Int32)">
+ <summary>
+ CR # 5505
+ </summary>
+ <param name="GroupPolicyID"></param>
+ <returns></returns>
+ <remarks></remarks>
+ 
+</member>
+<member name="M:DAL.ProductBarcodesDAL.GenerateReportNestedBarcode(System.String,System.Int32)">
+ <summary>
+ CR # 8000
+ will return nested products against provided product_item_id
+ </summary>
+ <param name="ProductItemId"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SetItemAverageCostPriceDal.IsValidateForSave(Model.AverageCostPriceList)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetItemAverageCostPrice"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SetItemAverageCostPriceDal.IsValidateForDelete(Model.AverageCostPriceList)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objSetItemAverageCostPrice"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SetItemAverageCostPriceDal.Add(Model.AverageCostPriceList)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetItemAverageCostPrice"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SetItemAverageCostPriceDal.Update(Model.AverageCostPriceList)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetItemAverageCostPrice"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SetItemAverageCostPriceDal.Deleted(Model.AverageCostPriceList)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetItemAverageCostPrice"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SetItemAverageCostPriceDal.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.IntegrationDAL.FunGlVoucherForNonCustomerSales(System.Data.SqlClient.SqlTransaction)">
+ <summary>
+ Method will be used add voucher for all non customer sales
+ </summary>
+ <param name="trans"></param>
+ <returns></returns>
+ <remarks>15-Jan-2012        R@!                      CR# 3798     GL Integration: Change require to add VAT impact in vouchers</remarks>
+</member>
+<member name="M:DAL.IntegrationDAL.FunGlVoucherForCustomerSales(System.Data.SqlClient.SqlTransaction)">
+ <summary>
+ Method will be used add voucher for all customer based sales
+ </summary>
+ <param name="trans"></param>
+ <returns></returns>
+ <remarks>15-Jan-2012        R@!                      CR# 3798     GL Integration: Change require to add VAT impact in vouchers</remarks>
+</member>
+<member name="M:DAL.BlockProductsDAL.IsValidateForSave(Model.SetProductStatus)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetProductStatus"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.BlockProductsDAL.IsValidateForDelete(Model.ChangeProductNo)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.BlockProductsDAL.Add(Model.BlockProducts)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.BlockProductsDAL.Update(Model.SetProductStatus)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetProductStatus"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.BlockProductsDAL.Deleted(Model.ChangeProductNo)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.BlockProductsDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductAssemblyCreationDismantlingDAL.LoadAssembly(System.String,System.Data.SqlClient.SqlTransaction,System.Int32,System.Int32)">
+ <summary>
+ Added this function to load assembly products from new table.
+ </summary>
+ <param name="strProductItemIDs"></param>
+ <param name="trans"></param>
+ <param name="SaleID"></param>
+ <param name="ShopID"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductInventoryLevelAndBlockDAL.IsValidateForSave(Model.ProductInventoryLevelAndBlock)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductInventoryLevelAndBlock"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductInventoryLevelAndBlockDAL.IsValidateForDelete(Model.ProductInventoryLevelAndBlock)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objProductInventoryLevelAndBlock"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductInventoryLevelAndBlockDAL.MakeSpreadSheet(System.Data.DataTable,System.Int32)">
+ <summary>
+ 
+ </summary>
+ <param name="objDt"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductInventoryLevelAndBlockDAL.Add(System.Collections.Generic.List{Model.ProductInventoryLevelAndBlock})">
+ <summary>
+ 
+ </summary>
+ <param name="objProductInventoryLevelAndBlock"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductInventoryLevelAndBlockDAL.Update(System.Collections.Generic.List{Model.ProductInventoryLevelAndBlock})">
+ <summary>
+ 
+ </summary>
+ <param name="objLists"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductInventoryLevelAndBlockDAL.Deleted(Model.ProductInventoryLevelAndBlock)">
+ <summary>
+ 
+ </summary>
+ <param name="objProductInventoryLevelAndBlock"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductInventoryLevelAndBlockDAL.GetRecords(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ProductInventoryLevelAndBlockDAL.AddProdInvLevelLog(Model.DefProductInventoryLevelLog)">
+ <summary>
+ method to save the log of inventory screen
+ </summary>
+ <param name="ObjModelLog"> takes model object of class DefProductInventoryLevelLog</param>
+ <returns>boolean true on success, exception or false on failure</returns>
+ <remarks>added against 6306 by hafiz ahsan</remarks>
+</member>
+<member name="M:DAL.SetProductStatusDal.IsValidateForSave(Model.SetProductStatus)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetProductStatus"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SetProductStatusDal.IsValidateForDelete(Model.ChangeProductNo)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SetProductStatusDal.Add(Model.ChangeProductNo)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SetProductStatusDal.Update(Model.SetProductStatus)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetProductStatus"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SetProductStatusDal.Deleted(Model.ChangeProductNo)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopPriorityTemplateDAL.IsValidateForSave(Model.Area)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopPriorityTemplateDAL.IsValidateForDelete(Model.Area)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopPriorityTemplateDAL.Add(System.Collections.Generic.List{Model.ShopPriorityTemplate},System.String)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopPriorityTemplateDAL.Update(System.Collections.Generic.List{Model.ShopPriorityTemplate})">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopPriorityTemplateDAL.Deleted(Model.ShopPriorityTemplate)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopPriorityTemplateDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.strBeforeGeneration.Update(Model.SetProductStatus)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetProductStatus"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.strBeforeGeneration.Deleted(Model.ChangeProductNo)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.strBeforeGeneration.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STRMasterViewDAL.Add(Model.strBeforeGeneration)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STRMasterViewDAL.Update(Model.SetProductStatus)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetProductStatus"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STRMasterViewDAL.Deleted(Model.ChangeProductNo)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STRMasterViewDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STROneToManyDAL.Add(Model.STROneToOne)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STROneToManyDAL.Update(Model.SetProductStatus)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetProductStatus"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STROneToManyDAL.Deleted(Model.ChangeProductNo)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STROneToManyDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STROneToOneDAL.IsValidateForSave(Model.SetProductStatus)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetProductStatus"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STROneToOneDAL.IsValidateForDelete(Model.ChangeProductNo)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STROneToOneDAL.Add(Model.STROneToOne)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STROneToOneDAL.Update(Model.SetProductStatus)">
+ <summary>
+ 
+ </summary>
+ <param name="objSetProductStatus"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STROneToOneDAL.Deleted(Model.ChangeProductNo)">
+ <summary>
+ 
+ </summary>
+ <param name="objChangeProductNo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.STROneToOneDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.MaterialIssuanceDAL.GetAvailStock(System.Int32,System.Int32)">
+ <summary>
+ CR # 8638
+ </summary>
+ <param name="ProductItemId"></param>
+ <param name="ShopId"></param>
+ <returns></returns>
+ <remarks>Will return available stock</remarks>
+</member>
+<member name="M:DAL.KittingDAL.FillGRN(System.Data.DataTable,System.Data.DataTable,System.String,System.Data.SqlClient.SqlTransaction,System.Int64,System.Int32,System.String,System.String,System.Boolean)">
+ <summary>
+ CR # 6705 this function will be used to fill GRN model and will be calling from ProcessKitting method of this class
+ </summary>
+ <param name="objSales"></param>
+ <param name="ReturningProductsDataTable"></param>
+ <param name="SellingProductsDataTable"></param>
+ <param name="strSKUIDs"></param>
+ <param name="trans"></param>
+ <returns></returns>
+ <remarks></remarks>
+ CR # 7430 Added isRecursive Parameter.
+</member>
+<member name="M:DAL.DALReports.GetDataTableWithExternalConnection(System.String,System.Data.SqlClient.SqlConnection,System.Data.CommandType)">
+ <summary>
+ CR # 7133 
+ We need to have an overloaded method to pass connection .
+ Currently we are adding this function to use for offlineTills but later on this function can be used for multiple purposes
+ </summary>
+ <param name="strSql"></param>
+ <param name="ConSTR"></param>
+ <param name="cmdtype"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.NonPaymentTillDAL.IsValidateForSave(Model.SaleAndReturn,System.Boolean,System.Boolean)">
+ <summary>
+ CR # 6980 need to add back date/time validation
+ </summary>
+ <param name="ObjSaleAndReturn"></param>
+ <returns></returns>
+ <remarks></remarks>
+ ''issue 829 add new parameter for back date sale excluding time
+</member>
+<member name="M:DAL.NonPaymentTillDAL.AddToNPTill(Model.SaleAndReturn,Utility.Utility.EnumActions,System.String@)">
+ <summary>
+ CR # 6980 This function will be calling from Sales
+ </summary>
+ <param name="objSaleAndReturn"></param>
+ <param name="MyAction"></param>
+ <param name="strMsgIfPhyAuditExists"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.NonPaymentTillDAL.SearchNPInvoices(System.Int32,System.String,System.String,System.DateTime,System.DateTime,System.Boolean)">
+ <summary>
+ CR   6980
+ this function will be calling from Sales to bind search grid
+ </summary>
+ <param name="ShopID"></param>
+ <param name="POSCode"></param>
+ <param name="SaleID"></param>
+ <param name="FromDate"></param>
+ <param name="ToDate"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.NonPaymentTillDAL.GetNPTillItems(System.Int32,System.Int32,System.Boolean,System.Boolean)">
+ <summary>
+ CR # 6980 this function will be calling from Sales to Get NPTill Items to load in edit mode
+ </summary>
+ <param name="intShopID"></param>
+ <param name="intSaleID"></param>
+ <param name="PriceIncludeVat"></param>
+ <param name="TagedPrice"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.NonPaymentTillDAL.GetNPTillItemsForScan(System.Int32,System.Int32,System.Boolean,System.Boolean,System.String)">
+ <summary>
+ CR # 6980
+ this function added to get NP Till Details Item while scanning bills on Payment Till
+ </summary>
+ <param name="intShopID"></param>
+ <param name="intSaleID"></param>
+ <param name="PriceIncludeVat"></param>
+ <param name="PosConnectionString"></param>
+ <returns></returns>
+ <remarks></remarks>
+ 'CR # 7177 need to add parameter IsShowTagPrice
+</member>
+<member name="M:DAL.NonPaymentTillDAL.MaxNPTill(System.Int32,System.String,System.String,System.DateTime,System.DateTime,System.String)">
+ <summary>
+ CR # 6980
+ this function will be calling from Sales to load last NPTill Invoice
+ </summary>
+ <param name="ShopID"></param>
+ <param name="POSCode"></param>
+ <param name="SaleID"></param>
+ <param name="FromDate"></param>
+ <param name="ToDate"></param>
+ <param name="ProductId"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.ReceiveSkimCash(Model.POSCashManagment)">
+ <summary>
+ CR  # 4872 this function written because we need to call this function from shop closing to save shop closing and pos closing with same transaction
+ </summary>
+ <param name="objReceiveSkimCash"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.ReceiveSkimCash(Model.POSCashManagment,System.String,System.String)">
+ <summary>
+ 
+ </summary>
+ <param name="objReceiveSkimCash"></param>
+ <param name="OfflineShopServer"></param>
+ <param name="OfflineShopDB"></param>
+ <returns></returns>
+ <remarks>''// 03-Jul-2012        R@!                 CR # 3524 Offline POS closing is not being transferred to the shop (server)</remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.CloseShift(Model.POSCashManagment,System.Data.SqlClient.SqlTransaction,System.Data.SqlClient.SqlTransaction@,System.Data.SqlClient.SqlConnection)">
+ <summary>
+ 
+ </summary>
+ <param name="objCloseShift"></param>
+ <param name="trans"></param>
+ <param name="TransShopServer"></param>
+ <param name="ShopServerConnection"></param>
+ <returns></returns>
+ <remarks>''// 03-Jul-2012        R@!                 CR # 3524 Offline POS closing is not being transferred to the shop (server)</remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.TransferClosingDetails(Model.POSCashManagment,System.Data.SqlClient.SqlTransaction,System.Data.SqlClient.SqlTransaction)">
+ <summary>
+ 
+ </summary>
+ <param name="objClosing"></param>
+ <param name="trans"></param>
+ <param name="ShopServerTransaction"></param>
+ <returns></returns>
+ <remarks>''// 03-Jul-2012        R@!                 CR # 3524 Offline POS closing is not being transferred to the shop (server)</remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.GetClosingCashInTills(System.Int32,System.Int32,System.DateTime)">
+ <summary>
+ CR # 4893, this function is written to get CashToPOS of closed pos up to specific time
+ </summary>
+ <param name="ShopClosingID"></param>
+ <param name="ShopID"></param>
+ <param name="UpTo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.GetCashToPOS(System.Int32,System.Int32,System.DateTime)">
+ <summary>
+ CR # 4893, this function is written to get CashToPOS of closed pos up to specific time
+ </summary>
+ <param name="ShopClosingID"></param>
+ <param name="ShopID"></param>
+ <param name="UpTo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.GetPOSSubmittedCash(System.Int32,System.Int32,System.DateTime)">
+ <summary>
+ CR # 4893
+ </summary>
+ <param name="ShopClosingID"></param>
+ <param name="ShopID"></param>
+ <param name="UpTo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.GetSkimmedCash(System.Int32,System.Int32,System.DateTime)">
+ <summary>
+ CR # 4893
+ </summary>
+ <param name="ShopClosingID"></param>
+ <param name="ShopID"></param>
+ <param name="UpTo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.GetCashDifferenceAtTills(System.Int32,System.Int32,System.DateTime)">
+ <summary>
+ CR # 4893
+ </summary>
+ <param name="ShopClosingID"></param>
+ <param name="ShopID"></param>
+ <param name="UpTo"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.UpdateShiftClosing(Model.POSCashManagment)">
+ <summary>
+ CR  # 4872 this function written because we need to call this function from shop closing to save shop closing and pos closing with same transaction
+ </summary>
+ <param name="objClosing"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.UpdateShiftClosing(Model.POSCashManagment,System.String,System.String)">
+ <summary>
+ 
+ </summary>
+ <param name="objClosing"></param>
+ <param name="OfflineShopServer"></param>
+ <param name="OfflineShopDB"></param>
+ <returns></returns>
+ <remarks>03-Jul-2012        R@!                 CR # 3524 Offline POS closing is not being transferred to the shop (server)</remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.DeleteShift(System.Int32,System.Int32)">
+ <summary>
+ CR # 4872: this fuction written so that we can call it from POS Closing form with its own transaction and
+ we can call it from Shop closing form with already running transaction
+ </summary>
+ <param name="POSCashManagementID"></param>
+ <param name="ShopID"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.DeleteShift(System.Int32,System.Int32,System.String,System.String)">
+ <summary>
+ 
+ </summary>
+ <param name="POSCashManagementID"></param>
+ <param name="ShopID"></param>
+ <param name="OfflineShopServer"></param>
+ <param name="OfflineShopDB"></param>
+ <returns></returns>
+ <remarks>03-Jul-2012        R@!                 CR # 3524 Offline POS closing is not being transferred to the shop (server)</remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.CanDelete(System.String,System.Int32,System.Int32,System.DateTime,System.String,System.String)">
+ <summary>
+ CR 6371 Rizwan Bashir
+ Method created to  System should only allow to offline till user to delete POS Closing by checking from Shop server if 
+ shop closing is not exists
+ </summary>
+ <param name="POSCode"></param>
+ <param name="ShopID"></param>
+ <param name="ShopClosingID"></param>
+ <param name="POSDate"></param>
+ <param name="OfflineShopServer"></param>
+ <param name="OfflineShopDB"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.ShiftOpenedPOSToOpenedShop(System.Int32,System.Int32,System.Data.SqlClient.SqlTransaction,System.DateTime)">
+ <summary>
+ 'CR # 4893 
+ this sub routine is written to shift remaining opened pos to new shop closing
+ it is calling from ShopCashManagementDAL.ClosShop Method if TimeBasedClosing is on
+ </summary>
+ <param name="ShopID"></param>
+ <param name="ShopCashID"></param>
+ <param name="trans"></param>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.POSCashManagmentDAL.ShiftOpenedPOSToOpenedShop(System.Int32,System.Int32,System.Data.SqlClient.SqlTransaction,System.Int32)">
+ <summary>
+ 'CR # 4893 
+ this sub routine is written to shift opened pos to last closing shop when user delete any closed shop
+ it is calling from ShopCashManagementDAL.ClosShop Method if TimeBasedClosing is on
+ </summary>
+ <param name="ShopID"></param> 
+ <param name="ShopCashID"></param>
+ <param name="trans"></param>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SharedFolder.ShareExistingFolder(System.String,System.String,System.String,System.Collections.Generic.List{DAL.SharePermissionEntry},System.String)">
+ <summary>
+ Shares an existing folder on the local computer or on a remote computer
+ </summary>
+ <param name="ShareName">The name for the share</param>
+ <param name="ShareComment">An optional comment/description for the share</param>
+ <param name="LocalPath">The local path to the folder to be shared. If creating share on a remote computer then 
+ the path must be local to the remote computer. Do not use UNC paths</param>
+ <param name="SharePermissions">The share permissions to assign to this share</param>
+ <param name="ComputerName">OPTIONAL - the remote computer name to create the share on</param>
+</member>
+<member name="P:DAL.SharePermissionEntry.DomainName">
+ <summary>
+ The domain name that the user/group in the UserOrGroupName property belongs to
+ </summary>
+</member>
+<member name="P:DAL.SharePermissionEntry.UserOrGroupName">
+ <summary>
+ The name of the user or group that should be granted/denied permission
+ </summary>
+</member>
+<member name="P:DAL.SharePermissionEntry.Permission">
+ <summary>
+ The share permission to grant or deny for the account in UserOrGroupName
+ </summary>
+</member>
+<member name="P:DAL.SharePermissionEntry.AllowOrDeny">
+ <summary>
+ Set to True to allow the rights specified in the Permission property and False to deny the rights specified in the Permission property. 
+ Default is True.
+ </summary>
+</member>
+<member name="M:DAL.SharePermissionEntry.#ctor">
+ <summary>
+ Creates a new instance of the SharePermissionEntry class
+ </summary>
+</member>
+<member name="M:DAL.SharePermissionEntry.#ctor(System.String,System.String,DAL.SharedFolder.SharePermissions,System.Boolean)">
+ <summary>
+ Creates a new instance of the SharePermissionEntry class and populates each of the properties within the instance
+ </summary>
+ <param name="Domain">The domain that the user in the AccountName argument belongs to. 
+ Pass String.Empty or Nothing here if you are specifying a 'well known' identity such as the Everyone group in the AccountName argument</param>
+ <param name="AccountName">The username or group name that this permission entry relates to</param>
+ <param name="DesiredPermission">The share permission to grant/deny</param>
+ <param name="AlloworDenyPermission">True to allow the permission, False to deny the permission</param>
+</member>
+<member name="M:DAL.ShopCashManagmentDAL.ClosePOS(Model.ShopCashManagment,System.Data.SqlClient.SqlTransaction)">
+ <summary>
+ CR # 4872 is routine is used to close pos from shop closing in case of auto closing
+ </summary>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.BarcodeTemplateDesignerDAL.Add(Model.BarcodeTemplateDesigner,System.Int32)">
+ <summary>
+ save new template in database
+ </summary>
+ <param name="mObjNDBCtemplate">model object of class BarcodeTemplateDesigner</param>
+ <param name="userID">current active user id of candela</param>
+ <returns>true/false</returns>
+ <remarks>save new template in database</remarks>
+</member>
+<member name="M:DAL.BarcodeTemplateDesignerDAL.DeleteTemplate(System.Int32,System.Int32)">
+ <summary>
+ delete existing template in database
+ </summary>
+ <param name="id">id of the template to be deleted</param>
+ <param name="userID">current active user id of candela</param>
+ <returns>true/false</returns>
+ <remarks>delete existing template in database</remarks>
+</member>
+<member name="M:DAL.BarcodeTemplateDesignerDAL.UpdateTemplate(Model.BarcodeTemplateDesigner,System.Int32)">
+ <summary>
+ update existing template in database
+ </summary>
+ <param name="mObjNDBCtemplate">model object of class BarcodeTemplateDesigner</param>
+ <param name="userID">current active user id of candela</param>
+ <returns>true/false</returns>
+ <remarks>update existing template in database</remarks>
+</member>
+<member name="M:DAL.BarcodeTemplateDesignerDAL.GetAllNDBCTemplates">
+ <summary>
+ Get all the templates from database
+ </summary>
+ <returns>Datatable contains all the templates</returns>
+ <remarks>Get all the templates from database</remarks>
+</member>
+<member name="M:DAL.CustomerOrderConfigurationDal.IsValidateForSave(Model.CustomerOrderConfiguration)">
+ <summary>
+ 
+ </summary>
+ <param name="objCustomerOrderConfiguration"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CustomerOrderConfigurationDal.IsValidateForDelete(Model.CustomerOrderConfiguration)">
+ <summary>
+ 
+ 
+ </summary>
+ <param name="objCustomerOrderConfiguration"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CustomerOrderConfigurationDal.Add(Model.CustomerOrderConfiguration)">
+ <summary>
+ 
+ </summary>
+ <param name="objCustomerOrderConfiguration"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CustomerOrderConfigurationDal.Update(Model.CustomerOrderConfiguration)">
+ <summary>
+ 
+ </summary>
+ <param name="objCustomerOrderConfiguration"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CustomerOrderConfigurationDal.Deleted(Model.CustomerOrderConfiguration)">
+ <summary>
+ 
+ </summary>
+ <param name="objCustomerOrderConfiguration"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CustomerOrderConfigurationDal.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.CustomReceiptDesignerDal.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="F:DAL.EmployeeAttendenceDAL.DatalogEntery">
+ 
+</member>
+<member name="M:DAL.EmployeeAttendenceDAL.Add(Model.EmployeeAttendence)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.EmployeeAttendenceDAL.Update(Model.EmployeeAttendence)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.EmployeeAttendenceDAL.Deleted(Model.EmployeeAttendence)">
+ <summary>
+ 
+ </summary>
+ <param name="objCity"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.EmployeeAttendenceDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.EmployeeAttendenceDAL.ValidateEmployee(System.String,System.String)">
+ <summary>
+ ' 31-Aug-2012       farooq ul hassan          CR # 3778 
+ </summary>
+ <param name="ShopID"></param>
+ <param name="EmployeeCode"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.EmployeeAttendenceDAL.AutomaticAttendance(Model.EmployeeAttendence)">
+ <summary>
+ ' 31-Aug-2012       farooq ul hassan          CR # 3778 
+ </summary>
+ <param name="objModel"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.InvoicePageSettingsDal.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.LanguageTranslaterDAL.Update(System.Collections.Generic.List{Model.LanguageTranslater})">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.LanguageTranslaterDAL.GetAll(System.String,System.String)">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.OfflinePOSConfigDAL.TransferSalesToDestination(System.String,System.Int32,System.Int32)">
+ <summary>
+ Function to transfer sales
+ </summary>
+ <param name="destination"></param>
+ <param name="SaleId"></param>
+ <param name="ShopId"></param>
+ <returns></returns>
+ <remarks>05-Aug-2014    R@! Shahid      Cr # 5994   Sales transfer utility to transfer sales on backup server</remarks>
+</member>
+<member name="M:DAL.OfflinePOSConfigDAL.MoreOfflineLicensesAllowed(System.Int32)">
+ <summary>
+ 'CR # 5038
+ his function is written to validate OffLine POS Lincense Validation
+ </summary>
+ <param ></param>
+ <returns>Boolean</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.OfflinePOSConfigDAL.DefaultConnectionMode(System.String)">
+ <summary>
+ Funtion will be used to identify default login mode of Offline Till
+ </summary>
+ <param name="ComputerName">Computer name for which connection mode will be checked</param>
+ <returns>Function will return 0 for Offline and 1 for online</returns>
+ <remarks>CR 6548</remarks>
+</member>
+<member name="M:DAL.OfflinePOSConfigDAL.CheckPendingSalesBeforeClosings(System.String,System.DateTime)">
+ <summary>
+ CR # 7133
+ </summary>
+ <param name="POSCode"></param>
+ <returns></returns>
+ <remarks></remarks>
+ issue 2146 add new parameter to check pending offline sales till specific date, bcoz this function is also called from physical audit screen and audit is usually done for the previous date
+</member>
+<member name="M:DAL.RegisterNewClientDAL.Add(Model.RegisterNewClient)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.RegisterNewClientDAL.AddOfflineTill(Model.RegisterNewClient,System.String)">
+ <summary>
+ Function will be used to add offline till information.
+ </summary>
+ <param name="objRegisterNewClient">Model of Register New Client.</param>
+ <param name="Condition">Condition (OPtional): "Connection" as condition require to save POS connection information</param>
+ <returns>Return True: Wether add process completed successfully</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.RegisterNewClientDAL.Update(Model.RegisterNewClient)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.RegisterNewClientDAL.Deleted(Model.RegisterNewClient)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.RegisterNewClientDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.RegisterNewClientDAL.GetOfflineTills(System.Int32,System.String)">
+ <summary>
+ Method will return Offline Pos for a specific shop
+ </summary>
+ <param name="shopId">Shop id for which Offline Pos require</param>
+ <param name="strCondition">Condition (Optional) is not yet used but is placed for future refernce</param>
+ <returns>Method will return datatable that will contain list of Offline POS and thier status</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.RegisterNewClientDAL.IsOfflineTill">
+ <summary>
+ Method will return whether pos is configured as Offlin Pos for a specific shop
+ </summary>
+ <param name="shopId">Shop id for which Offline Pos require</param>
+ <param name="PosCode">Pos Code that is require to confirm as offline Pos</param>
+ <returns>Method will return True/False for Offline POS</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.RegisterNewClientDAL.IsOfflinePosDB(System.String,System.String)">
+ <summary>
+ Method will return whether databse is configured as Offlin Pos database
+ </summary>
+ <param name="ServerName">Shop id for which Offline Pos require</param>
+ <param name="DbName">Pos Code that is require to confirm as offline Pos</param>
+ <returns>Method will return True/False for Offline POS</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.RegisterNewClientDAL.IsShopServerForOfflinePos(System.String,System.String)">
+ <summary>
+ Method will return whether databse is configured as Offlin Pos database
+ </summary>
+ <param name="ServerName">Shop id for which Offline Pos require</param>
+ <param name="DbName">Pos Code that is require to confirm as offline Pos</param>
+ <returns>Method will return True/False for Offline POS</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.RegisterProductDAL.SetNoOfLicenses(System.Int32,System.Int32,System.Int32,System.String,System.Int32,System.Boolean,System.String,System.String)">
+ <summary>
+ 'CR # 5037
+ 2 more parameters added 1) intNoOfOffLiinePOSLicenses 2)  blnGLIntegration
+ GL Integration and Offline POS Lincenses integration through Online Activation
+ </summary>
+ <param name="intNoOfShopLicenses"></param>
+ <param name="intNoOfPOSLicenses"></param>
+ <param name="intNoOfReplicatedShopLicenses"></param>
+ <param name="strLicenseType"></param>
+ <param name="intNoOfOffLiinePOSLicenses"></param>
+ <param name="blnGLIntegration"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ToolBarCustomizationDAL.Add(System.Collections.Generic.List{Model.ToolBarCustomization})">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.ToolBarCustomizationDAL.Delete(System.Int32,System.Int32,System.String,System.Int32)">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.CustomerAlterationDAL.GetCustomer(System.Int32,System.Int32)">
+ <summary>
+ CR # 4990
+ this function will return customer id and customer shop id separated with comma against saleId and ShopID
+ </summary>
+ <param name="SaleID"></param>
+ <param name="ShopID"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DaySummaryReportDAL.Add(Model.PhysicalInventoryChecks)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DaySummaryReportDAL.Update(Model.Size)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DaySummaryReportDAL.Deleted(Model.PhysicalInventoryChecks)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.DaySummaryReportDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditReversalDAL.Add(Model.PhysicalInventoryChecks)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditReversalDAL.Update(Model.Size)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditReversalDAL.Deleted(Model.PhysicalInventoryChecks)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditReversalDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.GRNDAL.GetDetail(System.Int32,System.DateTime,System.Int32,System.Int32,System.Int32,System.String,System.String,System.Boolean,System.Boolean)">
+ <summary>
+ 
+ </summary>
+ <param name="Product_Item_ID"></param>
+ <param name="dtDate"></param>
+ <param name="No_Of_Sku"></param>
+ <param name="shop_id"></param>
+ <param name="PO_ID"></param>
+ <param name="strCondition"></param>
+ <param name="UserType"></param>
+ <param name="poBasedGrn">If PoBasedGRN enabled and Product code scanning is allowed then true</param>
+ <returns></returns>
+ <remarks>new parameter added by Hafiz Ahsan agaisnt 6423</remarks>
+</member>
+<member name="M:DAL.GRNDAL.GetDetail(System.Int32,System.Int32,System.DateTime,System.Int32,System.Int32,System.Int32,System.String,System.Double,System.String,System.Boolean)">
+ <summary>
+ 
+ </summary>
+ <param name="Product_Item_ID"></param>
+ <param name="dtDate"></param>
+ <param name="No_Of_Sku"></param>
+ <param name="shop_id"></param>
+ <param name="PO_ID"></param>
+ <param name="strCondition"></param>
+ <param name="UserType"></param>
+ <param name="poBasedGrn">If PoBasedGRN enabled and Product code scanning is allowed then true</param>
+ <returns></returns>
+ <remarks>new parameter added by Hafiz Ahsan agaisnt 6423</remarks>
+</member>
+<member name="M:DAL.GRNDAL.GetResultRow(System.Int32,System.DateTime,System.Int32,System.Int32,System.String,System.String,System.Boolean)">
+ <summary>
+ 
+ </summary>
+ <param name="Product_Item_ID"></param>
+ <param name="dtDate"></param>
+ <param name="PO_ID"></param>
+ <param name="shop_id"></param>
+ <param name="CallingForm"></param>
+ <param name="UserType"></param>
+ <param name="poBasedGrn">If PoBasedGRN enabled and Product code scanning is allowed then true</param>
+ <returns></returns>
+ <remarks>new parameter added by Hafiz Ahsan agaisnt 6423</remarks>
+</member>
+<member name="M:DAL.GRNDAL.GetTaxType(System.String)">
+ <summary>
+ Returns 1 if Tax at Retail Price and 0 if Tax at Cost Price
+ </summary>
+ <param name="ShopID"></param>
+ <returns></returns>
+ <remarks>added by Hafiz Ahsan against 6417</remarks>
+</member>
+<member name="M:DAL.GRNDAL.AddSerializedInventory(System.Collections.Generic.List{Model.SerializedInventory},System.String,System.Int32,System.Int32,System.Int32)">
+ <summary>
+ CR # 6436 this function will be used to add serialized inventory against a GRN
+ </summary>
+ <param name="objSrInv"></param>
+ <param name="trans"></param>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.GRNDAL.GetSerializedInventory(System.Int32,System.Int32,System.Int32)">
+ <summary>
+ CR # 6436 this function will be used to Get Serialized Inventory saved in database against spedific Product in GRN 
+ </summary>
+ <param name="ShopID"></param>
+ <param name="BatchNO"></param>
+ <param name="ProductItemID"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.GroupRightsDAL.Update(System.Collections.Generic.List{Model.SecurityGroupRights})">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.GroupRightsDAL.GetAll(System.Int32)">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.GroupShopRightsDAL.Update(Model.SecurityGroupShopRight)">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.GroupShopRightsDAL.GetAll(System.Int32)">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.SecurityUserDAL.Add(Model.SecurityUser)">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.SecurityUserDAL.Update(Model.SecurityUser,System.String,System.Boolean)">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.SecurityUserDAL.GetAll(System.Int32)">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.SecurityUserDAL.GetByID(System.Int32)">
+ <summary>
+ 
+ </summary>
+</member>
+<member name="M:DAL.SecurityUserDAL.FindValidUser(System.String,System.String)">
+ <summary>
+ This function will get an object of SecurityUser class
+ and will query to database for the valid user information 
+ against the ginven values of loginDI and LoginPassword.
+ If userID not found or Password does't match then the function will throw an Exception
+ other wise the same class object would be return with details of the login user
+ </summary>
+</member>
+<member name="M:DAL.CustomerReceiptDAL.Add(Model.CustomerReceipt,System.Data.SqlClient.SqlTransaction)">
+ <summary>
+ Overload function to add receipt with transaction 
+ </summary>
+ <param name="objCustomerReceipt"></param>
+ <param name="objTrans"></param>
+ <returns></returns>
+ <remarks>15-Mar-2013       4538            R@!      Sales and Return: Customer receipt on sales screen</remarks>
+</member>
+<member name="M:DAL.PhysicalAuditDAL.IsAllItemsAddedInPhysicalAudit(Model.PhysicalInventoryChecks)">
+ <summary>
+ This Function Checks the count of SKUs and physical audit items open strs for Receiving Shop,
+ This Function Added against CR # CR # 3731
+ </summary>
+ <returns> if both counts are equal then true else false </returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditDAL.IsValidateForOpenStrsAtReceiveShop(Model.PhysicalInventoryChecks@,System.Boolean@)">
+ <summary>
+ This Function Check open strs for Receiving Shop,
+ This Function Added against CR # CR # 3731
+ </summary>
+ <param name="objPhysicalInventoryChecks"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditDAL.Update(Model.Size)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditDAL.Deleted(Model.PhysicalInventoryChecks)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditSearchDAL.Add(Model.PhysicalInventoryChecks)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditSearchDAL.Update(Model.Size)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditSearchDAL.Deleted(Model.PhysicalInventoryChecks)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditSearchDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditSessionsDAL.Add(Model.PhysicalInventoryChecks)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditSessionsDAL.Update(Model.Size)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditSessionsDAL.Deleted(Model.PhysicalInventoryChecks)">
+ <summary>
+ 
+ </summary>
+ <param name="objSize"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.PhysicalAuditSessionsDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleAndReturnDAL.IsValidForReturn(System.Int32,System.Int32,System.Int32,System.Int32)">
+ <summary>
+ Function will validate returning qty of a product item was sold in a specific invoice
+ </summary>
+ <param name="ProductItemId">Product Item Id for which return require to be validated</param>
+ <param name="ShopId">Shop Id on which sales was made</param>
+ <param name="InvoiceForReturn">Invoice Id to be returned</param>
+ added against cr#6012 by Hafiz Ahsan
+ <param name="InvoiceForUpdate">Invoice Id to be Updated</param>
+ <returns>Will return qty that was soled in the invoice</returns>
+ <remarks>R@! Shahid CR 5697</remarks>
+=====================================
+</member>
+<member name="M:DAL.SaleAndReturnDAL.IsValidInvoiceForReturn(System.Int32,System.Int32)">
+ <summary>
+ Function will validate a specific invoice
+ </summary>
+ <param name="ShopId">Shop Id on which sales was made</param>
+ <param name="InvoiceForReturn">Invoice Id to be returned</param>
+ <returns>Will return True for a valid invoice</returns>
+ <remarks>R@! Shahid CR 5697</remarks>
+</member>
+<member name="M:DAL.SaleAndReturnDAL.Add(Model.SaleAndReturn,Utility.Utility.EnumActions,System.String@,System.String,System.Data.DataTable,System.Boolean)">
+ <summary>
+ CR # 6527
+ this is override function Add. previously we can't pass transaction to sales from outside of this Calss or out of the Assembly
+ now we can Call Add Method with or Without Transaction and this will not hurt any existing code
+ </summary>
+ <param name="objSaleAndReturn"></param>
+ <param name="MyAction"></param>
+ <param name="strMsgIfPhyAuditExists"></param>
+ <param name="Con_Str"></param>
+ <returns></returns>
+ <remarks></remarks>
+ issue#692 Optional ByVal myCreditNoteDataTable As DataTable = Nothing condition added
+ Optional ByVal IsTouchPOS As Boolean = False added against Issue # 943
+</member>
+<member name="M:DAL.SaleAndReturnDAL.AddToAdvanceOrder(Model.SaleAndReturn,Utility.Utility.EnumActions,System.String)">
+ <summary>
+ To save, update and delete advance order this function will be used
+ </summary>
+ <param name="objSaleAndReturn"> Sale and Return model will  be passed with the values to be recorded in advance order </param>
+ <param name="MyAction">Action to be performed (eg Save, Update or Delete) </param>
+ <param name="Con_Str">Database connection string (optional) where DML operation will be performed</param>
+ <returns>Will return true if execution will be successfull</returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleAndReturnDAL.AddTransferHistory(System.String,System.String,System.Data.SqlClient.SqlTransaction)">
+ <summary>
+ Sales Transfer Utility: Add criteria for transfered invoices
+ </summary>
+ <param name="strSQL"> Query string to be executed </param>
+ <param name="Con_Str"> Connection string to connect db </param>
+ <returns> True/False </returns>
+ <remarks>Implemented on 11-Aug-2011</remarks>
+  11-Aug-2011     CR#     2632    R@!                           Sales Transfer Utility: Add criteria for transfered invoices
+</member>
+<member name="M:DAL.SaleAndReturnDAL.CheckPriceChanged(System.Int32,System.Int32)">
+ <summary>
+ Function will return True when price change found in given days for the selected product
+ </summary>
+ <param name="ProductItemId">"Product Item Id" for which price will be checked</param>
+ <param name="DaysInPriceChanged">Number of days back to find price changes</param>
+ <returns>Will return True when price change found</returns>
+ <remarks>CR 5662</remarks>
+</member>
+<member name="M:DAL.SaleAndReturnDAL.PriceChangedData(System.Int32,System.Int32)">
+ <summary>
+ Function will return data table when price change found in given days for the selected product
+ </summary>
+ <param name="ProductItemId">"Product Item Id" for which price will be checked</param>
+ <param name="DaysInPriceChanged">Number of days back to find price changes</param>
+ <returns>Will datatable when price change found</returns>
+ <remarks>Issue # 2145</remarks>
+</member>
+<member name="M:DAL.SaleAndReturnDAL.MarkSaleforPayment(Model.SaleAndReturn,Utility.Utility.EnumActions,System.Data.SqlClient.SqlTransaction,System.Int32)">
+ <summary>
+ CR # 6527
+ </summary>
+ <param name="Saleobject"></param>
+ <param name="MyAction"></param>
+ <param name="trans"></param>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleAndReturnDAL.GetExistingCustomDetail(System.Int32,System.Int32)">
+ <summary>
+ 'CR # 6527
+ this function will be used to fetch Custom Details saved in the table against advance order
+ </summary>
+ <param name="ShopID"></param>
+ <param name="OrderID"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleAndReturnDAL.GetCustomFieldsDetail(System.Int32,System.Int32)">
+ <summary>
+ CR # 6527 this function will be used to get Advance Order Cutom Details against Ref No(Sale ID) and Shop ID
+ </summary>
+ <param name="RefNo"></param>
+ <param name="ShopID"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleAndReturnDAL.GetSaleIDsString(System.Int32,System.Int32)">
+ <summary>
+ CR # 6527 this function will be used to get comma Separated Sale IDs against Advance Order
+ </summary>
+ <param name="PKID"></param>
+ <param name="Shopid"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleAndReturnDAL.ProcessKitting(Model.SaleAndReturn,System.Data.SqlClient.SqlTransaction,Utility.Utility.EnumActions)">
+ <summary>
+ CR # 6705
+ this procedure will be used to process Kitting Item and will be calling from Add method from this calss
+ </summary>
+ <param name="objSales"></param>
+ <param name="trans"></param>
+ <param name="action"></param>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleAndReturnDAL.FillGRR(Model.SaleAndReturn,System.Data.DataTable,System.Data.DataTable,System.String,System.Data.SqlClient.SqlTransaction,System.Int64)">
+ <summary>
+ 'CR # 6705 this procedure will be calling from ProcessKitting of this class
+ and will be used to fill GRR Model
+ </summary>
+ <param name="objSales"></param>
+ <param name="SellingProductsDataTable"></param>
+ <param name="ReturnProductsDataTable"></param>
+ <param name="strSKUIDs"></param>
+ <param name="trans"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SaleAndReturnDAL.FillGRN(Model.SaleAndReturn,System.Data.DataTable,System.Data.DataTable,System.String,System.Data.SqlClient.SqlTransaction,System.Int64)">
+ <summary>
+ CR # 6705 this function will be used to fill GRN model and will be calling from ProcessKitting method of this class
+ </summary>
+ <param name="objSales"></param>
+ <param name="ReturningProductsDataTable"></param>
+ <param name="SellingProductsDataTable"></param>
+ <param name="strSKUIDs"></param>
+ <param name="trans"></param>
+ <returns></returns>
+ <remarks></remarks>
+ 
+</member>
+<member name="M:DAL.ShopAccountClosingDAL.Add(Model.ShopOpeningBalance)">
+ <summary>
+ 
+ </summary>
+ <param name="objShopOpeningBalance"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAccountClosingDAL.Update(Model.ShopOpeningBalance)">
+ <summary>
+ 
+ </summary>
+ <param name="objShopOpeningBalance"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAccountClosingDAL.Deleted(Model.ShopOpeningBalance)">
+ <summary>
+ 
+ </summary>
+ <param name="objShopOpeningBalance"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAccountClosingDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAccountTransactionDAL.Add(Model.ShopAccountTransaction)">
+ <summary>
+ 
+ </summary>
+ <param name="objShopAccountTransaction"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAccountTransactionDAL.Update(Model.ShopAccountTransaction)">
+ <summary>
+ 
+ </summary>
+ <param name="objShopAccountTransaction"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAccountTransactionDAL.Deleted(Model.ShopAccountTransaction)">
+ <summary>
+ 
+ </summary>
+ <param name="objShopAccountTransaction"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.ShopAccountTransactionDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SAPIntegrationDAL.CleanData(System.Byte,System.String)">
+ <summary>
+ CR # 8508
+ </summary>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SearchProductDAL.Add(Model.Area)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SearchProductDAL.Update(Model.Area)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SearchProductDAL.Deleted(Model.Area)">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SearchProductDAL.GetAll(System.String)">
+ <summary>
+ 
+ </summary>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="M:DAL.SetProduceRetailPriceDAL.Update(System.Collections.Generic.List{Model.SetProductRetailPrice})">
+ <summary>
+ 
+ </summary>
+ <param name="objArea"></param>
+ <returns></returns>
+ <remarks></remarks>
+</member>
+<member name="T:DAL.HOWebService.Service">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.#ctor">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.HelloWorldCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetMaxTransferedIDCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.IsValidForReturnCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.isValidPaymentModeCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.IsValidCustOnReturnCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.IsValidInvoiceForReturnCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.getCustomerAgainstInvoiceCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.IsValidForReturn_WithDiscountCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetSaleItems_ItemLevelCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetServiceVersionHOCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.TransferDataLogCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.FetchDataLogCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.FetchDataLog1Completed">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.SearchProductsCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.SearchProducts1Completed">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetCustomerPointsCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetCustomerPoints1Completed">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.CheckCouponStatusCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.InsertPointsRedemptionCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetDataLogCountCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetTableRecordCountCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetCommaSepratedIdsCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetMissingRecordsCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.IsValidateForMissingRecordsCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetLicenseKeyCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetCompanyInfoCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetMaintenanceDateCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetSubscriptionDateCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetGiftCardBlncCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.InsertGiftCardDataCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.ConfirmWebOrderCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.InsertGiftCardDataForRedemptionCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetCustomerPointsandPinCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.UpdatePinCodeCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetPinCodeCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.UpdateCommentCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.QuickDefineTourCompanyCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.QuickDefineTourLeaderCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.QuickDefineTourGuideCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.QuickDefineTourBusDriverCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.QuickDefineTourTransportCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.getDBNameCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.getCustomerCreditLimitCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.IsValidateForSaveTagsCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.SaveMappedTagsCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.AddCoupanDiscountByLoyaltyPointCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GenerateGiftCardByLoyaltyPointCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.SaleGiftCardCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.NextGiftCardNoCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.HOWebService.Service.GetUnSoldGiftCardCompleted">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.HelloWorld">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.HelloWorldAsync">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.HelloWorldAsync(System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetMaxTransferedID(System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetMaxTransferedIDAsync(System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetMaxTransferedIDAsync(System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidForReturn(System.Int32,System.Int32,System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidForReturnAsync(System.Int32,System.Int32,System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidForReturnAsync(System.Int32,System.Int32,System.Int32,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.isValidPaymentMode(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.isValidPaymentModeAsync(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.isValidPaymentModeAsync(System.Int32,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidCustOnReturn(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidCustOnReturnAsync(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidCustOnReturnAsync(System.Int32,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidInvoiceForReturn(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidInvoiceForReturnAsync(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidInvoiceForReturnAsync(System.Int32,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.getCustomerAgainstInvoice(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.getCustomerAgainstInvoiceAsync(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.getCustomerAgainstInvoiceAsync(System.Int32,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidForReturn_WithDiscount(System.Int32,System.Int32,System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidForReturn_WithDiscountAsync(System.Int32,System.Int32,System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidForReturn_WithDiscountAsync(System.Int32,System.Int32,System.Int32,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetSaleItems_ItemLevel(System.Int32,System.Int32,System.Boolean,System.Boolean,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetSaleItems_ItemLevelAsync(System.Int32,System.Int32,System.Boolean,System.Boolean,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetSaleItems_ItemLevelAsync(System.Int32,System.Int32,System.Boolean,System.Boolean,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetServiceVersionHO">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetServiceVersionHOAsync">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetServiceVersionHOAsync(System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.TransferDataLog(DAL.HOWebService.DataLog[])">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.TransferDataLogAsync(DAL.HOWebService.DataLog[])">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.TransferDataLogAsync(DAL.HOWebService.DataLog[],System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.FetchDataLog(System.Int32,System.Int64)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.FetchDataLogAsync(System.Int32,System.Int64)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.FetchDataLogAsync(System.Int32,System.Int64,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.FetchDataLog(System.Int32,System.Int64,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.FetchDataLog1Async(System.Int32,System.Int64,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.FetchDataLog1Async(System.Int32,System.Int64,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SearchProducts(System.Int64,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SearchProductsAsync(System.Int64,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SearchProductsAsync(System.Int64,System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SearchProducts(System.Int64,System.String,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SearchProducts1Async(System.Int64,System.String,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SearchProducts1Async(System.Int64,System.String,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCustomerPoints(System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCustomerPointsAsync(System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCustomerPointsAsync(System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCustomerPoints(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCustomerPoints1Async(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCustomerPoints1Async(System.Int32,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.CheckCouponStatus(System.String,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.CheckCouponStatusAsync(System.String,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.CheckCouponStatusAsync(System.String,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.InsertPointsRedemption(DAL.HOWebService.PointsRedemption)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.InsertPointsRedemptionAsync(DAL.HOWebService.PointsRedemption)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.InsertPointsRedemptionAsync(DAL.HOWebService.PointsRedemption,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetDataLogCount(System.Int32,System.Int64,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetDataLogCountAsync(System.Int32,System.Int64,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetDataLogCountAsync(System.Int32,System.Int64,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetTableRecordCount(System.String,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetTableRecordCountAsync(System.String,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetTableRecordCountAsync(System.String,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCommaSepratedIds(System.Int32,System.String,System.String,System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCommaSepratedIdsAsync(System.Int32,System.String,System.String,System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCommaSepratedIdsAsync(System.Int32,System.String,System.String,System.Int32,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetMissingRecords(System.String,System.String,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetMissingRecordsAsync(System.String,System.String,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetMissingRecordsAsync(System.String,System.String,System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidateForMissingRecords(System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidateForMissingRecordsAsync(System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidateForMissingRecordsAsync(System.Int32,System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetLicenseKey">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetLicenseKeyAsync">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetLicenseKeyAsync(System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCompanyInfo">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCompanyInfoAsync">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCompanyInfoAsync(System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetMaintenanceDate">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetMaintenanceDateAsync">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetMaintenanceDateAsync(System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetSubscriptionDate">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetSubscriptionDateAsync">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetSubscriptionDateAsync(System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetGiftCardBlnc(System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetGiftCardBlncAsync(System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetGiftCardBlncAsync(System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.InsertGiftCardData(System.Int32,System.Int32,System.Int32,System.String,System.DateTime,System.Decimal,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.InsertGiftCardDataAsync(System.Int32,System.Int32,System.Int32,System.String,System.DateTime,System.Decimal,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.InsertGiftCardDataAsync(System.Int32,System.Int32,System.Int32,System.String,System.DateTime,System.Decimal,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.ConfirmWebOrder(System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.ConfirmWebOrderAsync(System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.ConfirmWebOrderAsync(System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.InsertGiftCardDataForRedemption(DAL.HOWebService.GftCardList[],System.Int32,System.String,System.DateTime,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.InsertGiftCardDataForRedemptionAsync(DAL.HOWebService.GftCardList[],System.Int32,System.String,System.DateTime,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.InsertGiftCardDataForRedemptionAsync(DAL.HOWebService.GftCardList[],System.Int32,System.String,System.DateTime,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCustomerPointsandPin(System.String,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCustomerPointsandPinAsync(System.String,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetCustomerPointsandPinAsync(System.String,System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.UpdatePinCode(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.String,System.Boolean)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.UpdatePinCodeAsync(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.String,System.Boolean)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.UpdatePinCodeAsync(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.String,System.Boolean,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetPinCode(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetPinCodeAsync(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetPinCodeAsync(System.Int32,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.UpdateComment(System.Int32,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.UpdateCommentAsync(System.Int32,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.UpdateCommentAsync(System.Int32,System.Int32,System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourCompany(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourCompanyAsync(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourCompanyAsync(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourLeader(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourLeaderAsync(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourLeaderAsync(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32,System.Int32,System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourGuide(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourGuideAsync(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourGuideAsync(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32,System.Int32,System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourBusDriver(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourBusDriverAsync(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourBusDriverAsync(System.Int32,System.Int32,System.String,System.String,System.String,System.String,System.Int32,System.String,System.Boolean,System.DateTime,System.Int32,System.Int32,System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourTransport(System.Int32,System.Int32,System.String,System.String,System.Int32,System.DateTime,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourTransportAsync(System.Int32,System.Int32,System.String,System.String,System.Int32,System.DateTime,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.QuickDefineTourTransportAsync(System.Int32,System.Int32,System.String,System.String,System.Int32,System.DateTime,System.Int32,System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.getDBName">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.getDBNameAsync">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.getDBNameAsync(System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.getCustomerCreditLimit(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.getCustomerCreditLimitAsync(System.Int32,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.getCustomerCreditLimitAsync(System.Int32,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidateForSaveTags(DAL.HOWebService.RFIDMappingDetail[])">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidateForSaveTagsAsync(DAL.HOWebService.RFIDMappingDetail[])">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.IsValidateForSaveTagsAsync(DAL.HOWebService.RFIDMappingDetail[],System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SaveMappedTags(DAL.HOWebService.RFIDMappingDetail[],System.String,System.Int32,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SaveMappedTagsAsync(DAL.HOWebService.RFIDMappingDetail[],System.String,System.Int32,System.Int32,System.String)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SaveMappedTagsAsync(DAL.HOWebService.RFIDMappingDetail[],System.String,System.Int32,System.Int32,System.String,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.AddCoupanDiscountByLoyaltyPoint(DAL.HOWebService.DiscountCouponsByPoints)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.AddCoupanDiscountByLoyaltyPointAsync(DAL.HOWebService.DiscountCouponsByPoints)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.AddCoupanDiscountByLoyaltyPointAsync(DAL.HOWebService.DiscountCouponsByPoints,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GenerateGiftCardByLoyaltyPoint(DAL.HOWebService.GiftCardGenerationService[])">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GenerateGiftCardByLoyaltyPointAsync(DAL.HOWebService.GiftCardGenerationService[])">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GenerateGiftCardByLoyaltyPointAsync(DAL.HOWebService.GiftCardGenerationService[],System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SaleGiftCard(System.Int32,System.Int32,System.Decimal,System.Decimal,System.Decimal,System.Int32,System.String,System.Data.DataTable,System.String,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SaleGiftCardAsync(System.Int32,System.Int32,System.Decimal,System.Decimal,System.Decimal,System.Int32,System.String,System.Data.DataTable,System.String,System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.SaleGiftCardAsync(System.Int32,System.Int32,System.Decimal,System.Decimal,System.Decimal,System.Int32,System.String,System.Data.DataTable,System.String,System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.NextGiftCardNo(System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.NextGiftCardNoAsync(System.Int32)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.NextGiftCardNoAsync(System.Int32,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetUnSoldGiftCard">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetUnSoldGiftCardAsync">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.GetUnSoldGiftCardAsync(System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.HOWebService.Service.CancelAsync(System.Object)">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.DataLog">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DataLog.TotalToReceive">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DataLog.ShopID">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DataLog.Status">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DataLog.UserID">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DataLog.ShopIDs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DataLog.SqlStatement">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DataLog.TableName">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DataLog.SqlType">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DataLog.TimeStamp">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DataLog.ExecutionSequence">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DataLog.ID">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GiftCardGenerationService">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.ActivityLog">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.MemberName">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.PhoneMobile">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.CardNo">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.Alternate_Card_No">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.Batch_No">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.Shop_Id">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.Curr_Loc">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.Card_Type_id">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.No_of_gift_card">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.is_Fixed_den">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.Amount">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.Ref_no">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.Card_Gen_Date">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.Card_Status">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.created_by">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.creation_date">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.modified_by">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GiftCardGenerationService.modified_date">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.ActivityLog">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.LogID">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.ShopID">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.ShopIDList">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.ScreenTitle">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.FormAction">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.UserID">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.LogDate">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.LogRef">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.RefType">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.LogGroup">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.SQL">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.SQLType">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ActivityLog.TableName">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.CouponNoDetail">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.CouponNoDetail.CouponNo">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.DiscountCouponsByPoints">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.MemberPointsRedeemed">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.dtLineItems">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.ActivityLog">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.LineItemId">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.CouponID">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.CouponCode">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.Disc_Amt_Limit">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.ValidFrom">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.ValidTo">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.shopid">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.couponNoSingle">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.Disc_Perc">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.Status">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.CouponNo">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.DiscountCouponsByPoints.EnterdByID">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.PointsRedemption">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption._RedemptionDateTime">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.AvailablePoints">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.AvailableValue">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.RedeemedPoints">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.RedeemedValue">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.Member_Id">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.Shop_Id">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.Member_Shop_Id">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.One_Point_Value">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.Sale_Id">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.RedemptionDateTime">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.OrderId">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.IsFinjaCustomer">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.PointsRedemption.Points_Type">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.RFIDMappingDetail">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.RFIDMappingDetail.RFID">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.RFIDMappingDetail.BatchNo">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.RFIDMappingDetail.ExpiryDate">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GftCardList">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GftCardList.gftCardAmt">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GftCardList.gftCardID">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GftCardList.GftCardNo">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.HelloWorldCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.HelloWorldCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.HelloWorldCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetMaxTransferedIDCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetMaxTransferedIDCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetMaxTransferedIDCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidForReturnCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidForReturnCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.IsValidForReturnCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.isValidPaymentModeCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.isValidPaymentModeCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.isValidPaymentModeCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidCustOnReturnCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidCustOnReturnCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.IsValidCustOnReturnCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidInvoiceForReturnCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidInvoiceForReturnCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.IsValidInvoiceForReturnCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.getCustomerAgainstInvoiceCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.getCustomerAgainstInvoiceCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.getCustomerAgainstInvoiceCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidForReturn_WithDiscountCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidForReturn_WithDiscountCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.IsValidForReturn_WithDiscountCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetSaleItems_ItemLevelCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetSaleItems_ItemLevelCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetSaleItems_ItemLevelCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetServiceVersionHOCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetServiceVersionHOCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetServiceVersionHOCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.TransferDataLogCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.TransferDataLogCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.TransferDataLogCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.FetchDataLogCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.FetchDataLogCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.FetchDataLogCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.FetchDataLog1CompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.FetchDataLog1CompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.FetchDataLog1CompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.SearchProductsCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.SearchProductsCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.SearchProductsCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.SearchProducts1CompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.SearchProducts1CompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.SearchProducts1CompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetCustomerPointsCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetCustomerPointsCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetCustomerPointsCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetCustomerPoints1CompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetCustomerPoints1CompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetCustomerPoints1CompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.CheckCouponStatusCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.CheckCouponStatusCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.CheckCouponStatusCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.InsertPointsRedemptionCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.InsertPointsRedemptionCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.InsertPointsRedemptionCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetDataLogCountCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetDataLogCountCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetDataLogCountCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetTableRecordCountCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetTableRecordCountCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetTableRecordCountCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetCommaSepratedIdsCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetCommaSepratedIdsCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetCommaSepratedIdsCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetMissingRecordsCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetMissingRecordsCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetMissingRecordsCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidateForMissingRecordsCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidateForMissingRecordsCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.IsValidateForMissingRecordsCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetLicenseKeyCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetLicenseKeyCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetLicenseKeyCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetCompanyInfoCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetCompanyInfoCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetCompanyInfoCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetMaintenanceDateCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetMaintenanceDateCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetMaintenanceDateCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetSubscriptionDateCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetSubscriptionDateCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetSubscriptionDateCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetGiftCardBlncCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetGiftCardBlncCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetGiftCardBlncCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.InsertGiftCardDataCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.InsertGiftCardDataCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.InsertGiftCardDataCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.ConfirmWebOrderCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.ConfirmWebOrderCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.ConfirmWebOrderCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.InsertGiftCardDataForRedemptionCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.InsertGiftCardDataForRedemptionCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.InsertGiftCardDataForRedemptionCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetCustomerPointsandPinCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetCustomerPointsandPinCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetCustomerPointsandPinCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.UpdatePinCodeCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.UpdatePinCodeCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.UpdatePinCodeCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetPinCodeCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetPinCodeCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetPinCodeCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.UpdateCommentCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.UpdateCommentCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.UpdateCommentCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.QuickDefineTourCompanyCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.QuickDefineTourCompanyCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.QuickDefineTourCompanyCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.QuickDefineTourLeaderCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.QuickDefineTourLeaderCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.QuickDefineTourLeaderCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.QuickDefineTourGuideCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.QuickDefineTourGuideCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.QuickDefineTourGuideCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.QuickDefineTourBusDriverCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.QuickDefineTourBusDriverCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.QuickDefineTourBusDriverCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.QuickDefineTourTransportCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.QuickDefineTourTransportCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.QuickDefineTourTransportCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.getDBNameCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.getDBNameCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.getDBNameCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.getCustomerCreditLimitCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.getCustomerCreditLimitCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.getCustomerCreditLimitCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidateForSaveTagsCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.IsValidateForSaveTagsCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.IsValidateForSaveTagsCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.SaveMappedTagsCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.SaveMappedTagsCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.SaveMappedTagsCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.AddCoupanDiscountByLoyaltyPointCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.AddCoupanDiscountByLoyaltyPointCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.AddCoupanDiscountByLoyaltyPointCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GenerateGiftCardByLoyaltyPointCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GenerateGiftCardByLoyaltyPointCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GenerateGiftCardByLoyaltyPointCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.SaleGiftCardCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.SaleGiftCardCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.SaleGiftCardCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.NextGiftCardNoCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.NextGiftCardNoCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.NextGiftCardNoCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetUnSoldGiftCardCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.HOWebService.GetUnSoldGiftCardCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.HOWebService.GetUnSoldGiftCardCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.TcpService.TcpService">
+<remarks/>
+</member>
+<member name="M:DAL.TcpService.TcpService.#ctor">
+<remarks/>
+</member>
+<member name="E:DAL.TcpService.TcpService.GetFBRInvoiceNumberByModelCompleted">
+<remarks/>
+</member>
+<member name="E:DAL.TcpService.TcpService.CloseOfDaySummaryCompleted">
+<remarks/>
+</member>
+<member name="M:DAL.TcpService.TcpService.GetFBRInvoiceNumberByModel(DAL.TcpService.Invoice)">
+<remarks/>
+</member>
+<member name="M:DAL.TcpService.TcpService.GetFBRInvoiceNumberByModelAsync(DAL.TcpService.Invoice)">
+<remarks/>
+</member>
+<member name="M:DAL.TcpService.TcpService.GetFBRInvoiceNumberByModelAsync(DAL.TcpService.Invoice,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.TcpService.TcpService.CloseOfDaySummary(DAL.TcpService.Summary)">
+<remarks/>
+</member>
+<member name="M:DAL.TcpService.TcpService.CloseOfDaySummaryAsync(DAL.TcpService.Summary)">
+<remarks/>
+</member>
+<member name="M:DAL.TcpService.TcpService.CloseOfDaySummaryAsync(DAL.TcpService.Summary,System.Object)">
+<remarks/>
+</member>
+<member name="M:DAL.TcpService.TcpService.CancelAsync(System.Object)">
+<remarks/>
+</member>
+<member name="T:DAL.TcpService.Invoice">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.BuyerNTN">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.BuyerName">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.BuyerPhoneNumber">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.DateTime">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.Discount">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.DiscountSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.FBRInvoiceNumber">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.FurtherTax">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.FurtherTaxSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.InvoiceType">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.Items">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.POSID">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.PaymentMode">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.PaymentModeSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.RefUSIN">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.TotalBillAmount">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.TotalQuantity">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.TotalSaleValue">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.TotalTaxCharged">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Invoice.USIN">
+<remarks/>
+</member>
+<member name="T:DAL.TcpService.InvoiceItems">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.Discount">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.DiscountSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.FurtherTax">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.FurtherTaxSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.InvoiceType">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.ItemCode">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.ItemName">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.PCTCode">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.Quantity">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.RefUSIN">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.SaleValue">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.TaxCharged">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.TaxRate">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.InvoiceItems.TotalAmount">
+<remarks/>
+</member>
+<member name="T:DAL.TcpService.Summary">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.BranchID">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.BranchIDSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.CloseOfDay">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.ClosingTotalQuantity">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.ClosingTotalQuantitySpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.ClosingTotalValue">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.ClosingTotalValueSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.OpeningTotalQuantity">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.OpeningTotalQuantitySpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.OpeningTotalValue">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.OpeningTotalValueSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.POSID">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.POSIDSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.Periodically">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalInvoices">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalInvoicesSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalPurchaseQuantity">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalPurchaseQuantitySpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalPurchaseValue">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalPurchaseValueSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalSaleExlcudingSalesTax">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalSaleExlcudingSalesTaxSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalSaleValueIncludingSalesTax">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalSaleValueIncludingSalesTaxSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalSalesTax">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalSalesTaxSpecified">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalSoldQauntity">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.Summary.TotalSoldQauntitySpecified">
+<remarks/>
+</member>
+<member name="T:DAL.TcpService.GetFBRInvoiceNumberByModelCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.TcpService.GetFBRInvoiceNumberByModelCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.GetFBRInvoiceNumberByModelCompletedEventArgs.Result">
+<remarks/>
+</member>
+<member name="T:DAL.TcpService.CloseOfDaySummaryCompletedEventHandler">
+<remarks/>
+</member>
+<member name="T:DAL.TcpService.CloseOfDaySummaryCompletedEventArgs">
+<remarks/>
+</member>
+<member name="P:DAL.TcpService.CloseOfDaySummaryCompletedEventArgs.Result">
+<remarks/>
+</member>
+</members>
+</doc>
