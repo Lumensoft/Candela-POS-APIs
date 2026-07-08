@@ -6,6 +6,7 @@ using System.Web.Http;
 using CandelaPOS.Infrastructure;
 using CandelaPOS.Models;
 using static Utility.Utility;
+using System.Security.Claims;
 
 namespace CandelaPOS.Controllers
 {
@@ -144,6 +145,109 @@ namespace CandelaPOS.Controllers
             {
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
                     new { error = ex.Message });
+            }
+        }
+
+        // POST api/auth/refresh
+        // Issues a new JWT with a fresh expiry window from the same claims.
+        // The old token is blocklisted so it can no longer be used.
+        // Call this before the current token expires (e.g., 5 minutes before expiry).
+        [HttpPost, Route("refresh")]
+        public HttpResponseMessage Refresh()
+        {
+            // JwtAuthHandler already validated the token and placed claims in Properties
+            string rawToken = Request.Properties.ContainsKey("raw_token")
+                ? Request.Properties["raw_token"] as string : null;
+
+            if (string.IsNullOrEmpty(rawToken))
+                return Request.CreateResponse(HttpStatusCode.Unauthorized,
+                    new { error = "No token found on request" });
+
+            int    userId   = (int)   Request.Properties["user_id"];
+            int    shopId   = (int)   Request.Properties["shop_id"];
+            string posCode  = (string)Request.Properties["pos_code"];
+            string deviceId = (string)Request.Properties["device_id"];
+            string userName = (string)Request.Properties["user_name"];
+
+            try
+            {
+                // Blocklist the old token so it can't be reused after this refresh
+                BlocklistToken(rawToken);
+
+                string newToken = JwtHelper.Generate(userId, userName, shopId, posCode, deviceId);
+
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    ApiResponse<object>.Ok(new { token = newToken }));
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message });
+            }
+        }
+
+        // POST api/auth/logout
+        // Invalidates the current token immediately by blocklisting its signature.
+        // The tablet seat remains registered in tblComputerList (device stays authorised);
+        // the next login will issue a fresh token for the same slot.
+        [HttpPost, Route("logout")]
+        public HttpResponseMessage Logout()
+        {
+            string rawToken = Request.Properties.ContainsKey("raw_token")
+                ? Request.Properties["raw_token"] as string : null;
+
+            if (string.IsNullOrEmpty(rawToken))
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    ApiResponse<object>.Ok(new { logged_out = true }));
+
+            try
+            {
+                BlocklistToken(rawToken);
+
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    ApiResponse<object>.Ok(new { logged_out = true }));
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message });
+            }
+        }
+
+        // Adds the token signature to tblPOSTokenBlocklist.
+        // expires_at matches the token's own exp claim so the row is naturally stale
+        // after the token would have expired anyway (allows periodic cleanup).
+        private static void BlocklistToken(string rawToken)
+        {
+            string   sig     = JwtHelper.ExtractSignature(rawToken);
+            DateTime expires = JwtHelper.ExtractExpiry(rawToken);
+
+            if (string.IsNullOrEmpty(sig)) return;
+            if (expires == DateTime.MinValue) expires = DateTime.UtcNow.AddHours(24);
+
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+
+                // Ensure the blocklist table exists (idempotent DDL)
+                new SqlCommand(@"
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables WHERE name = 'tblPOSTokenBlocklist'
+)
+CREATE TABLE tblPOSTokenBlocklist (
+    id          INT IDENTITY(1,1) PRIMARY KEY,
+    token_sig   VARCHAR(512)  NOT NULL,
+    blocked_at  DATETIME      NOT NULL DEFAULT GETDATE(),
+    expires_at  DATETIME      NOT NULL,
+    INDEX IX_POSBlocklistSig (token_sig)
+)", con).ExecuteNonQuery();
+
+                var ins = new SqlCommand(
+                    "INSERT INTO tblPOSTokenBlocklist (token_sig, expires_at) " +
+                    "VALUES (@sig, @exp)", con);
+                ins.Parameters.AddWithValue("@sig", sig);
+                ins.Parameters.AddWithValue("@exp", expires);
+                ins.ExecuteNonQuery();
             }
         }
     }

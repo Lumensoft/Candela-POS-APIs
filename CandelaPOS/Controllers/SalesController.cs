@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.SqlClient;
 using System.Net;
 using System.Net.Http;
@@ -15,6 +16,225 @@ namespace CandelaPOS.Controllers
     [RoutePrefix("api/sales")]
     public class SalesController : ApiController
     {
+        // GET api/sales?page=1&page_size=20&q=ali&from=2026-01-01&to=2026-12-31&invoice_no=1234
+        // Paginated invoice search for the invoice search modal.
+        // Returns summary rows from tblSales joined to customer/employee info.
+        // Mirrors the query from SaleAndReturnDAL.vb:6802 (simplified for POS use).
+        [HttpGet, Route("")]
+        public HttpResponseMessage GetSales(
+            [FromUri] int    page      = 1,
+            [FromUri] int    page_size = 20,
+            [FromUri] string q         = null,
+            [FromUri] string from      = null,
+            [FromUri] string to        = null,
+            [FromUri] string invoice_no = null)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+
+            if (page      < 1) page      = 1;
+            if (page_size < 1 || page_size > 100) page_size = 20;
+
+            try
+            {
+                const string baseSql = @"
+SELECT
+    s.sale_id,
+    s.invoice_no,
+    s.sale_date,
+    isnull(m.member_name, s.cust_name)  AS customer_name,
+    m.member_id                          AS customer_id,
+    isnull(m.phone_mobile, '')           AS customer_phone,
+    isnull(e.field_name, '')             AS salesperson_name,
+    s.GT_amount                          AS gross_total,
+    s.NT_amount                          AS net_total,
+    s.Mark_Discount                      AS marketing_discount,
+    s.vat,
+    s.Cash_amt,
+    s.Card_amt,
+    isnull(s.isCreditSale, 0)           AS is_credit_sale,
+    isnull(s.isMixSale, 0)              AS is_mix_sale,
+    isnull(s.is_return_item, 0)         AS is_return,
+    s.SaleReturningNo                    AS return_of_sale_id,
+    isnull(s.invoice_Type, '')           AS invoice_type,
+    isnull(s.cust_bal, 0)               AS balance
+FROM tblSales s
+LEFT JOIN tblMemberInfo m
+    ON  m.member_id = s.member_id
+    AND m.shop_id   = s.memberShopID
+LEFT JOIN tblDefShopEmployees e
+    ON  e.shop_employee_id = s.employee_id
+WHERE s.shop_id = @shopId";
+
+                var where  = new System.Text.StringBuilder(baseSql);
+                var cmd    = new SqlCommand();
+                cmd.Parameters.AddWithValue("@shopId", shopId);
+
+                if (!string.IsNullOrWhiteSpace(invoice_no))
+                {
+                    where.Append(" AND s.invoice_no = @invoiceNo");
+                    cmd.Parameters.AddWithValue("@invoiceNo", invoice_no);
+                }
+                else if (!string.IsNullOrWhiteSpace(q))
+                {
+                    where.Append(" AND (m.member_name LIKE @q OR s.cust_name LIKE @q)");
+                    cmd.Parameters.AddWithValue("@q", "%" + q + "%");
+                }
+
+                if (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out DateTime fromDt))
+                {
+                    where.Append(" AND s.sale_date >= @fromDt");
+                    cmd.Parameters.AddWithValue("@fromDt", fromDt.Date);
+                }
+
+                if (!string.IsNullOrEmpty(to) && DateTime.TryParse(to, out DateTime toDt))
+                {
+                    where.Append(" AND s.sale_date < @toDt");
+                    cmd.Parameters.AddWithValue("@toDt", toDt.Date.AddDays(1));
+                }
+
+                int offset = (page - 1) * page_size;
+                string finalSql = where.ToString()
+                    + " ORDER BY s.sale_id DESC"
+                    + $" OFFSET {offset} ROWS FETCH NEXT {page_size} ROWS ONLY";
+
+                // Count query (same filters, no pagination)
+                string countSql = "SELECT COUNT(*) FROM (" + where.ToString() + ") AS cnt";
+
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    cmd.Connection = con;
+
+                    // Total count
+                    var countCmd = cmd.Clone() as SqlCommand;
+                    countCmd.CommandText = countSql;
+                    int total = Convert.ToInt32(countCmd.ExecuteScalar());
+
+                    // Page data
+                    cmd.CommandText = finalSql;
+                    var list = new List<Dictionary<string, object>>();
+                    using (var dt = new DataTable())
+                    {
+                        new SqlDataAdapter(cmd).Fill(dt);
+                        foreach (DataRow row in dt.Rows)
+                        {
+                            var dict = new Dictionary<string, object>();
+                            foreach (DataColumn col in dt.Columns)
+                                dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+                            list.Add(dict);
+                        }
+                    }
+
+                    return Request.CreateResponse(HttpStatusCode.OK, new
+                    {
+                        success    = true,
+                        total,
+                        page,
+                        page_size,
+                        count      = list.Count,
+                        data       = list
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message });
+            }
+        }
+
+        // DELETE api/sales/{id}
+        // Void an invoice — zeroes amounts, sets IsVoided=1, reverses inventory.
+        // Supervisor-only in Candela. Wraps SaleAndReturnDAL.VoidSale() at line 15240.
+        [HttpDelete, Route("{id:int}")]
+        public HttpResponseMessage VoidSale(int id)
+        {
+            CandelaBootstrap.PrepareRequest();
+
+            int    userId  = (int)   Request.Properties["user_id"];
+            int    shopId  = (int)   Request.Properties["shop_id"];
+            string posCode = (string)Request.Properties["pos_code"];
+
+            try
+            {
+                // Verify sale exists and belongs to this shop
+                using (var chkCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    chkCon.Open();
+                    var chkCmd = new SqlCommand(
+                        "SELECT isnull(IsVoided, 0) FROM tblSales " +
+                        "WHERE sale_id = @sid AND shop_id = @shid", chkCon);
+                    chkCmd.Parameters.AddWithValue("@sid",  id);
+                    chkCmd.Parameters.AddWithValue("@shid", shopId);
+                    var chkResult = chkCmd.ExecuteScalar();
+
+                    if (chkResult == null)
+                        return Request.CreateResponse(HttpStatusCode.NotFound,
+                            new { error = "Sale not found" });
+
+                    if (Convert.ToBoolean(chkResult))
+                        return Request.CreateResponse((HttpStatusCode)409,
+                            new { error = "Sale is already voided" });
+                }
+
+                // Build minimal model for VoidSale — only SaleID, Shop, and audit required
+                var model = new SaleAndReturn();
+                model.SaleID          = id;
+                model.Shop.ShopID     = shopId;
+                model.UserInfo.UserID = userId;
+                model.UserInfo.POSCode = posCode;
+                model.Customer.MemberName = "";
+                model.ActivityLog.LogGroup    = "POS API";
+                model.ActivityLog.ScreenTitle = "Void";
+                model.ActivityLog.UserID      = userId;
+                model.ActivityLog.ShopID      = shopId;
+
+                // VoidSale() receives an already-open transaction (it does NOT open its own).
+                // SaleAndReturnDAL.vb:15240
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    using (var trans = con.BeginTransaction())
+                    {
+                        try
+                        {
+                            string physAuditMsg = "";
+                            var dal = new SaleAndReturnDAL();
+                            bool ok = dal.VoidSale(model, EnumActions.Delete, ref physAuditMsg, trans);
+
+                            if (!ok)
+                            {
+                                trans.Rollback();
+                                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                                    new { error = "VoidSale() returned false" });
+                            }
+
+                            trans.Commit();
+
+                            return Request.CreateResponse(HttpStatusCode.OK,
+                                ApiResponse<object>.Ok(new
+                                {
+                                    voided  = true,
+                                    sale_id = id,
+                                    message = string.IsNullOrWhiteSpace(physAuditMsg) ? null : physAuditMsg
+                                }));
+                        }
+                        catch
+                        {
+                            trans.Rollback();
+                            throw;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message });
+            }
+        }
+
         // POST api/sales
         [HttpPost, Route("")]
         public HttpResponseMessage PostSale([FromBody] SaleRequest req)

@@ -73,6 +73,29 @@ namespace CandelaPOS.Infrastructure
             }
         }
 
+        // Returns the signature segment of a raw JWT string, or "" on malformed input.
+        public static string ExtractSignature(string rawToken)
+        {
+            if (string.IsNullOrEmpty(rawToken)) return "";
+            var parts = rawToken.Split('.');
+            return parts.Length == 3 ? parts[2] : "";
+        }
+
+        // Returns the exp claim as a UTC DateTime, or DateTime.MinValue on failure.
+        public static DateTime ExtractExpiry(string rawToken)
+        {
+            try
+            {
+                var parts = rawToken.Split('.');
+                if (parts.Length != 3) return DateTime.MinValue;
+                string json    = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
+                var payload    = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);
+                long exp       = Convert.ToInt64(payload["exp"]);
+                return DateTimeOffset.FromUnixTimeSeconds(exp).UtcDateTime;
+            }
+            catch { return DateTime.MinValue; }
+        }
+
         public static int    GetUserId(ClaimsPrincipal p)   => int.Parse(p.FindFirst("user_id")?.Value   ?? "0");
         public static int    GetShopId(ClaimsPrincipal p)   => int.Parse(p.FindFirst("shop_id")?.Value   ?? "0");
         public static string GetPosCode(ClaimsPrincipal p)  => p.FindFirst("pos_code")?.Value  ?? "POS";
