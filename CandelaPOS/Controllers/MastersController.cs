@@ -12,31 +12,178 @@ namespace CandelaPOS.Controllers
     [RoutePrefix("api/masters")]
     public class MastersController : ApiController
     {
+        // ── /masters/products ─────────────────────────────────────────────────────
         // GET api/masters/products
         // GET api/masters/products?since=2026-01-01T00:00:00
         [HttpGet, Route("products")]
         public HttpResponseMessage GetProducts([FromUri] string since = null)
         {
             CandelaBootstrap.PrepareRequest();
-
             int shopId = (int)Request.Properties["shop_id"];
-
             try
             {
-                DateTime? sinceDate = null;
-                if (!string.IsNullOrEmpty(since) && DateTime.TryParse(since, out DateTime parsed))
-                    sinceDate = parsed;
-
-                var rows = QueryProducts(shopId, sinceDate);
-                return Request.CreateResponse(HttpStatusCode.OK,
-                    new { success = true, count = rows.Count, data = rows });
+                var rows = QueryProducts(shopId, ParseSince(since));
+                return Ok(rows);
             }
-            catch (Exception ex)
-            {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
-            }
+            catch (Exception ex) { return Err(ex); }
         }
+
+        // GET api/masters/products/search?barcode=X  OR  ?code=X
+        // Live fallback when barcode is not in the app's local IndexedDB cache.
+        [HttpGet, Route("products/search")]
+        public HttpResponseMessage SearchProduct([FromUri] string barcode = null,
+                                                 [FromUri] string code    = null)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+            try
+            {
+                if (string.IsNullOrWhiteSpace(barcode) && string.IsNullOrWhiteSpace(code))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = "barcode or code is required" });
+
+                var rows = SearchProductByBarcode(shopId, barcode, code);
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // ── /masters/customers ────────────────────────────────────────────────────
+        // GET api/masters/customers                          — full list (initial IndexedDB load)
+        // GET api/masters/customers?since=2026-01-01T00:00:00  — delta sync
+        // GET api/masters/customers?q=Ahmed                  — live search fallback (when IndexedDB miss)
+        [HttpGet, Route("customers")]
+        public HttpResponseMessage GetCustomers([FromUri] string since = null, [FromUri] string q = null)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+            try
+            {
+                var rows = QueryCustomers(shopId, ParseSince(since), q);
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // ── /masters/employees ────────────────────────────────────────────────────
+        // GET api/masters/employees
+        // GET api/masters/employees?since=2026-01-01T00:00:00
+        [HttpGet, Route("employees")]
+        public HttpResponseMessage GetEmployees([FromUri] string since = null)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+            try
+            {
+                var rows = QueryEmployees(shopId, ParseSince(since));
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // ── /masters/credit-cards ─────────────────────────────────────────────────
+        // GET api/masters/credit-cards
+        // GET api/masters/credit-cards?since=2026-01-01T00:00:00
+        [HttpGet, Route("credit-cards")]
+        public HttpResponseMessage GetCreditCards([FromUri] string since = null)
+        {
+            CandelaBootstrap.PrepareRequest();
+            try
+            {
+                var rows = QueryCreditCards(ParseSince(since));
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // ── /masters/member-types ─────────────────────────────────────────────────
+        // GET api/masters/member-types
+        // GET api/masters/member-types?since=2026-01-01T00:00:00
+        [HttpGet, Route("member-types")]
+        public HttpResponseMessage GetMemberTypes([FromUri] string since = null)
+        {
+            CandelaBootstrap.PrepareRequest();
+            try
+            {
+                var rows = QueryMemberTypes(ParseSince(since));
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // ── /masters/payment-methods ──────────────────────────────────────────────
+        // Returns enabled mobile payment providers from tblRCMSConfiguration.
+        // No delta — config is returned in full. App hides mobile tab when list is empty.
+        [HttpGet, Route("payment-methods")]
+        public HttpResponseMessage GetPaymentMethods()
+        {
+            CandelaBootstrap.PrepareRequest();
+            try
+            {
+                var rows = QueryPaymentMethods();
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // ── /masters/return-reasons ───────────────────────────────────────────────
+        // GET api/masters/return-reasons
+        // GET api/masters/return-reasons?since=2026-01-01T00:00:00
+        [HttpGet, Route("return-reasons")]
+        public HttpResponseMessage GetReturnReasons([FromUri] string since = null)
+        {
+            CandelaBootstrap.PrepareRequest();
+            try
+            {
+                var rows = QueryReturnReasons(ParseSince(since));
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // ── /masters/config ───────────────────────────────────────────────────────
+        // Returns tblShopConfiguration + tblRCMSConfiguration merged as key/value pairs.
+        // shop_config keys take precedence over rcms_config when the same key appears in both.
+        // Delta: checks config_updated_at when present; falls back to full return (config is small).
+        // GET api/masters/config
+        // GET api/masters/config?since=2026-01-01T00:00:00
+        [HttpGet, Route("config")]
+        public HttpResponseMessage GetConfig([FromUri] string since = null)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+            try
+            {
+                var rows = QueryConfig(shopId, ParseSince(since));
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // ── /masters/str/{no}/products ────────────────────────────────────────────
+        // Loads products from a Stock Transfer Request by STR number.
+        // Wraps SaleAndReturnDAL.funGetStrProducts — mirrors txtSTRNo_GetSTR
+        // frmSaleAndReturn.vb:22651
+        [HttpGet, Route("str/{strNo}/products")]
+        public HttpResponseMessage GetStrProducts(string strNo)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+            try
+            {
+                if (string.IsNullOrWhiteSpace(strNo))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = "strNo is required" });
+
+                var rows = QueryStrProducts(strNo, shopId);
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // SQL implementations
+        // ─────────────────────────────────────────────────────────────────────────
 
         private List<Dictionary<string, object>> QueryProducts(int shopId, DateTime? since)
         {
@@ -45,48 +192,289 @@ SELECT
     pi.Product_Item_ID,
     CASE WHEN li.isassortmentenabled = 1
          THEN pd.product_code + '-' + sz.field_code + '-' + cl.field_code
-         ELSE pd.product_code END AS product_code,
+         ELSE pd.product_code END                AS product_code,
     pd.item_name,
-    isnull(pi.CustomerSKUCode,  '') AS barcode,
-    isnull(pi.CustomerSKUCode2, '') AS barcode2,
-    isnull(pp.product_price, 0) AS price,
-    isnull(pd.vat, 0)           AS vat,
-    isnull(pd.vat_type, '')     AS vat_type,
-    isnull(pd.NotForDiscount, 0)    AS not_for_discount,
-    isnull(pd.Tax_At_Retail_Price, 0) AS tax_at_retail_price,
-    isnull(pd.Sale_Tax, 0)      AS sale_tax,
-    isnull(pd.custom_discount, 0)   AS custom_discount,
-    isnull(pd.Basic_Designed, 1)    AS basic_designed,
-    isnull(inv.quantity, 0)         AS stock_qty,
+    isnull(pi.CustomerSKUCode,  '')              AS barcode,
+    isnull(pi.CustomerSKUCode2, '')              AS barcode2,
+    isnull(pp.product_price, 0)                 AS price,
+    isnull(pd.vat, 0)                           AS vat,
+    isnull(pd.vat_type, '')                     AS vat_type,
+    isnull(pd.NotForDiscount, 0)                AS not_for_discount,
+    isnull(pd.Tax_At_Retail_Price, 0)           AS tax_at_retail_price,
+    isnull(pd.Sale_Tax, 0)                      AS sale_tax,
+    isnull(pd.custom_discount, 0)               AS custom_discount,
+    isnull(pd.Basic_Designed, 1)                AS basic_designed,
+    isnull(inv.quantity, 0)                     AS stock_qty,
     pd.entereddate,
     pd.editeddate
 FROM tblProductItem pi
-JOIN tblDefProducts pd   ON pd.product_id = pi.product_id
-JOIN tblDefSizes sz       ON sz.size_id = pi.size_id         AND sz.line_item_id = pd.line_item_id
-JOIN tblDefCombinitions cl ON cl.combinition_id = pi.combinition_id AND cl.line_item_id = pd.line_item_id
-JOIN tblDefLineItems li   ON li.line_item_id = pd.line_item_id
-LEFT JOIN tblDefProductPrice pp ON pp.product_item_id = pi.Product_Item_ID
-    AND ((pp.start_date < GETDATE() AND pp.end_date IS NULL)
-      OR  (pp.start_date < GETDATE() AND pp.end_date > GETDATE()))
-LEFT JOIN tblShopProductInventory inv ON inv.product_item_id = pi.Product_Item_ID AND inv.shop_id = @shopId
+JOIN tblDefProducts pd      ON pd.product_id       = pi.product_id
+JOIN tblDefSizes sz         ON sz.size_id          = pi.size_id          AND sz.line_item_id  = pd.line_item_id
+JOIN tblDefCombinitions cl  ON cl.combinition_id   = pi.combinition_id   AND cl.line_item_id  = pd.line_item_id
+JOIN tblDefLineItems li     ON li.line_item_id     = pd.line_item_id
+LEFT JOIN tblDefProductPrice pp
+       ON pp.product_item_id = pi.Product_Item_ID
+      AND ((pp.start_date < GETDATE() AND pp.end_date IS NULL)
+        OR  (pp.start_date < GETDATE() AND pp.end_date > GETDATE()))
+LEFT JOIN tblShopProductInventory inv
+       ON inv.product_item_id = pi.Product_Item_ID AND inv.shop_id = @shopId
 WHERE isnull(pd.status, 1) = 1";
 
-            const string deltaClause = " AND (pd.entereddate >= @since OR pd.editeddate >= @since)";
+            const string delta = " AND (pd.entereddate >= @since OR pd.editeddate >= @since)";
+            return Run(sql + (since.HasValue ? delta : ""),
+                p => { p.AddWithValue("@shopId", shopId);
+                       if (since.HasValue) p.AddWithValue("@since", since.Value); });
+        }
 
+        private List<Dictionary<string, object>> SearchProductByBarcode(int shopId, string barcode, string code)
+        {
+            // Search by CustomerSKUCode (barcode) OR product_code.
+            const string sql = @"
+SELECT TOP 10
+    pi.Product_Item_ID,
+    pd.product_code,
+    pd.item_name,
+    isnull(pi.CustomerSKUCode,  '') AS barcode,
+    isnull(pi.CustomerSKUCode2, '') AS barcode2,
+    isnull(pp.product_price, 0)    AS price,
+    isnull(pd.vat, 0)              AS vat,
+    isnull(pd.vat_type, '')        AS vat_type,
+    isnull(pd.NotForDiscount, 0)   AS not_for_discount,
+    isnull(inv.quantity, 0)        AS stock_qty
+FROM tblProductItem pi
+JOIN tblDefProducts pd ON pd.product_id = pi.product_id
+LEFT JOIN tblDefProductPrice pp
+       ON pp.product_item_id = pi.Product_Item_ID
+      AND ((pp.start_date < GETDATE() AND pp.end_date IS NULL)
+        OR  (pp.start_date < GETDATE() AND pp.end_date > GETDATE()))
+LEFT JOIN tblShopProductInventory inv
+       ON inv.product_item_id = pi.Product_Item_ID AND inv.shop_id = @shopId
+WHERE isnull(pd.status, 1) = 1
+  AND (  (@barcode IS NOT NULL AND (pi.CustomerSKUCode  = @barcode
+                                 OR pi.CustomerSKUCode2 = @barcode))
+      OR (@code    IS NOT NULL AND pd.product_code = @code))";
+
+            return Run(sql, p =>
+            {
+                p.AddWithValue("@shopId",  shopId);
+                p.AddWithValue("@barcode", string.IsNullOrWhiteSpace(barcode) ? (object)DBNull.Value : barcode);
+                p.AddWithValue("@code",    string.IsNullOrWhiteSpace(code)    ? (object)DBNull.Value : code);
+            });
+        }
+
+        private List<Dictionary<string, object>> QueryCustomers(int shopId, DateTime? since, string q = null)
+        {
+            // Returns customers registered at this shop.
+            // ?since= for delta sync (IndexedDB initial/incremental load).
+            // ?q=     for live search fallback when the app gets a miss in IndexedDB.
+            //         Matches member_name, phone_no, or mobile_no — TOP 50 for UX speed.
+            // Joins member type for discount_pct and customer_disc_type used in the sale screen.
+            bool isSearch = !string.IsNullOrWhiteSpace(q);
+
+            string sql = @"
+SELECT" + (isSearch ? " TOP 50" : "") + @"
+    m.member_id,
+    m.member_name,
+    isnull(m.phone_no,    '')   AS phone,
+    isnull(m.mobile_no,   '')   AS mobile,
+    isnull(m.email_add,   '')   AS email,
+    isnull(m.credit_limit, 0)  AS credit_limit,
+    isnull(m.allow_credit, 0)  AS allow_credit,
+    isnull(m.member_type_id, 0) AS member_type_id,
+    isnull(mt.discount_percentage, 0)  AS discount_pct,
+    isnull(mt.CustomerDiscType, '0')   AS customer_disc_type,
+    m.entereddate,
+    m.editeddate
+FROM tblMemberInfo m
+LEFT JOIN tblDefMemberTypes mt ON mt.member_type_id = m.member_type_id
+WHERE m.shop_id = @shopId
+  AND isnull(m.isDeleted, 0) = 0";
+
+            if (since.HasValue)
+                sql += " AND (m.entereddate >= @since OR m.editeddate >= @since)";
+
+            if (isSearch)
+                sql += @"
+  AND (m.member_name LIKE @q
+    OR m.phone_no    LIKE @q
+    OR m.mobile_no   LIKE @q)";
+
+            return Run(sql, p =>
+            {
+                p.AddWithValue("@shopId", shopId);
+                if (since.HasValue) p.AddWithValue("@since", since.Value);
+                if (isSearch)       p.AddWithValue("@q", "%" + q.Trim() + "%");
+            });
+        }
+
+        private List<Dictionary<string, object>> QueryEmployees(int shopId, DateTime? since)
+        {
+            // tblDefShopEmployees — salesperson list for the salesperson assign modal.
+            // Delta column: entereddate / editeddate (standard Candela audit columns).
+            const string sql = @"
+SELECT
+    e.shop_employee_id,
+    isnull(e.employee_name, '') AS employee_name,
+    isnull(e.employee_code, '') AS employee_code,
+    e.shop_id,
+    e.entereddate,
+    e.editeddate
+FROM tblDefShopEmployees e
+WHERE e.shop_id = @shopId
+  AND isnull(e.isActive, 1) = 1";
+
+            const string delta = " AND (e.entereddate >= @since OR e.editeddate >= @since)";
+            return Run(sql + (since.HasValue ? delta : ""),
+                p => { p.AddWithValue("@shopId", shopId);
+                       if (since.HasValue) p.AddWithValue("@since", since.Value); });
+        }
+
+        private List<Dictionary<string, object>> QueryCreditCards(DateTime? since)
+        {
+            // tblDefCreditCards — global, not shop-scoped.
+            // Used to populate the card type dropdown on the payment screen.
+            const string sql = @"
+SELECT
+    c.CreditCardID,
+    isnull(c.CreditCard, '') AS card_name,
+    c.entereddate,
+    c.editeddate
+FROM tblDefCreditCards c
+WHERE isnull(c.isActive, 1) = 1";
+
+            const string delta = " AND (c.entereddate >= @since OR c.editeddate >= @since)";
+            return Run(sql + (since.HasValue ? delta : ""),
+                p => { if (since.HasValue) p.AddWithValue("@since", since.Value); });
+        }
+
+        private List<Dictionary<string, object>> QueryMemberTypes(DateTime? since)
+        {
+            // tblDefMemberTypes — customer tier definitions.
+            // customer_disc_type drives which discount branch applies in /quote.
+            const string sql = @"
+SELECT
+    mt.member_type_id,
+    isnull(mt.MemberTypeName, '')       AS type_name,
+    isnull(mt.discount_percentage, 0)   AS discount_percentage,
+    isnull(mt.CustomerDiscType, '0')    AS customer_disc_type,
+    isnull(mt.IsEmployeeDiscOn, 0)      AS is_employee_disc_on,
+    isnull(mt.QtyLimit, 0)              AS qty_limit,
+    isnull(mt.DurationMonths, 1)        AS duration_months,
+    mt.entereddate,
+    mt.editeddate
+FROM tblDefMemberTypes mt";
+
+            const string delta = " WHERE (mt.entereddate >= @since OR mt.editeddate >= @since)";
+            return Run(sql + (since.HasValue ? delta : ""),
+                p => { if (since.HasValue) p.AddWithValue("@since", since.Value); });
+        }
+
+        private List<Dictionary<string, object>> QueryPaymentMethods()
+        {
+            // Mobile payment providers — read from tblRCMSConfiguration.
+            // Returns one row per configured provider with its enabled flag.
+            // App hides the Mobile tab when all providers are disabled.
+            const string sql = @"
+SELECT config_name AS provider, config_value AS value
+FROM   tblRCMSConfiguration
+WHERE  config_name IN ('FonePayEnabled', 'AlifPayEnabled',
+                       'FonePayMerchantId', 'AlifPayMerchantId',
+                       '543PayEnabled', '543PayMerchantId')";
+
+            return Run(sql, _ => { });
+        }
+
+        private List<Dictionary<string, object>> QueryReturnReasons(DateTime? since)
+        {
+            // tblDefReturnReasons — reason dropdown on the Return screen.
+            const string sql = @"
+SELECT
+    r.return_reason_id,
+    isnull(r.return_reason, '') AS reason_name,
+    r.entereddate,
+    r.editeddate
+FROM tblDefReturnReasons r
+WHERE isnull(r.isActive, 1) = 1";
+
+            const string delta = " AND (r.entereddate >= @since OR r.editeddate >= @since)";
+            return Run(sql + (since.HasValue ? delta : ""),
+                p => { if (since.HasValue) p.AddWithValue("@since", since.Value); });
+        }
+
+        private List<Dictionary<string, object>> QueryConfig(int shopId, DateTime? since)
+        {
+            // Merges tblShopConfiguration (shop-specific) and tblRCMSConfiguration (global).
+            // Shop config overrides RCMS when the same key exists in both.
+            // Both tables are small — always return all rows.
+            // The ?since= param is accepted for API consistency but config has no reliable
+            // timestamp column, so we always return the full set (acceptable — config is tiny).
+            const string sql = @"
+SELECT config_name AS config_key, config_value, 'shop' AS source
+FROM   tblShopConfiguration
+WHERE  shop_id = @shopId
+
+UNION ALL
+
+SELECT config_name AS config_key, config_value, 'rcms' AS source
+FROM   tblRCMSConfiguration";
+
+            return Run(sql, p => p.AddWithValue("@shopId", shopId));
+        }
+
+        private List<Dictionary<string, object>> QueryStrProducts(string strNo, int shopId)
+        {
+            // Mirrors SaleAndReturnDAL.funGetStrProducts — frmSaleAndReturn.vb:22651
+            // Loads product + quantity from a Stock Transfer Request by STR number.
+            // Alternate product codes (CustomerSKUCode) are accepted same as Candela.
+            const string sql = @"
+SELECT
+    sli.product_item_id,
+    pd.item_name,
+    pd.product_code,
+    isnull(pi.CustomerSKUCode, '') AS barcode,
+    sli.qty,
+    isnull(pp.product_price, 0)   AS price
+FROM tblSTR s
+JOIN tblSTRLineItems sli ON sli.STR_id = s.STR_id
+JOIN tblProductItem pi   ON pi.Product_Item_ID = sli.product_item_id
+JOIN tblDefProducts pd   ON pd.product_id = pi.product_id
+LEFT JOIN tblDefProductPrice pp
+       ON pp.product_item_id = sli.product_item_id
+      AND ((pp.start_date < GETDATE() AND pp.end_date IS NULL)
+        OR  (pp.start_date < GETDATE() AND pp.end_date > GETDATE()))
+WHERE s.STR_no = @strNo
+  AND s.to_shop_id = @shopId";
+
+            return Run(sql, p =>
+            {
+                p.AddWithValue("@strNo",  strNo);
+                p.AddWithValue("@shopId", shopId);
+            });
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // Shared helpers
+        // ─────────────────────────────────────────────────────────────────────────
+
+        private static DateTime? ParseSince(string since)
+        {
+            if (!string.IsNullOrEmpty(since) && DateTime.TryParse(since, out DateTime d))
+                return d;
+            return null;
+        }
+
+        private List<Dictionary<string, object>> Run(string sql, Action<SqlParameterCollection> bind)
+        {
             using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
             {
                 con.Open();
-                var cmd = new SqlCommand(sql + (since.HasValue ? deltaClause : ""), con);
-                cmd.Parameters.AddWithValue("@shopId", shopId);
-                if (since.HasValue)
-                    cmd.Parameters.AddWithValue("@since", since.Value);
+                var cmd = new SqlCommand(sql, con);
+                bind(cmd.Parameters);
 
                 var list = new List<Dictionary<string, object>>();
                 using (var dt = new DataTable())
                 {
-                    using (var adapter = new SqlDataAdapter(cmd))
-                        adapter.Fill(dt);
-
+                    new SqlDataAdapter(cmd).Fill(dt);
                     foreach (DataRow row in dt.Rows)
                     {
                         var dict = new Dictionary<string, object>();
@@ -98,5 +486,13 @@ WHERE isnull(pd.status, 1) = 1";
                 return list;
             }
         }
+
+        private HttpResponseMessage Ok(List<Dictionary<string, object>> rows) =>
+            Request.CreateResponse(HttpStatusCode.OK,
+                new { success = true, count = rows.Count, data = rows });
+
+        private HttpResponseMessage Err(Exception ex) =>
+            Request.CreateResponse(HttpStatusCode.InternalServerError,
+                new { error = ex.Message });
     }
 }
