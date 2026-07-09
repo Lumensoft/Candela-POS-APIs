@@ -5,7 +5,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Web.Http;
 using CandelaPOS.Infrastructure;
-using DAL.ShopActivities;
+using DAL;
 
 namespace CandelaPOS.Controllers
 {
