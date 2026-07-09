@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
@@ -16,6 +17,12 @@ namespace CandelaPOS.Controllers
     [RoutePrefix("api/returns")]
     public class ReturnsController : ApiController
     {
+        // Per-invoice application lock: ensures ValidateReturnQuantities and dal.Add()
+        // execute as one atomic unit, preventing two concurrent requests from both passing
+        // the qty check for the same invoice and then both committing.
+        private static readonly ConcurrentDictionary<int, object> _invoiceLocks =
+            new ConcurrentDictionary<int, object>();
+
         // POST api/returns/validate
         // Check if an invoice is returnable and return its items
         [HttpPost, Route("validate")]
@@ -49,10 +56,10 @@ namespace CandelaPOS.Controllers
                     items
                 });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An internal error occurred." });
             }
         }
 
@@ -87,11 +94,18 @@ namespace CandelaPOS.Controllers
             SaleAndReturn sale = null;
             try
             {
-                // Idempotency — same GUID = same return
-                int existingSaleId = GetExistingReturnId(req.ClientTxnGuid, shopId);
-                if (existingSaleId > 0)
-                    return Request.CreateResponse(HttpStatusCode.OK,
-                        ApiResponse<object>.Ok(new { sale_id = existingSaleId, idempotent = true }));
+                // Idempotency — atomically claim this GUID before doing any work.
+                if (!TryClaimIdempotencySlot(req.ClientTxnGuid, shopId))
+                {
+                    System.Threading.Thread.Sleep(100);
+                    int existing = GetExistingReturnId(req.ClientTxnGuid, shopId);
+                    if (existing > 0)
+                        return Request.CreateResponse(HttpStatusCode.OK,
+                            ApiResponse<object>.Ok(new { sale_id = existing, idempotent = true }));
+
+                    return Request.CreateResponse(HttpStatusCode.Conflict,
+                        new { error = "Duplicate request in progress. Please retry." });
+                }
 
                 var dal = new SaleAndReturnDAL();
 
@@ -99,45 +113,51 @@ namespace CandelaPOS.Controllers
                     return Request.CreateResponse((HttpStatusCode)422,
                         new { error = "Invoice is not valid for return" });
 
-                // Per-item over-return protection: verify no item is being returned
-                // more than it was originally sold (minus any already-returned qty).
-                string overReturnError = ValidateReturnQuantities(shopId, req.ReturningInvoiceNo, req.Items);
-                if (overReturnError != null)
-                    return Request.CreateResponse((HttpStatusCode)422, new { error = overReturnError });
+                // Per-invoice lock: ensures ValidateReturnQuantities and dal.Add() are
+                // atomic so two concurrent requests for the same invoice cannot both pass
+                // the qty check and then both commit an over-return.
+                var invoiceLock = _invoiceLocks.GetOrAdd(req.ReturningInvoiceNo, _ => new object());
+                lock (invoiceLock)
+                {
+                    string overReturnError = ValidateReturnQuantities(shopId, req.ReturningInvoiceNo, req.Items);
+                    if (overReturnError != null)
+                        return Request.CreateResponse((HttpStatusCode)422, new { error = overReturnError });
 
-                sale = BuildReturnModel(req, userId, shopId, posCode, userName);
+                    sale = BuildReturnModel(req, userId, shopId, posCode, userName);
 
-                // Credit note — build DataTable when caller provides a gift card target.
-                // frmSaleAndReturn.vb:38859: dal.Add(..., myCreditNoteDataTable)
-                DataTable creditNoteTable = null;
-                if (req.CreditNoteGiftCardId > 0)
-                    creditNoteTable = BuildCreditNoteTable(req, shopId, posCode);
+                    // Credit note — build DataTable when caller provides a gift card target.
+                    // frmSaleAndReturn.vb:38859: dal.Add(..., myCreditNoteDataTable)
+                    DataTable creditNoteTable = null;
+                    if (req.CreditNoteGiftCardId > 0)
+                        creditNoteTable = BuildCreditNoteTable(req, shopId, posCode);
 
-                string auditMsg = "";
-                bool ok = dal.Add(sale, EnumActions.Save, ref auditMsg, "", creditNoteTable);
+                    string auditMsg = "";
+                    bool ok = dal.Add(sale, EnumActions.Save, ref auditMsg, "", creditNoteTable);
 
-                if (!ok)
-                    return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                        new { error = "SaleAndReturnDAL.Add() returned false. " + auditMsg });
+                    if (!ok)
+                        return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                            new { error = "SaleAndReturnDAL.Add() returned false. " + auditMsg });
 
-                RecordIdempotencyKey(req.ClientTxnGuid, sale.SaleID, shopId);
+                    UpdateIdempotencySlot(req.ClientTxnGuid, sale.SaleID, shopId);
 
-                return Request.CreateResponse(HttpStatusCode.OK,
-                    ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
+                    return Request.CreateResponse(HttpStatusCode.OK,
+                        ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
+                }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // dal.Add() can throw a secondary error (e.g., BuildSQLLog truncation or loyalty
                 // reversal) even after tblSales/tblSalesLineItems already committed. If SaleID
                 // was assigned the return was saved — record the idempotency key and return success.
                 if (sale != null && sale.SaleID > 0)
                 {
-                    RecordIdempotencyKey(req.ClientTxnGuid, sale.SaleID, shopId);
+                    UpdateIdempotencySlot(req.ClientTxnGuid, sale.SaleID, shopId);
                     return Request.CreateResponse(HttpStatusCode.OK,
                         ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
                 }
+                DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An error occurred processing the return." });
             }
         }
 
@@ -460,7 +480,7 @@ WHERE li.sale_id = @invoiceNo
                 con.Open();
                 var cmd = new SqlCommand(
                     "SELECT TOP 1 sale_id FROM tblPOSIdempotency " +
-                    "WHERE client_txn_guid = @guid AND shop_id = @sid", con);
+                    "WHERE client_txn_guid = @guid AND shop_id = @sid AND sale_id > 0", con);
                 cmd.Parameters.AddWithValue("@guid", clientGuid);
                 cmd.Parameters.AddWithValue("@sid",  shopId);
                 var result = cmd.ExecuteScalar();
@@ -468,18 +488,91 @@ WHERE li.sale_id = @invoiceNo
             }
         }
 
-        private void RecordIdempotencyKey(string clientGuid, int saleId, int shopId)
+        private bool TryClaimIdempotencySlot(string clientGuid, int shopId)
         {
-            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            try
             {
-                con.Open();
-                var cmd = new SqlCommand(
-                    "INSERT INTO tblPOSIdempotency (client_txn_guid, sale_id, shop_id, created_at) " +
-                    "VALUES (@guid, @sid_sale, @sid_shop, GETDATE())", con);
-                cmd.Parameters.AddWithValue("@guid",     clientGuid);
-                cmd.Parameters.AddWithValue("@sid_sale", saleId);
-                cmd.Parameters.AddWithValue("@sid_shop", shopId);
-                cmd.ExecuteNonQuery();
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "INSERT INTO tblPOSIdempotency (client_txn_guid, sale_id, shop_id, created_at) " +
+                        "SELECT @guid, 0, @sid, GETDATE() " +
+                        "WHERE NOT EXISTS (SELECT 1 FROM tblPOSIdempotency " +
+                        "                  WHERE client_txn_guid = @guid AND shop_id = @sid)", con);
+                    cmd.Parameters.AddWithValue("@guid", clientGuid);
+                    cmd.Parameters.AddWithValue("@sid",  shopId);
+                    return cmd.ExecuteNonQuery() > 0;
+                }
+            }
+            catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
+            {
+                return false;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        private void UpdateIdempotencySlot(string clientGuid, int saleId, int shopId)
+        {
+            for (int attempt = 1; attempt <= 3; attempt++)
+            {
+                try
+                {
+                    using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                    {
+                        con.Open();
+                        var upd = new SqlCommand(
+                            "UPDATE tblPOSIdempotency SET sale_id = @saleId " +
+                            "WHERE client_txn_guid = @guid AND shop_id = @sid", con);
+                        upd.Parameters.AddWithValue("@saleId", saleId);
+                        upd.Parameters.AddWithValue("@guid",   clientGuid);
+                        upd.Parameters.AddWithValue("@sid",    shopId);
+                        if (upd.ExecuteNonQuery() == 0)
+                        {
+                            var ins = new SqlCommand(
+                                "INSERT INTO tblPOSIdempotency (client_txn_guid, sale_id, shop_id, created_at) " +
+                                "VALUES (@guid, @saleId, @sid, GETDATE())", con);
+                            ins.Parameters.AddWithValue("@guid",   clientGuid);
+                            ins.Parameters.AddWithValue("@saleId", saleId);
+                            ins.Parameters.AddWithValue("@sid",    shopId);
+                            ins.ExecuteNonQuery();
+                        }
+                    }
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.TraceError(
+                        "UpdateIdempotencySlot attempt {0}/3 failed for guid={1} saleId={2}: {3}",
+                        attempt, clientGuid, saleId, ex);
+                    if (attempt < 3)
+                        System.Threading.Thread.Sleep(50 * attempt);
+                }
+            }
+        }
+
+        private void DeleteIdempotencySlot(string clientGuid, int shopId)
+        {
+            try
+            {
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "DELETE FROM tblPOSIdempotency " +
+                        "WHERE client_txn_guid = @guid AND shop_id = @sid AND sale_id = 0", con);
+                    cmd.Parameters.AddWithValue("@guid", clientGuid);
+                    cmd.Parameters.AddWithValue("@sid",  shopId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.TraceError(
+                    "DeleteIdempotencySlot failed for guid={0}: {1}", clientGuid, ex);
             }
         }
     }

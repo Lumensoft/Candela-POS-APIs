@@ -90,11 +90,11 @@ VALUES
                         new { success = true,
                               data = new { member_id = memberId, member_no = memberNo, shop_id = shopId } });
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     trans.Rollback();
                     return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                        new { error = ex.Message });
+                        new { error = "An internal error occurred." });
                 }
             }
         }

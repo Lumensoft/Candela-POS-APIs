@@ -68,10 +68,17 @@ namespace CandelaPOS.Infrastructure
                     return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
                 }
             }
-            catch
+            catch (SqlException ex) when (ex.Number == 208)
             {
-                // If the blocklist table doesn't exist yet, treat as not blocked.
+                // 208 = "Invalid object name" — blocklist table not yet created; treat as not blocked.
                 return false;
+            }
+            catch (Exception ex)
+            {
+                // Any other DB error (connection failure, timeout, etc.) — fail safe: treat as blocked
+                // so a revoked token cannot slip through during an outage.
+                System.Diagnostics.Trace.TraceError("IsBlocklisted DB error (fail-safe blocked): {0}", ex);
+                return true;
             }
         }
 

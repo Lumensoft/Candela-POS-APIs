@@ -137,10 +137,10 @@ WHERE s.shop_id = @shopId";
                     });
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An internal error occurred." });
             }
         }
 
@@ -228,10 +228,10 @@ WHERE s.shop_id = @shopId";
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An internal error occurred." });
             }
         }
 
@@ -261,11 +261,20 @@ WHERE s.shop_id = @shopId";
             SaleAndReturn sale = null;
             try
             {
-                // Idempotency — return existing sale_id if this guid was already saved
-                int existingSaleId = GetExistingSaleId(req.ClientTxnGuid, shopId);
-                if (existingSaleId > 0)
-                    return Request.CreateResponse(HttpStatusCode.OK,
-                        ApiResponse<object>.Ok(new { sale_id = existingSaleId, idempotent = true }));
+                // Idempotency — atomically claim this GUID before doing any work.
+                // INSERT WHERE NOT EXISTS: if 0 rows affected, another request already owns it.
+                if (!TryClaimIdempotencySlot(req.ClientTxnGuid, shopId))
+                {
+                    // Another request owns this GUID. Give it one brief window to commit.
+                    System.Threading.Thread.Sleep(100);
+                    int existing = GetExistingSaleId(req.ClientTxnGuid, shopId);
+                    if (existing > 0)
+                        return Request.CreateResponse(HttpStatusCode.OK,
+                            ApiResponse<object>.Ok(new { sale_id = existing, idempotent = true }));
+
+                    return Request.CreateResponse(HttpStatusCode.Conflict,
+                        new { error = "Duplicate request in progress. Please retry." });
+                }
 
                 // Build SaleAndReturn model from the DTO
                 sale = BuildModel(req, userId, shopId, posCode, userName);
@@ -302,23 +311,24 @@ WHERE s.shop_id = @shopId";
                     return Request.CreateResponse(HttpStatusCode.InternalServerError,
                         new { error = "SaleAndReturnDAL.Add() returned false. " + auditMsg });
 
-                RecordIdempotencyKey(req.ClientTxnGuid, sale.SaleID, shopId);
+                UpdateIdempotencySlot(req.ClientTxnGuid, sale.SaleID, shopId);
 
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // dal.Add() can throw a secondary error after tblSales/tblSalesLineItems
                 // already committed. If SaleID was assigned the sale was saved successfully.
                 if (sale != null && sale.SaleID > 0)
                 {
-                    RecordIdempotencyKey(req.ClientTxnGuid, sale.SaleID, shopId);
+                    UpdateIdempotencySlot(req.ClientTxnGuid, sale.SaleID, shopId);
                     return Request.CreateResponse(HttpStatusCode.OK,
                         ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
                 }
+                DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An error occurred processing the sale." });
             }
         }
 
@@ -329,7 +339,7 @@ WHERE s.shop_id = @shopId";
                 con.Open();
                 var cmd = new SqlCommand(
                     "SELECT TOP 1 sale_id FROM tblPOSIdempotency " +
-                    "WHERE client_txn_guid = @guid AND shop_id = @sid", con);
+                    "WHERE client_txn_guid = @guid AND shop_id = @sid AND sale_id > 0", con);
                 cmd.Parameters.AddWithValue("@guid", clientGuid);
                 cmd.Parameters.AddWithValue("@sid",  shopId);
                 var result = cmd.ExecuteScalar();
@@ -337,18 +347,95 @@ WHERE s.shop_id = @shopId";
             }
         }
 
-        private void RecordIdempotencyKey(string clientGuid, int saleId, int shopId)
+        // Atomically inserts a placeholder row (sale_id=0) for this GUID.
+        // Returns true if this request owns the slot; false if another request already claimed it.
+        private bool TryClaimIdempotencySlot(string clientGuid, int shopId)
         {
-            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            try
             {
-                con.Open();
-                var cmd = new SqlCommand(
-                    "INSERT INTO tblPOSIdempotency (client_txn_guid, sale_id, shop_id, created_at) " +
-                    "VALUES (@guid, @sid_sale, @sid_shop, GETDATE())", con);
-                cmd.Parameters.AddWithValue("@guid",     clientGuid);
-                cmd.Parameters.AddWithValue("@sid_sale", saleId);
-                cmd.Parameters.AddWithValue("@sid_shop", shopId);
-                cmd.ExecuteNonQuery();
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "INSERT INTO tblPOSIdempotency (client_txn_guid, sale_id, shop_id, created_at) " +
+                        "SELECT @guid, 0, @sid, GETDATE() " +
+                        "WHERE NOT EXISTS (SELECT 1 FROM tblPOSIdempotency " +
+                        "                  WHERE client_txn_guid = @guid AND shop_id = @sid)", con);
+                    cmd.Parameters.AddWithValue("@guid", clientGuid);
+                    cmd.Parameters.AddWithValue("@sid",  shopId);
+                    return cmd.ExecuteNonQuery() > 0;
+                }
+            }
+            catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
+            {
+                // UNIQUE violation — concurrent request won the race; this request is the duplicate
+                return false;
+            }
+            catch
+            {
+                return true; // fail open so the sale can proceed on DB error
+            }
+        }
+
+        private void UpdateIdempotencySlot(string clientGuid, int saleId, int shopId)
+        {
+            for (int attempt = 1; attempt <= 3; attempt++)
+            {
+                try
+                {
+                    using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                    {
+                        con.Open();
+                        // UPDATE first; if no row exists (slot was cleaned up), upsert via INSERT
+                        var upd = new SqlCommand(
+                            "UPDATE tblPOSIdempotency SET sale_id = @saleId " +
+                            "WHERE client_txn_guid = @guid AND shop_id = @sid", con);
+                        upd.Parameters.AddWithValue("@saleId", saleId);
+                        upd.Parameters.AddWithValue("@guid",   clientGuid);
+                        upd.Parameters.AddWithValue("@sid",    shopId);
+                        if (upd.ExecuteNonQuery() == 0)
+                        {
+                            var ins = new SqlCommand(
+                                "INSERT INTO tblPOSIdempotency (client_txn_guid, sale_id, shop_id, created_at) " +
+                                "VALUES (@guid, @saleId, @sid, GETDATE())", con);
+                            ins.Parameters.AddWithValue("@guid",   clientGuid);
+                            ins.Parameters.AddWithValue("@saleId", saleId);
+                            ins.Parameters.AddWithValue("@sid",    shopId);
+                            ins.ExecuteNonQuery();
+                        }
+                    }
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.TraceError(
+                        "UpdateIdempotencySlot attempt {0}/3 failed for guid={1} saleId={2}: {3}",
+                        attempt, clientGuid, saleId, ex);
+                    if (attempt < 3)
+                        System.Threading.Thread.Sleep(50 * attempt);
+                }
+            }
+        }
+
+        private void DeleteIdempotencySlot(string clientGuid, int shopId)
+        {
+            try
+            {
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "DELETE FROM tblPOSIdempotency " +
+                        "WHERE client_txn_guid = @guid AND shop_id = @sid AND sale_id = 0", con);
+                    cmd.Parameters.AddWithValue("@guid", clientGuid);
+                    cmd.Parameters.AddWithValue("@sid",  shopId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.TraceError(
+                    "DeleteIdempotencySlot failed for guid={0}: {1}", clientGuid, ex);
             }
         }
 

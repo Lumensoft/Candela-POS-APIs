@@ -493,6 +493,6 @@ WHERE s.STR_no = @strNo
 
         private HttpResponseMessage Err(Exception ex) =>
             Request.CreateResponse(HttpStatusCode.InternalServerError,
-                new { error = ex.Message });
+                new { error = "An internal error occurred." });
     }
 }
