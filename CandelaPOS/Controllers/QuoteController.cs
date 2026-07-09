@@ -31,7 +31,7 @@ namespace CandelaPOS.Controllers
             try
             {
                 var cfg     = LoadConfig(shopId);
-                var rcmsCfg = LoadRCMSConfig();
+                var rcmsCfg = CandelaBootstrap.GetRCMSConfig();
                 var now     = DateTime.Now;
                 bool isCard = (req.PaymentType ?? "").ToLower() == "card";
 
@@ -559,10 +559,10 @@ namespace CandelaPOS.Controllers
                         CouponDiscount    = Math.Round(totalCouponDisc,         amountRound, MidpointRounding.AwayFromZero)
                     }));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An internal error occurred." });
             }
         }
 
@@ -664,7 +664,7 @@ WHERE  cd.CouponNo = @code
                 cmd.Parameters.AddWithValue("@id", couponId);
                 using (var reader = cmd.ExecuteReader())
                     while (reader.Read())
-                        result[(int)reader.GetDouble(0)] =
+                        result[Convert.ToInt32(reader[0])] =
                             reader.IsDBNull(1) ? 0 : (double)reader.GetDecimal(1);
             }
             return result;
@@ -772,21 +772,6 @@ ORDER BY pp.product_price_id DESC";
                 var cmd = new SqlCommand(
                     "SELECT config_name, config_value FROM tblShopConfiguration WHERE shop_id = @shopId", con);
                 cmd.Parameters.AddWithValue("@shopId", shopId);
-                using (var reader = cmd.ExecuteReader())
-                    while (reader.Read())
-                        d[reader.GetString(0)] = reader.IsDBNull(1) ? "" : reader.GetString(1);
-            }
-            return d;
-        }
-
-        private Dictionary<string, string> LoadRCMSConfig()
-        {
-            var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
-            {
-                con.Open();
-                var cmd = new SqlCommand(
-                    "SELECT config_name, config_value FROM tblRCMSConfiguration", con);
                 using (var reader = cmd.ExecuteReader())
                     while (reader.Read())
                         d[reader.GetString(0)] = reader.IsDBNull(1) ? "" : reader.GetString(1);
@@ -964,7 +949,7 @@ WHERE s.member_id      = @customerId
         {
             string dayPattern = "%" + saleDate.ToString("dddd") + "%";
             string dateStr    = saleDate.ToString("dd-MMM-yyyy");
-            string timeStr    = saleDate.ToString("hh:m tt");
+            string timeStr    = saleDate.ToString("HH:mm");
             const string sql =
                 "SELECT TOP 1 d.discount_id " +
                 "FROM tblDefDiscounts D " +

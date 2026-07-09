@@ -90,7 +90,7 @@ namespace CandelaPOS.Controllers
             catch (Exception ex)
             {
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An internal error occurred." });
             }
         }
     }

@@ -67,7 +67,7 @@ GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.amount,
             catch (Exception ex)
             {
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An internal error occurred." });
             }
         }
 
@@ -130,25 +130,35 @@ GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.amount,
                     int ledgerId = Convert.ToInt32(idCmd.ExecuteScalar());
 
                     // 3. Insert ledger row
-                    string insertLedger;
+                    SqlCommand insLedger;
                     if (req.ExpDays > 0)
                     {
-                        string expDate = DateTime.Now.AddDays(req.ExpDays).ToString("yyyy/MM/dd") + " 23:59:59";
-                        insertLedger =
-                            $"INSERT INTO tblGiftCardLedger" +
+                        insLedger = new SqlCommand(
+                            "INSERT INTO tblGiftCardLedger" +
                             "(id,cardid,cardNo,Sale_shop_id,POS_code,sale_Date,Top_Up_Amt,Cash_amount,Card_amt,CardExpiryDate,SyncDate,EnteredBy,EnteredDate) " +
-                            $"VALUES ({ledgerId},{cardId},{cardNo},{shopId},'{posCode}',GETDATE()," +
-                            $"{req.TopupAmount},{req.CashAmount},{req.CardAmount},'{expDate}',GETDATE(),{userId},GETDATE())";
+                            "VALUES (@id,@cid,@cno,@sid,@pos,GETDATE(),@amt,@cash,@card,@exp,GETDATE(),@uid,GETDATE())",
+                            con, trans);
+                        insLedger.Parameters.AddWithValue("@exp",
+                            DateTime.Now.AddDays(req.ExpDays).Date.AddSeconds(86399));
                     }
                     else
                     {
-                        insertLedger =
-                            $"INSERT INTO tblGiftCardLedger" +
+                        insLedger = new SqlCommand(
+                            "INSERT INTO tblGiftCardLedger" +
                             "(id,cardid,cardNo,Sale_shop_id,POS_code,sale_Date,Top_Up_Amt,Cash_amount,Card_amt,SyncDate,EnteredBy,EnteredDate) " +
-                            $"VALUES ({ledgerId},{cardId},{cardNo},{shopId},'{posCode}',GETDATE()," +
-                            $"{req.TopupAmount},{req.CashAmount},{req.CardAmount},GETDATE(),{userId},GETDATE())";
+                            "VALUES (@id,@cid,@cno,@sid,@pos,GETDATE(),@amt,@cash,@card,GETDATE(),@uid,GETDATE())",
+                            con, trans);
                     }
-                    new SqlCommand(insertLedger, con, trans).ExecuteNonQuery();
+                    insLedger.Parameters.AddWithValue("@id",   ledgerId);
+                    insLedger.Parameters.AddWithValue("@cid",  cardId);
+                    insLedger.Parameters.AddWithValue("@cno",  cardNo);
+                    insLedger.Parameters.AddWithValue("@sid",  shopId);
+                    insLedger.Parameters.AddWithValue("@pos",  posCode);
+                    insLedger.Parameters.AddWithValue("@amt",  req.TopupAmount);
+                    insLedger.Parameters.AddWithValue("@cash", req.CashAmount);
+                    insLedger.Parameters.AddWithValue("@card", req.CardAmount);
+                    insLedger.Parameters.AddWithValue("@uid",  userId);
+                    insLedger.ExecuteNonQuery();
 
                     // 4. Mark card Sold + optional member info (DAL line 791)
                     var updCard = new SqlCommand(
@@ -177,13 +187,18 @@ GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.amount,
                             maxAccCmd.Parameters.AddWithValue("@sid", shopId);
                             int maxAccId = Convert.ToInt32(maxAccCmd.ExecuteScalar());
 
-                            string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                            string insertAcc =
-                                $"INSERT INTO tblAccountTransactions" +
+                            var insAcc = new SqlCommand(
+                                "INSERT INTO tblAccountTransactions" +
                                 "(account_Record_ID,shop_id,account_id,amount,transaction_date,comments,transaction_time,pos_code,EnteredBy,EnteredDate) " +
-                                $"VALUES({maxAccId},{shopId},{accId},{req.CashAmount}," +
-                                $"'{now}',N'Gift Card Sale(Cash)','{now}','{posCode}',{userId},'{now}')";
-                            new SqlCommand(insertAcc, con, trans).ExecuteNonQuery();
+                                "VALUES(@rid,@sid,@aid,@amt,GETDATE(),N'Gift Card Sale(Cash)',GETDATE(),@pos,@uid,GETDATE())",
+                                con, trans);
+                            insAcc.Parameters.AddWithValue("@rid", maxAccId);
+                            insAcc.Parameters.AddWithValue("@sid", shopId);
+                            insAcc.Parameters.AddWithValue("@aid", accId);
+                            insAcc.Parameters.AddWithValue("@amt", req.CashAmount);
+                            insAcc.Parameters.AddWithValue("@pos", posCode);
+                            insAcc.Parameters.AddWithValue("@uid", userId);
+                            insAcc.ExecuteNonQuery();
                         }
                     }
 
@@ -196,11 +211,10 @@ GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.amount,
                 {
                     trans.Rollback();
                     return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                        new { error = ex.Message });
+                        new { error = "An internal error occurred." });
                 }
             }
         }
-    }
 
         // POST api/gift-cards/validate
         // Checks that a gift card is active, not expired, and has sufficient balance.
@@ -283,7 +297,7 @@ WHERE l.cardid = @cid
             catch (Exception ex)
             {
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An internal error occurred." });
             }
         }
 
@@ -387,7 +401,7 @@ VALUES
                 {
                     trans.Rollback();
                     return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                        new { error = ex.Message });
+                        new { error = "An internal error occurred." });
                 }
             }
         }

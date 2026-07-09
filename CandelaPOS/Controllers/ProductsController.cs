@@ -193,6 +193,6 @@ ORDER BY b.expiry_date ASC";
 
         private HttpResponseMessage Err(Exception ex) =>
             Request.CreateResponse(HttpStatusCode.InternalServerError,
-                new { error = ex.Message });
+                new { error = "An internal error occurred." });
     }
 }

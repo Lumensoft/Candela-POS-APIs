@@ -74,7 +74,7 @@ namespace CandelaPOS.Controllers
 
                     // Step 2a — check if this device is already registered in tblComputerList
                     const string findSql =
-                        "SELECT computer_id, shop_id, POS_code, isactive" +
+                        "SELECT computer_id, shop_id, POS_code, isTabActive" +
                         " FROM tblComputerList" +
                         " WHERE deviceid = @uuid AND istablet = 1";
 
@@ -85,7 +85,7 @@ namespace CandelaPOS.Controllers
                     {
                         if (dr.Read())
                         {
-                            bool isActive = Convert.ToBoolean(dr["isactive"]);
+                            bool isActive = Convert.ToBoolean(dr["isTabActive"]);
                             if (!isActive)
                                 return Request.CreateResponse((HttpStatusCode)403,
                                     new { error = "This tablet has been deactivated by administrator" });
@@ -100,9 +100,9 @@ namespace CandelaPOS.Controllers
                     {
                         const string claimSql =
                             "UPDATE TOP(1) tblComputerList" +
-                            " SET deviceid = @uuid, isactive = 1" +
+                            " SET deviceid = @uuid, isTabActive = 1" +
                             " OUTPUT inserted.shop_id, inserted.POS_code" +
-                            " WHERE istablet = 1 AND isactive = 0 AND deviceid IS NULL";
+                            " WHERE istablet = 1 AND isTabActive = 0 AND deviceid IS NULL";
 
                         var claimCmd = new SqlCommand(claimSql, con);
                         claimCmd.Parameters.AddWithValue("@uuid", req.DeviceId);
@@ -141,10 +141,10 @@ namespace CandelaPOS.Controllers
                         PosCode  = posCode
                     }));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An internal error occurred." });
             }
         }
 
@@ -179,10 +179,10 @@ namespace CandelaPOS.Controllers
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<object>.Ok(new { token = newToken }));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An internal error occurred." });
             }
         }
 
@@ -207,10 +207,10 @@ namespace CandelaPOS.Controllers
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<object>.Ok(new { logged_out = true }));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                    new { error = "An internal error occurred." });
             }
         }
 
@@ -228,20 +228,6 @@ namespace CandelaPOS.Controllers
             using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
             {
                 con.Open();
-
-                // Ensure the blocklist table exists (idempotent DDL)
-                new SqlCommand(@"
-IF NOT EXISTS (
-    SELECT 1 FROM sys.tables WHERE name = 'tblPOSTokenBlocklist'
-)
-CREATE TABLE tblPOSTokenBlocklist (
-    id          INT IDENTITY(1,1) PRIMARY KEY,
-    token_sig   VARCHAR(512)  NOT NULL,
-    blocked_at  DATETIME      NOT NULL DEFAULT GETDATE(),
-    expires_at  DATETIME      NOT NULL,
-    INDEX IX_POSBlocklistSig (token_sig)
-)", con).ExecuteNonQuery();
-
                 var ins = new SqlCommand(
                     "INSERT INTO tblPOSTokenBlocklist (token_sig, expires_at) " +
                     "VALUES (@sig, @exp)", con);
