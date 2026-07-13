@@ -12,23 +12,6 @@ namespace CandelaPOS.Controllers
     [RoutePrefix("api/products")]
     public class ProductsController : ApiController
     {
-        // GET api/products/{id}/assembly
-        // Returns the component items of a bundle/assembly product.
-        // Auto-opens the Bundle Config modal when a bundle is scanned.
-        // frmSaleAndReturn.vb:24 — is_assembly flag gates this path.
-        [HttpGet, Route("{id:int}/assembly")]
-        public HttpResponseMessage GetAssembly(int id)
-        {
-            CandelaBootstrap.PrepareRequest();
-            int shopId = (int)Request.Properties["shop_id"];
-            try
-            {
-                var rows = QueryAssembly(id, shopId);
-                return Ok(rows);
-            }
-            catch (Exception ex) { return Err(ex); }
-        }
-
         // GET api/products/{id}/alternates
         // Returns substitute items when a product has alternates configured.
         // Auto-opens the Alternate Item modal on scan.
@@ -66,41 +49,6 @@ namespace CandelaPOS.Controllers
         // ─────────────────────────────────────────────────────────────────────────
         // SQL implementations
         // ─────────────────────────────────────────────────────────────────────────
-
-        private List<Dictionary<string, object>> QueryAssembly(int productItemId, int shopId)
-        {
-            // Assembly/bundle components — each row is one component with its qty.
-            // Component price looked up the same way as a standalone product.
-            const string sql = @"
-SELECT
-    a.component_item_id                     AS product_item_id,
-    pd.item_name,
-    pd.product_code,
-    isnull(pi.CustomerSKUCode, '')          AS barcode,
-    isnull(a.component_qty, 1)              AS component_qty,
-    isnull(a.is_optional, 0)               AS is_optional,
-    isnull(pp.product_price, 0)            AS price,
-    isnull(pd.vat, 0)                      AS vat,
-    isnull(pd.vat_type, '')                AS vat_type,
-    isnull(inv.quantity, 0)                AS stock_qty
-FROM tblDefProductAssembly a
-JOIN tblProductItem pi   ON pi.Product_Item_ID = a.component_item_id
-JOIN tblDefProducts pd   ON pd.product_id = pi.product_id
-LEFT JOIN tblDefProductPrice pp
-       ON pp.product_item_id = a.component_item_id
-      AND ((pp.start_date < GETDATE() AND pp.end_date IS NULL)
-        OR  (pp.start_date < GETDATE() AND pp.end_date > GETDATE()))
-LEFT JOIN tblShopProductInventory inv
-       ON inv.product_item_id = a.component_item_id AND inv.shop_id = @shopId
-WHERE a.parent_item_id = @id
-ORDER BY a.sort_order";
-
-            return Run(sql, p =>
-            {
-                p.AddWithValue("@id",     productItemId);
-                p.AddWithValue("@shopId", shopId);
-            });
-        }
 
         private List<Dictionary<string, object>> QueryAlternates(int productItemId, int shopId)
         {

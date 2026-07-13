@@ -21,5 +21,11 @@ namespace CandelaPOS.Models
 
         [JsonProperty("pos_code")]
         public string PosCode { get; set; }
+
+        [JsonProperty("allow_discount_editing")]
+        public bool AllowDiscountEditing { get; set; }
+
+        [JsonProperty("allow_price_editing")]
+        public bool AllowPriceEditing { get; set; }
     }
 }

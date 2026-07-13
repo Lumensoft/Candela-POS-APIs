@@ -33,20 +33,21 @@ namespace CandelaPOS.Controllers
                     new { error = "invoice_no is required" });
 
             CandelaBootstrap.PrepareRequest();
-            int shopId = (int)Request.Properties["shop_id"];
+            int shopId       = (int)Request.Properties["shop_id"];
+            int sourceShopId = req.SourceShopId > 0 ? req.SourceShopId : shopId;
 
             try
             {
                 var dal = new SaleAndReturnDAL();
 
-                if (!dal.IsValidInvoiceForReturn(shopId, req.InvoiceNo))
+                if (!dal.IsValidInvoiceForReturn(sourceShopId, req.InvoiceNo))
                     return Request.CreateResponse((HttpStatusCode)422,
                         new { error = "Invoice not found, already fully returned, or belongs to a different shop" });
 
-                string customerCode = dal.getCustomerAgainstInvoice(shopId, req.InvoiceNo);
+                string customerCode = dal.getCustomerAgainstInvoice(sourceShopId, req.InvoiceNo);
 
-                var sale   = QuerySaleHeader(shopId, req.InvoiceNo);
-                var items  = QuerySaleItems(shopId, req.InvoiceNo);
+                var sale   = QuerySaleHeader(sourceShopId, req.InvoiceNo);
+                var items  = QuerySaleItems(sourceShopId, req.InvoiceNo);
 
                 return Request.CreateResponse(HttpStatusCode.OK, new
                 {
@@ -76,9 +77,9 @@ namespace CandelaPOS.Controllers
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "client_txn_guid is required" });
 
-            if (req.ReturningInvoiceNo <= 0)
+            if (req.ReturningInvoiceNo < 0)
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
-                    new { error = "returning_invoice_no is required" });
+                    new { error = "returning_invoice_no must be 0 (free return) or a positive invoice number" });
 
             if (req.Items == null || req.Items.Count == 0)
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
@@ -86,10 +87,11 @@ namespace CandelaPOS.Controllers
 
             CandelaBootstrap.PrepareRequest();
 
-            int    userId   = (int)   Request.Properties["user_id"];
-            int    shopId   = (int)   Request.Properties["shop_id"];
-            string posCode  = (string)Request.Properties["pos_code"];
-            string userName = (string)Request.Properties["user_name"];
+            int    userId       = (int)   Request.Properties["user_id"];
+            int    shopId       = (int)   Request.Properties["shop_id"];
+            string posCode      = (string)Request.Properties["pos_code"];
+            string userName     = (string)Request.Properties["user_name"];
+            int    sourceShopId = req.SourceShopId > 0 ? req.SourceShopId : shopId;
 
             SaleAndReturn sale = null;
             try
@@ -109,24 +111,48 @@ namespace CandelaPOS.Controllers
 
                 var dal = new SaleAndReturnDAL();
 
-                if (!dal.IsValidInvoiceForReturn(shopId, req.ReturningInvoiceNo))
-                    return Request.CreateResponse((HttpStatusCode)422,
-                        new { error = "Invoice is not valid for return" });
-
-                // Per-invoice lock: ensures ValidateReturnQuantities and dal.Add() are
-                // atomic so two concurrent requests for the same invoice cannot both pass
-                // the qty check and then both commit an over-return.
-                var invoiceLock = _invoiceLocks.GetOrAdd(req.ReturningInvoiceNo, _ => new object());
-                lock (invoiceLock)
+                // Free return (no invoice): skip invoice existence and qty-cap checks.
+                // Invoice-backed return: validate the invoice and guard against over-return.
+                if (req.ReturningInvoiceNo > 0)
                 {
-                    string overReturnError = ValidateReturnQuantities(shopId, req.ReturningInvoiceNo, req.Items);
-                    if (overReturnError != null)
-                        return Request.CreateResponse((HttpStatusCode)422, new { error = overReturnError });
+                    if (!dal.IsValidInvoiceForReturn(sourceShopId, req.ReturningInvoiceNo))
+                        return Request.CreateResponse((HttpStatusCode)422,
+                            new { error = "Invoice is not valid for return" });
 
+                    // Per-invoice lock: ensures ValidateReturnQuantities and dal.Add() are
+                    // atomic so two concurrent requests for the same invoice cannot both pass
+                    // the qty check and then both commit an over-return.
+                    var invoiceLock = _invoiceLocks.GetOrAdd(req.ReturningInvoiceNo, _ => new object());
+                    lock (invoiceLock)
+                    {
+                        string overReturnError = ValidateReturnQuantities(sourceShopId, req.ReturningInvoiceNo, req.Items);
+                        if (overReturnError != null)
+                            return Request.CreateResponse((HttpStatusCode)422, new { error = overReturnError });
+
+                        sale = BuildReturnModel(req, userId, shopId, posCode, userName);
+
+                        DataTable creditNoteTable = null;
+                        if (req.CreditNoteGiftCardId > 0)
+                            creditNoteTable = BuildCreditNoteTable(req, shopId, posCode);
+
+                        string auditMsg = "";
+                        bool ok = dal.Add(sale, EnumActions.Save, ref auditMsg, "", creditNoteTable);
+
+                        if (!ok)
+                            return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                                new { error = "SaleAndReturnDAL.Add() returned false. " + auditMsg });
+
+                        UpdateIdempotencySlot(req.ClientTxnGuid, sale.SaleID, shopId);
+
+                        return Request.CreateResponse(HttpStatusCode.OK,
+                            ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
+                    }
+                }
+                else
+                {
+                    // Free return/exchange (Show_popup_on_return = FALSE) — no invoice to lock against.
                     sale = BuildReturnModel(req, userId, shopId, posCode, userName);
 
-                    // Credit note — build DataTable when caller provides a gift card target.
-                    // frmSaleAndReturn.vb:38859: dal.Add(..., myCreditNoteDataTable)
                     DataTable creditNoteTable = null;
                     if (req.CreditNoteGiftCardId > 0)
                         creditNoteTable = BuildCreditNoteTable(req, shopId, posCode);
@@ -164,26 +190,27 @@ namespace CandelaPOS.Controllers
         // Validates that no return line exceeds the returnable quantity for its product.
         // returnable = original_qty - already_returned_qty.
         // Returns an error message on the first violation, null if all items are valid.
-        private string ValidateReturnQuantities(int shopId, int invoiceNo, List<SaleLineItem> items)
+        // sourceShopId = the shop that made the original sale (may differ from cashier's shop
+        // on cross-shop returns). Used to query the original line items; prior returns are
+        // searched across all shops (any shop may have processed an earlier partial return).
+        private string ValidateReturnQuantities(int sourceShopId, int invoiceNo, List<SaleLineItem> items)
         {
-            // original sold quantities per product_item_id
             var originalQty = new Dictionary<int, double>();
-            // already returned quantities per product_item_id (from prior returns of same invoice)
             var returnedQty = new Dictionary<int, double>();
 
             using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
             {
                 con.Open();
 
-                // Original sale line quantities (positive, non-return lines)
+                // Original sale line quantities — scoped to the source shop's invoice.
                 var origCmd = new SqlCommand(
                     "SELECT Product_Item_ID, SUM(ABS(qty)) AS qty " +
                     "FROM tblSalesLineItems " +
-                    "WHERE sale_id = @invoiceNo AND shop_id = @shopId " +
+                    "WHERE sale_id = @invoiceNo AND shop_id = @sourceShopId " +
                     "  AND ISNULL(is_return_item, 0) = 0 " +
                     "GROUP BY Product_Item_ID", con);
-                origCmd.Parameters.AddWithValue("@invoiceNo", invoiceNo);
-                origCmd.Parameters.AddWithValue("@shopId",    shopId);
+                origCmd.Parameters.AddWithValue("@invoiceNo",     invoiceNo);
+                origCmd.Parameters.AddWithValue("@sourceShopId",  sourceShopId);
                 using (var rdr = origCmd.ExecuteReader())
                 {
                     while (rdr.Read())
@@ -193,18 +220,16 @@ namespace CandelaPOS.Controllers
                     }
                 }
 
-                // Already-returned quantities across all prior returns of this invoice.
-                // Returns are tblSales rows with SaleReturningNo = invoiceNo;
-                // their line items have negative qty (or is_return_item=1).
+                // Already-returned quantities across ALL shops — a cross-shop return processed
+                // at Shop B would create return lines with shop_id = B, not the source shop.
                 var retCmd = new SqlCommand(
                     "SELECT li.Product_Item_ID, SUM(ABS(li.qty)) AS qty " +
                     "FROM tblSalesLineItems li " +
                     "JOIN tblSales s ON s.sale_id = li.sale_id " +
-                    "WHERE s.SaleReturningNo = @invoiceNo AND li.shop_id = @shopId " +
+                    "WHERE s.SaleReturningNo = @invoiceNo " +
                     "  AND ISNULL(li.is_return_item, 0) = 1 " +
                     "GROUP BY li.Product_Item_ID", con);
                 retCmd.Parameters.AddWithValue("@invoiceNo", invoiceNo);
-                retCmd.Parameters.AddWithValue("@shopId",    shopId);
                 using (var rdr = retCmd.ExecuteReader())
                 {
                     while (rdr.Read())
@@ -263,8 +288,11 @@ namespace CandelaPOS.Controllers
             sale.BalanceAmount     = 0;
             sale.Comments          = req.Comments ?? "";
 
-            // Link back to the original invoice
-            sale.SaleReturningNo   = req.ReturningInvoiceNo;
+            // Link back to the original invoice and its source shop.
+            // Mirrors frmSaleAndReturn.vb:8792-8801 (FillModel SaleReturningShopId assignment).
+            int srcShop = req.SourceShopId > 0 ? req.SourceShopId : shopId;
+            sale.SaleReturningNo      = req.ReturningInvoiceNo;
+            sale.SaleReturningShopId  = req.ReturningInvoiceNo > 0 ? srcShop : 0;
 
             if (req.CustomerId > 0)
                 sale.Customer.MemberID = req.CustomerId;
@@ -295,8 +323,11 @@ namespace CandelaPOS.Controllers
             sale.ListOfSaleItems = new List<SaleAndReturnItems>();
             foreach (var item in req.Items)
             {
-                // Quantities must be negative for returns
-                double qty = item.Quantity > 0 ? -item.Quantity : item.Quantity;
+                // Exchange items (is_exchange_item=true) keep a positive qty — inventory out, no return.
+                // Return items are negated: DAL records them as is_return_item=1 with negative qty.
+                double qty = item.IsExchangeItem
+                    ?  Math.Abs(item.Quantity)
+                    : (item.Quantity > 0 ? -item.Quantity : item.Quantity);
 
                 var line = new SaleAndReturnItems(0, item.ProductItemId, qty,
                                                   item.UnitRate, item.TaggedPrice);

@@ -29,11 +29,13 @@ namespace CandelaPOS.Controllers
             {
                 string conStr = CandelaBootstrap.ConnectionString;
 
-                int    userId   = 0;
-                string userName = "";
-                int    shopId   = 0;
-                string posCode  = "";
-                string shopName = "";
+                int    userId              = 0;
+                string userName            = "";
+                int    shopId              = 0;
+                string posCode             = "";
+                string shopName            = "";
+                bool   allowDiscEditing    = false;
+                bool   allowPriceEditing   = false;
 
                 using (var con = new SqlConnection(conStr))
                 {
@@ -41,7 +43,9 @@ namespace CandelaPOS.Controllers
 
                     // Step 1 — validate credentials against tblSecurityUser
                     const string credSql =
-                        "SELECT b.user_id, b.User_log_password, b.User_name" +
+                        "SELECT b.user_id, b.User_log_password, b.User_name," +
+                        " isnull(b.AllowPOSDiscountEditing,0) AS AllowPOSDiscountEditing," +
+                        " isnull(b.AllowPOSPriceEditing,0)    AS AllowPOSPriceEditing" +
                         " FROM tblSecurityGroup a" +
                         " INNER JOIN TblSecurityUser b ON a.GROUP_ID = b.GROUP_ID" +
                         " WHERE b.user_log_id = @uid" +
@@ -68,8 +72,10 @@ namespace CandelaPOS.Controllers
                             return Request.CreateResponse(HttpStatusCode.Unauthorized,
                                 new { error = "Invalid username or password" });
 
-                        userId   = Convert.ToInt32(reader["user_id"]);
-                        userName = reader["User_name"].ToString();
+                        userId            = Convert.ToInt32(reader["user_id"]);
+                        userName          = reader["User_name"].ToString();
+                        allowDiscEditing  = Convert.ToBoolean(reader["AllowPOSDiscountEditing"]);
+                        allowPriceEditing = Convert.ToBoolean(reader["AllowPOSPriceEditing"]);
                     }
 
                     // Step 2a — check if this device is already registered in tblComputerList
@@ -133,12 +139,14 @@ namespace CandelaPOS.Controllers
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<LoginResponse>.Ok(new LoginResponse
                     {
-                        Token    = token,
-                        UserId   = userId,
-                        UserName = userName,
-                        ShopId   = shopId,
-                        ShopName = shopName,
-                        PosCode  = posCode
+                        Token                = token,
+                        UserId               = userId,
+                        UserName             = userName,
+                        ShopId               = shopId,
+                        ShopName             = shopName,
+                        PosCode              = posCode,
+                        AllowDiscountEditing = allowDiscEditing,
+                        AllowPriceEditing    = allowPriceEditing,
                     }));
             }
             catch (Exception)

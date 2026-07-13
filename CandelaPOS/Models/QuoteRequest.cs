@@ -42,6 +42,18 @@ namespace CandelaPOS.Models
 
         [JsonProperty("con_factor")]
         public double ConFactor { get; set; }
+
+        // Cashier-entered price override (ItemDetailModal → Price Override tab).
+        // When set, the quote uses this rate instead of the product's standard price.
+        // VAT, SKU discount, and all subsequent calculations are performed on this rate.
+        [JsonProperty("override_unit_rate")]
+        public double? OverrideUnitRate { get; set; }
+
+        // Cashier-entered flat discount (ItemDetailModal → Discount tab, pre-computed).
+        // When set, replaces the auto-computed SKU/promotional discount for this line.
+        // Customer and loyalty discounts are still applied on top (same as typing in the grid).
+        [JsonProperty("override_unit_discount")]
+        public double? OverrideUnitDiscount { get; set; }
     }
 
     public class QuoteLineResult
@@ -150,5 +162,11 @@ namespace CandelaPOS.Models
 
         [JsonProperty("coupon_discount")]
         public double CouponDiscount { get; set; }
+
+        // Points the customer will earn from this sale.
+        // Formula: SUM(Qty × loyaltyPct) per eligible line — mirrors EnumGridSaleItems.LoyaltyPointPercentageNet
+        // expression "([Qty]*[LoyaltyPointPercentage])" at frmSaleAndReturn.vb:2617
+        [JsonProperty("earned_points")]
+        public double EarnedPoints { get; set; }
     }
 }
