@@ -7,6 +7,11 @@ namespace CandelaPOS.Models
     {
         [JsonProperty("invoice_no")]
         public int InvoiceNo { get; set; }
+
+        // When the original invoice belongs to a different shop, pass that shop's ID here.
+        // 0 or omitted = use the cashier's own shop from the JWT token.
+        [JsonProperty("source_shop_id")]
+        public int SourceShopId { get; set; }
     }
 
     public class ReturnRequest
@@ -70,6 +75,11 @@ namespace CandelaPOS.Models
 
         [JsonProperty("credit_note_phone")]
         public string CreditNotePhone { get; set; }
+
+        // When the original invoice belongs to a different shop, pass that shop's ID here.
+        // 0 or omitted = use the cashier's own shop from the JWT token.
+        [JsonProperty("source_shop_id")]
+        public int SourceShopId { get; set; }
 
         // Items must have NEGATIVE quantities
         [JsonProperty("items")]

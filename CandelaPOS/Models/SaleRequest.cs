@@ -74,6 +74,35 @@ namespace CandelaPOS.Models
         [JsonProperty("holding_sale_id")]
         public int HoldingSaleId { get; set; }
 
+        // ── Mobile payment fields ──────────────────────────────────────────────────
+        // FonePay: transaction_id required; vendor = "FonePay"; is_manual = true (cashier-entered)
+        // Mirrors frmSaleAndReturn.vb:37086-37097 (AddMobiePayments → frmMobilePayment)
+        [JsonProperty("transaction_id")]
+        public string TransactionId { get; set; }
+
+        [JsonProperty("vendor")]
+        public string Vendor { get; set; }          // "FonePay"
+
+        [JsonProperty("is_manual")]
+        public bool IsManual { get; set; }          // true = cashier manually entered txn id
+
+        // 543Pay: payment_id, resp_code, reference_num, mobile_num required
+        // Mirrors frmSaleAndReturn.vb:37100-37116
+        [JsonProperty("payment_id")]
+        public string PaymentId { get; set; }
+
+        [JsonProperty("resp_code")]
+        public string RespCode { get; set; }
+
+        [JsonProperty("resp_message")]
+        public string RespMessage { get; set; }
+
+        [JsonProperty("reference_num")]
+        public string ReferenceNum { get; set; }
+
+        [JsonProperty("mobile_num")]
+        public string MobileNum { get; set; }       // stored in tblSales.Comments (issue #1502)
+
         // Coupon code applied to this sale. /sales calls CheckCouponStatus() to mark it Used.
         [JsonProperty("coupon_no")]
         public string CouponNo { get; set; }
@@ -159,5 +188,32 @@ namespace CandelaPOS.Models
         // Echo back the value returned by /quote — do not compute independently.
         [JsonProperty("discount_from_tag_price")]
         public bool DiscountFromTagPrice { get; set; }
+
+        // Exchange item inside a return/exchange transaction (Show_popup_on_return = FALSE).
+        // When true: qty is NOT negated — the item is treated as a positive sale line (inventory out).
+        // When false (default): qty is negated server-side (standard return behaviour).
+        [JsonProperty("is_exchange_item")]
+        public bool IsExchangeItem { get; set; }
+
+        // Assembly/bundle component substitutions for this line item.
+        // Non-null only when the cashier opened the Assembly tab and modified child items.
+        // Mirrors SaleAndReturn.ListOfAssemblyItems (Model.SalesProductAssembly).
+        // Each entry is one child component with the cashier-chosen qty and retail price.
+        [JsonProperty("assembly_items")]
+        public List<AssemblyItemDto> AssemblyItems { get; set; }
+    }
+
+    // One component row inside a bundle/assembly line item.
+    // Maps to Model.SalesProductAssembly — fields mirror tblSalesAssembly columns.
+    public class AssemblyItemDto
+    {
+        [JsonProperty("product_item_id")]
+        public int ProductItemId { get; set; }    // child product (ProductIDPart)
+
+        [JsonProperty("quantity")]
+        public double Quantity { get; set; }
+
+        [JsonProperty("retail_price")]
+        public double RetailPrice { get; set; }   // stored as Product_Price in tblSalesAssembly
     }
 }

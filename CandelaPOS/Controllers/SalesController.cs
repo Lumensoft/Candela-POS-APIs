@@ -42,26 +42,27 @@ SELECT
     s.sale_id,
     s.invoice_no,
     s.sale_date,
-    isnull(m.member_name, s.cust_name)  AS customer_name,
-    m.member_id                          AS customer_id,
-    isnull(m.phone_mobile, '')           AS customer_phone,
-    isnull(e.field_name, '')             AS salesperson_name,
-    s.GT_amount                          AS gross_total,
-    s.NT_amount                          AS net_total,
-    s.Mark_Discount                      AS marketing_discount,
-    s.vat,
-    s.Cash_amt,
-    s.Card_amt,
-    isnull(s.isCreditSale, 0)           AS is_credit_sale,
-    isnull(s.isMixSale, 0)              AS is_mix_sale,
-    isnull(s.is_return_item, 0)         AS is_return,
-    s.SaleReturningNo                    AS return_of_sale_id,
-    isnull(s.invoice_Type, '')           AS invoice_type,
-    isnull(s.cust_bal, 0)               AS balance
+    isnull(m.member_name, s.cust_name)           AS customer_name,
+    m.member_id                                   AS customer_id,
+    isnull(m.phone_Mobile, '')                    AS customer_phone,
+    isnull(e.field_name, '')                      AS salesperson_name,
+    s.GT_amount                                   AS gross_total,
+    s.NT_amount                                   AS net_total,
+    isnull(s.Mark_discount, 0)                    AS marketing_discount,
+    isnull(s.vat, 0)                              AS vat,
+    isnull(s.Cash_amt, 0)                         AS cash_amt,
+    isnull(s.Card_amt, 0)                         AS card_amt,
+    isnull(s.isCreditSale, 0)                     AS is_credit_sale,
+    isnull(s.isMixSale, 0)                        AS is_mix_sale,
+    CASE WHEN isnull(s.SaleReturningNo, 0) > 0
+         THEN 1 ELSE 0 END                        AS is_return,
+    isnull(s.SaleReturningNo, 0)                  AS return_of_sale_id,
+    isnull(s.invoice_type, '')                    AS invoice_type,
+    isnull(s.cust_bal, 0)                         AS balance
 FROM tblSales s
 LEFT JOIN tblMemberInfo m
     ON  m.member_id = s.member_id
-    AND m.shop_id   = s.memberShopID
+    AND m.shop_id   = s.MemberShopID
 LEFT JOIN tblDefShopEmployees e
     ON  e.shop_employee_id = s.employee_id
 WHERE s.shop_id = @shopId";
@@ -144,9 +145,103 @@ WHERE s.shop_id = @shopId";
             }
         }
 
+        // GET api/sales/{id}
+        // Returns sale header + line items for the invoice detail panel.
+        [HttpGet, Route("{id:int}")]
+        public HttpResponseMessage GetSale(int id)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+
+            try
+            {
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+
+                    var hdrCmd = new SqlCommand(@"
+SELECT
+    s.sale_id, s.invoice_no, s.sale_date,
+    isnull(m.member_name, s.cust_name)           AS customer_name,
+    m.member_id                                   AS customer_id,
+    isnull(e.field_name, '')                      AS salesperson_name,
+    s.GT_amount                                   AS gross_total,
+    s.NT_amount                                   AS net_total,
+    isnull(s.Mark_discount, 0)                    AS marketing_discount,
+    isnull(s.vat, 0)                              AS vat,
+    isnull(s.Cash_amt, 0)                         AS cash_amt,
+    isnull(s.Card_amt, 0)                         AS card_amt,
+    isnull(s.isCreditSale, 0)                     AS is_credit_sale,
+    CASE WHEN isnull(s.SaleReturningNo, 0) > 0
+         THEN 1 ELSE 0 END                        AS is_return,
+    isnull(s.SaleReturningNo, 0)                  AS return_of_sale_id
+FROM tblSales s
+LEFT JOIN tblMemberInfo m
+    ON  m.member_id = s.member_id AND m.shop_id = s.MemberShopID
+LEFT JOIN tblDefShopEmployees e
+    ON  e.shop_employee_id = s.employee_id
+WHERE s.sale_id = @saleId AND s.shop_id = @shopId", con);
+                    hdrCmd.Parameters.AddWithValue("@saleId", id);
+                    hdrCmd.Parameters.AddWithValue("@shopId", shopId);
+
+                    Dictionary<string, object> header = null;
+                    using (var dt = new DataTable())
+                    {
+                        new SqlDataAdapter(hdrCmd).Fill(dt);
+                        if (dt.Rows.Count == 0)
+                            return Request.CreateResponse(HttpStatusCode.NotFound,
+                                new { error = "Sale not found" });
+                        header = new Dictionary<string, object>();
+                        foreach (DataColumn col in dt.Columns)
+                            header[col.ColumnName] = dt.Rows[0][col] == DBNull.Value ? null : dt.Rows[0][col];
+                    }
+
+                    var liCmd = new SqlCommand(@"
+SELECT
+    sli.product_item_id,
+    isnull(pd.item_name,    '') AS item_name,
+    isnull(pd.product_code, '') AS product_code,
+    sli.qty                                              AS quantity,
+    sli.unit_price                                       AS unit_rate,
+    sli.unit_price * abs(sli.qty)                        AS net_amount,
+    isnull(sli.product_discount_amount, 0)               AS unit_discount,
+    isnull(sli.pro_vat, 0)                               AS vat,
+    isnull(sli.is_return_item, 0)                        AS is_return_item
+FROM tblSalesLineItems sli
+JOIN tblProductItem pi ON pi.Product_Item_ID = sli.product_item_id
+JOIN tblDefProducts pd ON pd.product_id      = pi.product_id
+WHERE sli.sale_id = @saleId
+ORDER BY sli.sale_line_item_id", con);
+                    liCmd.Parameters.AddWithValue("@saleId", id);
+
+                    var items = new List<Dictionary<string, object>>();
+                    using (var dt = new DataTable())
+                    {
+                        new SqlDataAdapter(liCmd).Fill(dt);
+                        foreach (DataRow row in dt.Rows)
+                        {
+                            var dict = new Dictionary<string, object>();
+                            foreach (DataColumn col in dt.Columns)
+                                dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+                            items.Add(dict);
+                        }
+                    }
+
+                    return Request.CreateResponse(HttpStatusCode.OK,
+                        new { success = true, data = header, items });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = "An internal error occurred.", detail = ex.Message });
+            }
+        }
+
         // DELETE api/sales/{id}
-        // Void an invoice — zeroes amounts, sets IsVoided=1, reverses inventory.
-        // Supervisor-only in Candela. Wraps SaleAndReturnDAL.VoidSale() at line 15240.
+        // Soft-voids the invoice: zeroes all amounts, sets IsVoided=1, reverses inventory.
+        // The tblSales row is KEPT (IsVoided=1). Mirrors SaleAndReturnDAL.VoidSale() at
+        // line 15240, which is triggered by the Void button in Candela's sale screen.
         [HttpDelete, Route("{id:int}")]
         public HttpResponseMessage VoidSale(int id)
         {
@@ -158,81 +253,169 @@ WHERE s.shop_id = @shopId";
 
             try
             {
-                // Verify sale exists and belongs to this shop
                 using (var chkCon = new SqlConnection(CandelaBootstrap.ConnectionString))
                 {
                     chkCon.Open();
                     var chkCmd = new SqlCommand(
-                        "SELECT isnull(IsVoided, 0) FROM tblSales " +
-                        "WHERE sale_id = @sid AND shop_id = @shid", chkCon);
+                        "SELECT isnull(IsVoided,0) FROM tblSales WHERE sale_id = @sid AND shop_id = @shid",
+                        chkCon);
                     chkCmd.Parameters.AddWithValue("@sid",  id);
                     chkCmd.Parameters.AddWithValue("@shid", shopId);
-                    var chkResult = chkCmd.ExecuteScalar();
-
-                    if (chkResult == null)
-                        return Request.CreateResponse(HttpStatusCode.NotFound,
-                            new { error = "Sale not found" });
-
-                    if (Convert.ToBoolean(chkResult))
-                        return Request.CreateResponse((HttpStatusCode)409,
-                            new { error = "Sale is already voided" });
+                    var chk = chkCmd.ExecuteScalar();
+                    if (chk == null)
+                        return Request.CreateResponse(HttpStatusCode.NotFound, new { error = "Sale not found." });
+                    if (Convert.ToBoolean(chk))
+                        return Request.CreateResponse((HttpStatusCode)409, new { error = "Sale is already voided." });
                 }
 
-                // Build minimal model for VoidSale — only SaleID, Shop, and audit required
-                var model = new SaleAndReturn();
-                model.SaleID          = id;
-                model.Shop.ShopID     = shopId;
-                model.UserInfo.UserID = userId;
-                model.UserInfo.POSCode = posCode;
-                model.Customer.MemberName = "";
-                model.ActivityLog.LogGroup    = "POS API";
-                model.ActivityLog.ScreenTitle = "Void";
-                model.ActivityLog.UserID      = userId;
-                model.ActivityLog.ShopID      = shopId;
+                var model = BuildVoidModel(id, shopId, userId, posCode, "Void");
 
-                // VoidSale() receives an already-open transaction (it does NOT open its own).
-                // SaleAndReturnDAL.vb:15240
+                // VoidSale() requires a pre-opened transaction (SaleAndReturnDAL.vb:15240).
                 using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
                 {
                     con.Open();
                     using (var trans = con.BeginTransaction())
                     {
-                        try
-                        {
-                            string physAuditMsg = "";
-                            var dal = new SaleAndReturnDAL();
-                            bool ok = dal.VoidSale(model, EnumActions.Delete, ref physAuditMsg, trans);
-
-                            if (!ok)
-                            {
-                                trans.Rollback();
-                                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                                    new { error = "VoidSale() returned false" });
-                            }
-
-                            trans.Commit();
-
-                            return Request.CreateResponse(HttpStatusCode.OK,
-                                ApiResponse<object>.Ok(new
-                                {
-                                    voided  = true,
-                                    sale_id = id,
-                                    message = string.IsNullOrWhiteSpace(physAuditMsg) ? null : physAuditMsg
-                                }));
-                        }
-                        catch
-                        {
-                            trans.Rollback();
-                            throw;
-                        }
+                        string auditMsg = "";
+                        var dal = new SaleAndReturnDAL();
+                        bool ok = dal.VoidSale(model, EnumActions.Delete, ref auditMsg, trans);
+                        if (!ok) { trans.Rollback(); return Request.CreateResponse(HttpStatusCode.InternalServerError, new { error = "VoidSale() returned false." }); }
+                        trans.Commit();
+                        return Request.CreateResponse(HttpStatusCode.OK,
+                            ApiResponse<object>.Ok(new { voided = true, sale_id = id, message = string.IsNullOrWhiteSpace(auditMsg) ? null : auditMsg }));
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex) { return HandleDalException(ex); }
+        }
+
+        // DELETE api/sales/{id}/hard
+        // Hard-deletes the invoice: writes audit trail to tblSalesHistory then physically
+        // removes rows from tblSales/tblSalesLineItems/tblAccountTransactions and reverses
+        // inventory. Mirrors the Delete() path in frmSaleAndReturn.vb:12165 which calls
+        // SaleAndReturnDAL.Add(model, EnumActions.Delete) (SaleAndReturnDAL.vb:4582-5160).
+        [HttpDelete, Route("{id:int}/hard")]
+        public HttpResponseMessage HardDeleteSale(int id)
+        {
+            CandelaBootstrap.PrepareRequest();
+
+            int    userId  = (int)   Request.Properties["user_id"];
+            int    shopId  = (int)   Request.Properties["shop_id"];
+            string posCode = (string)Request.Properties["pos_code"];
+
+            try
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                using (var chkCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    chkCon.Open();
+                    var chkCmd = new SqlCommand(
+                        "SELECT COUNT(1) FROM tblSales WHERE sale_id = @sid AND shop_id = @shid",
+                        chkCon);
+                    chkCmd.Parameters.AddWithValue("@sid",  id);
+                    chkCmd.Parameters.AddWithValue("@shid", shopId);
+                    if (Convert.ToInt32(chkCmd.ExecuteScalar()) == 0)
+                        return Request.CreateResponse(HttpStatusCode.NotFound, new { error = "Sale not found." });
+                }
+
+                var model = BuildVoidModel(id, shopId, userId, posCode, "Delete");
+
+                // Add() overload at SaleAndReturnDAL.vb:3518 opens its own connection + transaction.
+                string auditMsg = "";
+                bool ok = new SaleAndReturnDAL().Add(model, EnumActions.Delete, ref auditMsg);
+                if (!ok)
+                    return Request.CreateResponse(HttpStatusCode.InternalServerError, new { error = "DAL.Add(Delete) returned false. " + auditMsg });
+
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    ApiResponse<object>.Ok(new { deleted = true, sale_id = id, message = string.IsNullOrWhiteSpace(auditMsg) ? null : auditMsg }));
             }
+            catch (Exception ex) { return HandleDalException(ex); }
+        }
+
+        // PUT api/sales/{id}
+        // Updates an existing sale: replaces line items, re-applies inventory, updates
+        // accounting. Mirrors frmSaleAndReturn.vb:Update() → SaleAndReturnDAL.Add(EnumActions.Update).
+        [HttpPut, Route("{id:int}")]
+        public HttpResponseMessage UpdateSale(int id, [FromBody] SaleRequest req)
+        {
+            if (req == null)
+                return Request.CreateResponse(HttpStatusCode.BadRequest, new { error = "Request body is required." });
+            if (req.Items == null || req.Items.Count == 0)
+                return Request.CreateResponse(HttpStatusCode.BadRequest, new { error = "items cannot be empty." });
+
+            CandelaBootstrap.PrepareRequest();
+
+            int    userId   = (int)   Request.Properties["user_id"];
+            int    shopId   = (int)   Request.Properties["shop_id"];
+            string posCode  = (string)Request.Properties["pos_code"];
+            string userName = (string)Request.Properties["user_name"];
+
+            try
+            {
+                // Verify the sale exists and belongs to this shop
+                using (var chkCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    chkCon.Open();
+                    var chkCmd = new SqlCommand(
+                        "SELECT COUNT(1) FROM tblSales WHERE sale_id = @sid AND shop_id = @shid AND isnull(IsVoided,0)=0",
+                        chkCon);
+                    chkCmd.Parameters.AddWithValue("@sid",  id);
+                    chkCmd.Parameters.AddWithValue("@shid", shopId);
+                    if (Convert.ToInt32(chkCmd.ExecuteScalar()) == 0)
+                        return Request.CreateResponse(HttpStatusCode.NotFound, new { error = "Sale not found or already voided." });
+                }
+
+                // Build the full model just like a new sale, then set SaleID so the DAL
+                // uses Update path (SaleAndReturnDAL.vb:4634 — delta line items, re-inventory).
+                // Line items have SaleDetailID=0, so the DAL deletes ALL existing items and
+                // re-inserts the new set (strSaleItemIDs="0" → DELETE NOT IN (0) removes all).
+                var sale = BuildModel(req, userId, shopId, posCode, userName);
+                sale.SaleID = id;
+                sale.ActivityLog.ScreenTitle = "Update";
+
+                string auditMsg = "";
+                bool ok = new SaleAndReturnDAL().Add(sale, EnumActions.Update, ref auditMsg);
+
+                if (!ok)
+                    return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                        new { error = "DAL.Add(Update) returned false. " + auditMsg });
+
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    ApiResponse<object>.Ok(new { sale_id = id, updated = true, message = string.IsNullOrWhiteSpace(auditMsg) ? null : auditMsg }));
+            }
+            catch (Exception ex) { return HandleDalException(ex); }
+        }
+
+        private SaleAndReturn BuildVoidModel(int saleId, int shopId, int userId, string posCode, string screenTitle)
+        {
+            var model = new SaleAndReturn();
+            model.SaleID                  = saleId;
+            model.Shop.ShopID             = shopId;
+            model.UserInfo.UserID         = userId;
+            model.UserInfo.POSCode        = posCode;
+            model.Customer.MemberName     = "";
+            model.ListOfSaleItems         = new List<SaleAndReturnItems>();
+            model.ActivityLog.LogGroup    = "POS API";
+            model.ActivityLog.ScreenTitle = screenTitle;
+            model.ActivityLog.UserID      = userId;
+            model.ActivityLog.ShopID      = shopId;
+            return model;
+        }
+
+        private HttpResponseMessage HandleDalException(Exception ex)
+        {
+            string msg = ex.Message ?? "";
+            if (msg.IndexOf("physical audit",   StringComparison.OrdinalIgnoreCase) >= 0
+             || msg.IndexOf("not allowed",       StringComparison.OrdinalIgnoreCase) >= 0
+             || msg.IndexOf("customer closing",  StringComparison.OrdinalIgnoreCase) >= 0
+             || msg.IndexOf("period",            StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                string userMsg = msg;
+                int idx = msg.IndexOf("Exception Msg ", StringComparison.OrdinalIgnoreCase);
+                if (idx >= 0) userMsg = msg.Substring(idx + "Exception Msg ".Length).Trim();
+                return Request.CreateResponse((HttpStatusCode)422, new { error = userMsg });
+            }
+            return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                new { error = "An internal error occurred.", detail = msg });
         }
 
         // POST api/sales
@@ -300,6 +483,27 @@ WHERE s.shop_id = @shopId";
                     if (!couponOk)
                         return Request.CreateResponse(HttpStatusCode.Conflict,
                             new { error = $"Coupon '{req.CouponNo}' is no longer active." });
+                }
+
+                // FonePay: reject if this transaction ID was already processed
+                // Mirrors frmMobilePayment.vb manual-mode validation against tblSales.transactionid
+                if (!string.IsNullOrEmpty(req.TransactionId))
+                {
+                    using (var chkCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                    {
+                        chkCon.Open();
+                        var chkCmd = new SqlCommand(
+                            "SELECT COUNT(1) FROM tblSales WHERE transactionid = @txid AND shop_id = @sid",
+                            chkCon);
+                        chkCmd.Parameters.AddWithValue("@txid", req.TransactionId);
+                        chkCmd.Parameters.AddWithValue("@sid",  shopId);
+                        if (Convert.ToInt32(chkCmd.ExecuteScalar()) > 0)
+                        {
+                            DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                            return Request.CreateResponse((HttpStatusCode)409,
+                                new { error = $"FonePay Transaction ID '{req.TransactionId}' has already been used." });
+                        }
+                    }
                 }
 
                 // Call Candela DAL — same path as the desktop
@@ -554,6 +758,20 @@ WHERE s.shop_id = @shopId";
             sale.SaleReturningNo     = 0;
             sale.HoldingSaleID       = req.HoldingSaleId; // 0 = new sale; >0 = finalize a parked hold (DAL deletes the hold row)
             sale.Comments            = req.Comments ?? "";
+
+            // Mobile payment fields — frmSaleAndReturn.vb:37057 (AddMobiePayments)
+            // FonePay: TransactionId + Vendor + IsManual
+            sale.TransactionId = req.TransactionId ?? "";
+            sale.Vendor        = req.Vendor        ?? "";
+            sale.IsManual      = req.IsManual;
+            // 543Pay: PaymentID + RespCode + RespMessage + ReferenceNum; mobile# → Comments
+            sale.PaymentID    = req.PaymentId    ?? "";
+            sale.RespCode     = req.RespCode     ?? "";
+            sale.RespMessage  = req.RespMessage  ?? "";
+            sale.ReferenceNum = req.ReferenceNum ?? "";
+            if (!string.IsNullOrEmpty(req.MobileNum))
+                sale.Comments = req.MobileNum;
+
             sale.MemberPoints        = new MemberEarnedPoints();
 
             // Employee (required sub-objects)
@@ -569,7 +787,9 @@ WHERE s.shop_id = @shopId";
             sale.ActivityLog.ShopID      = shopId;
 
             // Line items
-            sale.ListOfSaleItems = new List<SaleAndReturnItems>();
+            sale.ListOfSaleItems    = new List<SaleAndReturnItems>();
+            sale.ListOfAssemblyItems = new List<SalesProductAssembly>();
+
             foreach (var item in req.Items)
             {
                 var line = new SaleAndReturnItems(0, item.ProductItemId, item.Quantity,
@@ -601,6 +821,25 @@ WHERE s.shop_id = @shopId";
                 line.PriceAfterDiscount          = item.NetAmount / (item.Quantity == 0 ? 1 : item.Quantity);
                 line.Employee.Shop.ShopID        = shopId;
                 sale.ListOfSaleItems.Add(line);
+
+                // Assembly component substitutions — present only when cashier modified the
+                // bundle contents via the Assembly tab.
+                // DAL.ProcessAssemblyProductsAndSaveToDatabase (SaleAndReturnDAL.vb:14810)
+                // iterates ListOfAssemblyItems and INSERTs rows where RowState = "Add".
+                if (item.AssemblyItems != null && item.AssemblyItems.Count > 0)
+                {
+                    foreach (var a in item.AssemblyItems)
+                    {
+                        var asm = new SalesProductAssembly();
+                        asm.AssemblyID    = item.ProductItemId;  // parent product (Product_Item_ID_Assembly)
+                        asm.ProductIDPart = a.ProductItemId;     // child product  (Product_Item_ID_Part)
+                        asm.Quantity      = a.Quantity;
+                        asm.ProductPrice  = a.RetailPrice;
+                        asm.RowState      = "Add";               // DAL: INSERT this row
+                        // SaleID / ShopID are 0 here; DAL sets them inside ProcessAssembly…
+                        sale.ListOfAssemblyItems.Add(asm);
+                    }
+                }
             }
 
             return sale;

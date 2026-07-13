@@ -160,6 +160,91 @@ namespace CandelaPOS.Controllers
             catch (Exception ex) { return Err(ex); }
         }
 
+        // ── /masters/line-items ───────────────────────────────────────────────────
+        // Returns all product departments (tblDefLineItems) for category tabs.
+        // Excludes service line items (not sold at POS). No delta — list is tiny & static.
+        [HttpGet, Route("line-items")]
+        public HttpResponseMessage GetLineItems()
+        {
+            CandelaBootstrap.PrepareRequest();
+            try
+            {
+                var rows = QueryLineItems();
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // ── /masters/batches ──────────────────────────────────────────────────────
+        // GET api/masters/batches?product_item_id=123
+        // Returns all non-zero-quantity batch rows for a product, ordered by ExpiryDate (FEFO).
+        // Mirrors the CommonDAL.vb:1653 query used when building the batch grid on sale entry.
+        [HttpGet, Route("batches")]
+        public HttpResponseMessage GetBatches([FromUri] int product_item_id = 0)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+
+            if (product_item_id <= 0)
+                return Request.CreateResponse(System.Net.HttpStatusCode.BadRequest,
+                    new { error = "product_item_id is required" });
+
+            try
+            {
+                // Sum all batch movements for this product; positive net = stock available.
+                // Ordered by ExpiryDate ascending = FEFO (First Expired, First Out) order.
+                const string sql = @"
+SELECT
+    a.BatchNo                              AS batch_no,
+    a.ExpiryDate                           AS expiry_date,
+    a.ProductItemID                        AS product_item_id,
+    a.Quantity                             AS available_qty,
+    CASE
+        WHEN a.ExpiryDate IS NULL THEN 0
+        WHEN a.ExpiryDate < GETDATE() THEN 1
+        ELSE 0
+    END                                    AS is_expired
+FROM (
+    SELECT
+        sum(Quantity)  AS Quantity,
+        BatchNo,
+        ExpiryDate,
+        ProductItemID
+    FROM tblbatchdetail
+    WHERE ProductItemID = @productItemId
+    GROUP BY BatchNo, ExpiryDate, ProductItemID
+) a
+WHERE a.Quantity > 0
+ORDER BY a.ExpiryDate ASC";
+
+                var rows = Run(sql, p => p.AddWithValue("@productItemId", product_item_id));
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // ── /masters/assembly-items ───────────────────────────────────────────────
+        // GET api/masters/assembly-items?product_item_id=123
+        // Returns default child components from tblDefProductAssembly with current retail prices.
+        // Mirrors SaleAndReturnDAL.vb:239-247 — the NEW-mode assembly load path.
+        [HttpGet, Route("assembly-items")]
+        public HttpResponseMessage GetAssemblyItems([FromUri] int product_item_id = 0)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+
+            if (product_item_id <= 0)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "product_item_id is required" });
+
+            try
+            {
+                var rows = QueryAssemblyItems(product_item_id, shopId);
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
         // ── /masters/str/{no}/products ────────────────────────────────────────────
         // Loads products from a Stock Transfer Request by STR number.
         // Wraps SaleAndReturnDAL.funGetStrProducts — mirrors txtSTRNo_GetSTR
@@ -189,11 +274,13 @@ namespace CandelaPOS.Controllers
         {
             const string sql = @"
 SELECT
-    pi.Product_Item_ID,
+    pi.Product_Item_ID                           AS product_item_id,
     CASE WHEN li.isassortmentenabled = 1
          THEN pd.product_code + '-' + sz.field_code + '-' + cl.field_code
          ELSE pd.product_code END                AS product_code,
     pd.item_name,
+    pd.line_item_id,
+    isnull(li.field_name, '')                    AS line_item,
     isnull(pi.CustomerSKUCode,  '')              AS barcode,
     isnull(pi.CustomerSKUCode2, '')              AS barcode2,
     isnull(pp.product_price, 0)                 AS price,
@@ -231,7 +318,7 @@ WHERE isnull(pd.status, 1) = 1";
             // Search by CustomerSKUCode (barcode) OR product_code.
             const string sql = @"
 SELECT TOP 10
-    pi.Product_Item_ID,
+    pi.Product_Item_ID AS product_item_id,
     pd.product_code,
     pd.item_name,
     isnull(pi.CustomerSKUCode,  '') AS barcode,
@@ -275,29 +362,27 @@ WHERE isnull(pd.status, 1) = 1
 SELECT" + (isSearch ? " TOP 50" : "") + @"
     m.member_id,
     m.member_name,
-    isnull(m.phone_no,    '')   AS phone,
-    isnull(m.mobile_no,   '')   AS mobile,
-    isnull(m.email_add,   '')   AS email,
+    isnull(m.phone_Res,    '')  AS phone,
+    isnull(m.phone_Mobile, '')  AS mobile,
+    isnull(m.email,        '')  AS email,
     isnull(m.credit_limit, 0)  AS credit_limit,
     isnull(m.allow_credit, 0)  AS allow_credit,
     isnull(m.member_type_id, 0) AS member_type_id,
     isnull(mt.discount_percentage, 0)  AS discount_pct,
-    isnull(mt.CustomerDiscType, '0')   AS customer_disc_type,
     m.entereddate,
     m.editeddate
 FROM tblMemberInfo m
 LEFT JOIN tblDefMemberTypes mt ON mt.member_type_id = m.member_type_id
-WHERE m.shop_id = @shopId
-  AND isnull(m.isDeleted, 0) = 0";
+WHERE m.shop_id = @shopId";
 
             if (since.HasValue)
                 sql += " AND (m.entereddate >= @since OR m.editeddate >= @since)";
 
             if (isSearch)
                 sql += @"
-  AND (m.member_name LIKE @q
-    OR m.phone_no    LIKE @q
-    OR m.mobile_no   LIKE @q)";
+  AND (m.member_name  LIKE @q
+    OR m.phone_Res    LIKE @q
+    OR m.phone_Mobile LIKE @q)";
 
             return Run(sql, p =>
             {
@@ -310,20 +395,21 @@ WHERE m.shop_id = @shopId
         private List<Dictionary<string, object>> QueryEmployees(int shopId, DateTime? since)
         {
             // tblDefShopEmployees — salesperson list for the salesperson assign modal.
-            // Delta column: entereddate / editeddate (standard Candela audit columns).
+            // Actual column names: field_name (display name) and field_Code (code).
+            // No isActive column — filter by IsSalesperson when set.
+            // Delta columns: EnteredDate / EditedDate.
             const string sql = @"
 SELECT
     e.shop_employee_id,
-    isnull(e.employee_name, '') AS employee_name,
-    isnull(e.employee_code, '') AS employee_code,
+    isnull(e.field_name,  '') AS employee_name,
+    isnull(e.field_Code,  '') AS employee_code,
     e.shop_id,
-    e.entereddate,
-    e.editeddate
+    e.EnteredDate,
+    e.EditedDate
 FROM tblDefShopEmployees e
-WHERE e.shop_id = @shopId
-  AND isnull(e.isActive, 1) = 1";
+WHERE e.shop_id = @shopId";
 
-            const string delta = " AND (e.entereddate >= @since OR e.editeddate >= @since)";
+            const string delta = " AND (e.EnteredDate >= @since OR e.EditedDate >= @since)";
             return Run(sql + (since.HasValue ? delta : ""),
                 p => { p.AddWithValue("@shopId", shopId);
                        if (since.HasValue) p.AddWithValue("@since", since.Value); });
@@ -354,13 +440,12 @@ WHERE isnull(c.isActive, 1) = 1";
             const string sql = @"
 SELECT
     mt.member_type_id,
-    isnull(mt.MemberTypeName, '')       AS type_name,
+    isnull(mt.field_name, '')           AS type_name,
     isnull(mt.discount_percentage, 0)   AS discount_percentage,
-    isnull(mt.CustomerDiscType, '0')    AS customer_disc_type,
     isnull(mt.IsEmployeeDiscOn, 0)      AS is_employee_disc_on,
-    isnull(mt.QtyLimit, 0)              AS qty_limit,
-    isnull(mt.DurationMonths, 1)        AS duration_months,
-    mt.entereddate,
+    isnull(mt.QtyLimit, 0)             AS qty_limit,
+    isnull(mt.DurationMonths, 1)       AS duration_months,
+    mt.EnteredDate,
     mt.editeddate
 FROM tblDefMemberTypes mt";
 
@@ -421,6 +506,24 @@ FROM   tblRCMSConfiguration";
             return Run(sql, p => p.AddWithValue("@shopId", shopId));
         }
 
+        private List<Dictionary<string, object>> QueryLineItems()
+        {
+            // Product departments / categories from tblDefLineItems.
+            // Excludes service line items (non-product departments).
+            // Ordered by sort_order so category tabs appear in the same order as Candela.
+            const string sql = @"
+SELECT
+    li.line_item_id,
+    isnull(li.field_name, '') AS field_name,
+    isnull(li.field_code, '') AS field_code,
+    isnull(li.sort_order, 0)  AS sort_order
+FROM tblDefLineItems li
+WHERE isnull(li.IsServiceLineItem, 0) = 0
+ORDER BY li.sort_order, li.field_name";
+
+            return Run(sql, _ => { });
+        }
+
         private List<Dictionary<string, object>> QueryStrProducts(string strNo, int shopId)
         {
             // Mirrors SaleAndReturnDAL.funGetStrProducts — frmSaleAndReturn.vb:22651
@@ -456,6 +559,36 @@ WHERE s.STR_no = @strNo
         // Shared helpers
         // ─────────────────────────────────────────────────────────────────────────
 
+        private List<Dictionary<string, object>> QueryAssemblyItems(int productItemId, int shopId)
+        {
+            const string sql = @"
+SELECT
+    pa.Product_Item_ID_Part              AS product_item_id,
+    pd.Product_number                    AS product_code,
+    pd.item_name,
+    CAST(pa.Quantity AS FLOAT)           AS quantity,
+    ISNULL(pp.product_price, 0)          AS retail_price,
+    ISNULL(inv.quantity, 0)              AS stock_qty
+FROM tblDefProductAssembly pa
+INNER JOIN tblProductItem  pi ON pi.Product_Item_ID = pa.Product_Item_ID_Part
+INNER JOIN tblDefProducts  pd ON pd.product_id      = pi.product_id
+LEFT JOIN tblDefProductPrice pp
+       ON pp.product_item_id = pa.Product_Item_ID_Part
+      AND ((pp.start_date < GETDATE() AND pp.end_date IS NULL)
+        OR  (pp.start_date < GETDATE() AND pp.end_date > GETDATE()))
+LEFT JOIN tblShopProductInventory inv
+       ON inv.product_item_id = pa.Product_Item_ID_Part
+      AND inv.shop_id = @shopId
+WHERE pa.Product_Item_ID_Assembly = @productItemId
+ORDER BY pd.item_name";
+
+            return Run(sql, p =>
+            {
+                p.AddWithValue("@productItemId", productItemId);
+                p.AddWithValue("@shopId",        shopId);
+            });
+        }
+
         private static DateTime? ParseSince(string since)
         {
             if (!string.IsNullOrEmpty(since) && DateTime.TryParse(since, out DateTime d))
@@ -485,6 +618,40 @@ WHERE s.STR_no = @strNo
                 }
                 return list;
             }
+        }
+
+        // GET api/masters/shops
+        // Returns all active shops — used to populate the shop dropdown in the cross-shop
+        // return modal so the cashier can specify which shop's invoice they are returning.
+        [HttpGet, Route("shops")]
+        public HttpResponseMessage GetShops()
+        {
+            CandelaBootstrap.PrepareRequest();
+            try
+            {
+                var list = new List<Dictionary<string, object>>();
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT shop_id, shop_name, isnull(shop_code,'') AS shop_code " +
+                        "FROM tblDefShops " +
+                        "ORDER BY shop_name", con);
+                    using (var dt = new DataTable())
+                    {
+                        new SqlDataAdapter(cmd).Fill(dt);
+                        foreach (DataRow row in dt.Rows)
+                        {
+                            var d = new Dictionary<string, object>();
+                            foreach (DataColumn col in dt.Columns)
+                                d[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+                            list.Add(d);
+                        }
+                    }
+                }
+                return Ok(list);
+            }
+            catch (Exception ex) { return Err(ex); }
         }
 
         private HttpResponseMessage Ok(List<Dictionary<string, object>> rows) =>
