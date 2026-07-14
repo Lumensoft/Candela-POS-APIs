@@ -18,6 +18,16 @@ namespace CandelaPOS.Models
 
         [JsonProperty("items")]
         public List<QuoteItem> Items { get; set; }
+
+        // True when the cashier enables the cut-piece toggle (ShowCutPieceDiscount config).
+        // Passed to GetSKUDiscountValue as allowCutPiece — unlocks cut-piece promotional discounts.
+        [JsonProperty("cut_piece")]
+        public bool CutPiece { get; set; }
+
+        // Cashier-entered invoice-level discount (chkReceiptDiscount config).
+        // Added to the auto-computed marketing discount before subtracting from net total.
+        [JsonProperty("manual_marketing_discount")]
+        public double ManualMarketingDiscount { get; set; }
     }
 
     public class QuoteItem
@@ -54,6 +64,12 @@ namespace CandelaPOS.Models
         // Customer and loyalty discounts are still applied on top (same as typing in the grid).
         [JsonProperty("override_unit_discount")]
         public double? OverrideUnitDiscount { get; set; }
+
+        // Nested/assembly item — when non-zero the block-below-customer-price check uses
+        // tblDefNestedProductPriceCustomerBased instead of tblDefProductPriceCustomerBased.
+        // Mirrors frmSaleAndReturn.vb:25795-25807 branch on NestedItemId == 0.
+        [JsonProperty("nested_item_id")]
+        public int NestedItemId { get; set; }
     }
 
     public class QuoteLineResult

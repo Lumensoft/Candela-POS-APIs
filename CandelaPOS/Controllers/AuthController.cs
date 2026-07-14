@@ -222,6 +222,71 @@ namespace CandelaPOS.Controllers
             }
         }
 
+        // POST api/auth/supervisor
+        // Validates a supervisor's credentials without changing the cashier's session.
+        // The returned name/id are held in React state for the duration of the elevated
+        // session; the cashier's JWT is unchanged throughout.
+        [HttpPost, Route("supervisor")]
+        public HttpResponseMessage SupervisorLogin([FromBody] SupervisorRequest req)
+        {
+            if (req == null || string.IsNullOrEmpty(req.Username) || string.IsNullOrEmpty(req.Password))
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "username and password are required" });
+
+            try
+            {
+                string conStr = CandelaBootstrap.ConnectionString;
+
+                const string sql =
+                    "SELECT b.user_id, b.User_log_password, b.User_name" +
+                    " FROM tblSecurityGroup a" +
+                    " INNER JOIN TblSecurityUser b ON a.GROUP_ID = b.GROUP_ID" +
+                    " WHERE b.user_log_id = @uid" +
+                    "   AND isnull(b.end_date, GETDATE()+1) >= DATEADD(dd,0,DATEDIFF(dd,0,GETDATE()))";
+
+                using (var con = new SqlConnection(conStr))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(sql, con);
+                    cmd.Parameters.AddWithValue("@uid", req.Username);
+
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (!reader.HasRows)
+                            return Request.CreateResponse(HttpStatusCode.Unauthorized,
+                                new { error = "Invalid supervisor credentials" });
+
+                        reader.Read();
+
+                        string stored = reader["User_log_password"].ToString();
+                        if (string.IsNullOrEmpty(stored))
+                            return Request.CreateResponse(HttpStatusCode.Unauthorized,
+                                new { error = "Invalid supervisor credentials" });
+
+                        string decrypted = SymmetricEncryption.Decrypt(stored, "f");
+                        if (!req.Password.Equals(decrypted, StringComparison.Ordinal))
+                            return Request.CreateResponse(HttpStatusCode.Unauthorized,
+                                new { error = "Invalid supervisor credentials" });
+
+                        int    supervisorId   = Convert.ToInt32(reader["user_id"]);
+                        string supervisorName = reader["User_name"].ToString();
+
+                        return Request.CreateResponse(HttpStatusCode.OK,
+                            ApiResponse<object>.Ok(new
+                            {
+                                supervisor_id   = supervisorId,
+                                supervisor_name = supervisorName,
+                            }));
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = "An internal error occurred." });
+            }
+        }
+
         // Adds the token signature to tblPOSTokenBlocklist.
         // expires_at matches the token's own exp claim so the row is naturally stale
         // after the token would have expired anyway (allows periodic cleanup).

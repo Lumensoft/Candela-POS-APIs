@@ -201,6 +201,12 @@ namespace CandelaPOS.Models
         // Each entry is one child component with the cashier-chosen qty and retail price.
         [JsonProperty("assembly_items")]
         public List<AssemblyItemDto> AssemblyItems { get; set; }
+
+        // Per-line salesperson — only populated when ItemWiseSalesPersonOnSales=TRUE.
+        // 0 means "use the header-level salesperson_id from the sale request."
+        // Mirrors the per-row SalesPersonId written to EnumGridSaleItems in Candela.
+        [JsonProperty("salesperson_id")]
+        public int SalespersonId { get; set; }
     }
 
     // One component row inside a bundle/assembly line item.
