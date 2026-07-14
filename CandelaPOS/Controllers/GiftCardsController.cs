@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http;
 using System.Web.Http;
 using CandelaPOS.Infrastructure;
+using Newtonsoft.Json;
 
 namespace CandelaPOS.Controllers
 {
@@ -13,38 +14,51 @@ namespace CandelaPOS.Controllers
     public class GiftCardsController : ApiController
     {
         // GET api/gift-cards/{no}/balance
-        // Looks up a gift card by Alternate_card_no (display number) or Card_no (numeric).
-        // Balance = SUM(Top_up_Amt): top-ups are positive, redemptions are stored as negative.
-        // frmSaleAndReturn.vb:13839 — source of balance SQL pattern.
+        // Looks up a gift card by:
+        //   1. Alternate_card_no (the scanned/printed code)
+        //   2. Numeric Card_no cast to varchar (e.g. "1")
+        //   3. Composite formatted key ShopCode-PaddedCardNo-TypeCode (returned by GetUnSoldGiftCard)
+        // Balance = SUM(Top_up_Amt): top-ups positive, redemptions negative.
+        // Source: frmSaleAndReturn.vb:13839 balance SQL pattern; composite key from SaleAndReturnDAL.vb:17963.
         [HttpGet, Route("{cardNo}/balance")]
         public HttpResponseMessage GetBalance(string cardNo)
         {
             CandelaBootstrap.PrepareRequest();
             try
             {
+                // Resolve the composite key format ShopCode-PaddedCardNo-TypeCode
+                // (returned by GetUnSoldGiftCard) to the raw numeric Card_no for lookup.
+                // e.g. "100-000001-lg" → middle segment "000001" → numeric "1"
+                string numericLookup = cardNo;
+                var parts = cardNo.Split('-');
+                if (parts.Length == 3 && parts[1].Length == 6 &&
+                    int.TryParse(parts[1], out int parsedCardNo))
+                {
+                    numericLookup = parsedCardNo.ToString();
+                }
+
                 const string sql = @"
 SELECT
-    c.id                                  AS card_id,
-    c.Card_no                             AS card_no,
-    isnull(c.Alternate_card_no, '')       AS display_card_no,
-    isnull(c.amount, 0)                   AS original_amount,
-    isnull(c.card_status, '')             AS card_status,
-    isnull(c.CardExpiryDate, NULL)        AS expiry_date,
-    isnull(c.MemberName, '')              AS member_name,
-    isnull(c.PhoneMobile, '')             AS phone_mobile,
-    isnull(SUM(l.Top_up_Amt), 0)         AS available_balance
+    c.id                                AS card_id,
+    c.Card_no                           AS card_no,
+    isnull(c.Alternate_card_no, '')     AS display_card_no,
+    isnull(c.amount, 0)                 AS original_amount,
+    isnull(c.card_status, '')           AS card_status,
+    MAX(l.CardExpiryDate)               AS expiry_date,
+    isnull(SUM(l.Top_up_Amt), 0)       AS available_balance
 FROM tbldefCards c
 LEFT JOIN tblGiftCardLedger l ON l.cardid = c.id
 WHERE c.Alternate_card_no = @cardNo
-   OR CAST(c.Card_no AS varchar) = @cardNo
+   OR CAST(c.Card_no AS varchar) = @numericLookup
 GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.amount,
-         c.card_status, c.CardExpiryDate, c.MemberName, c.PhoneMobile";
+         c.card_status";
 
                 using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
                 {
                     con.Open();
                     var cmd = new SqlCommand(sql, con);
-                    cmd.Parameters.AddWithValue("@cardNo", cardNo);
+                    cmd.Parameters.AddWithValue("@cardNo",        cardNo);
+                    cmd.Parameters.AddWithValue("@numericLookup", numericLookup);
 
                     using (var dt = new DataTable())
                     {
@@ -63,6 +77,65 @@ GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.amount,
                             new { success = true, data });
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message });
+            }
+        }
+
+        // GET api/gift-cards/unsold
+        // Returns the next available (unsold/un-topped-up) gift card number for manual loading.
+        // Non-replicated shops: queries tbldefCards directly (mirrors SaleAndReturnDAL.GetUnSoldGiftCard vb:17963).
+        // Replicated shops: delegates to HOWebService.Service.GetUnSoldGiftCard() (same as frmPaymentOptions.vb:3517).
+        // Gated on AllowGiftCardManualLoading config in the calling client — this endpoint always executes if reached.
+        [HttpGet, Route("unsold")]
+        public HttpResponseMessage GetUnsold()
+        {
+            CandelaBootstrap.PrepareRequest();
+
+            int shopId = (int)Request.Properties["shop_id"];
+
+            try
+            {
+                // The POS API runs server-side with direct DB access, so replication does not apply here.
+                // Candela's HOWebService path exists because desktop clients run against a local shop DB;
+                // we always query the central DB directly (mirrors SaleAndReturnDAL.GetUnSoldGiftCard vb:17963).
+                const string sql = @"
+SELECT TOP 1
+    tblDefShops.ShopMembershipCode + '-' +
+    RIGHT('000000' + CAST(tbldefCards.Card_no AS varchar), 6)
+    + '-' + tbldefCardType.code AS Card_No,
+    isnull(tbldefCards.Alternate_card_no, '') AS Alternate_card_no
+FROM tbldefCards
+INNER JOIN tblDefShops    ON tbldefCards.Shop_id      = tblDefShops.shop_id
+INNER JOIN tbldefCardType ON tbldefCards.Card_Type_id = tbldefCardType.id
+LEFT OUTER JOIN tblGiftCardLedger ON tblGiftCardLedger.cardid = tbldefCards.ID
+WHERE isnull(tblGiftCardLedger.Top_up_Amt, 0) = 0
+  AND tbldefCards.Card_Status IS NULL
+  AND tbldefCards.Shop_id = @shopId
+ORDER BY tbldefCards.Card_Gen_Date DESC";
+
+                string cardNo = null;
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(sql, con);
+                    cmd.Parameters.AddWithValue("@shopId", shopId);
+                    using (var rdr = cmd.ExecuteReader())
+                    {
+                        if (rdr.Read())
+                            cardNo = rdr["Card_No"]?.ToString();
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(cardNo))
+                    return Request.CreateResponse(HttpStatusCode.NotFound,
+                        new { error = "No unsold gift cards are available for this shop." });
+
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    new { success = true, data = new { card_no = cardNo } });
             }
             catch (Exception ex)
             {
@@ -104,12 +177,20 @@ GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.amount,
                 var trans = con.BeginTransaction();
                 try
                 {
-                    // 1. Resolve card
+                    // 1. Resolve card — support composite key ShopCode-PaddedCardNo-TypeCode
+                    string cardNoRaw = req.CardNo;
+                    var cnParts = cardNoRaw.Split('-');
+                    string cnNumeric = cardNoRaw;
+                    if (cnParts.Length == 3 && cnParts[1].Length == 6 &&
+                        int.TryParse(cnParts[1], out int cnParsed))
+                        cnNumeric = cnParsed.ToString();
+
                     var lookupCmd = new SqlCommand(
                         "SELECT TOP 1 id, Card_no FROM tbldefCards " +
-                        "WHERE Alternate_card_no = @cn OR CAST(Card_no AS varchar) = @cn",
+                        "WHERE Alternate_card_no = @cn OR CAST(Card_no AS varchar) = @cnNum",
                         con, trans);
-                    lookupCmd.Parameters.AddWithValue("@cn", req.CardNo);
+                    lookupCmd.Parameters.AddWithValue("@cn",    cardNoRaw);
+                    lookupCmd.Parameters.AddWithValue("@cnNum", cnNumeric);
 
                     int cardId  = 0;
                     int cardNo  = 0;
@@ -160,13 +241,10 @@ GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.amount,
                     insLedger.Parameters.AddWithValue("@uid",  userId);
                     insLedger.ExecuteNonQuery();
 
-                    // 4. Mark card Sold + optional member info (DAL line 791)
+                    // 4. Mark card Sold (DAL line 791)
                     var updCard = new SqlCommand(
-                        "UPDATE tbldefCards SET card_status='Sold', " +
-                        "MemberName=@mn, PhoneMobile=@pm WHERE id=@cid",
+                        "UPDATE tbldefCards SET card_status='Sold' WHERE id=@cid",
                         con, trans);
-                    updCard.Parameters.AddWithValue("@mn",  req.MemberName  ?? "");
-                    updCard.Parameters.AddWithValue("@pm",  req.PhoneMobile ?? "");
                     updCard.Parameters.AddWithValue("@cid", cardId);
                     updCard.ExecuteNonQuery();
 
@@ -409,26 +487,26 @@ VALUES
 
     public class GiftCardTopupRequest
     {
-        public string CardNo      { get; set; }
-        public decimal TopupAmount { get; set; }
-        public decimal CashAmount  { get; set; }
-        public decimal CardAmount  { get; set; }
-        public int     ExpDays     { get; set; }
-        public string  MemberName  { get; set; }
-        public string  PhoneMobile { get; set; }
-        public int     CreditCardId { get; set; }
+        [JsonProperty("card_no")]      public string  CardNo       { get; set; }
+        [JsonProperty("topup_amount")] public decimal TopupAmount  { get; set; }
+        [JsonProperty("cash_amount")]  public decimal CashAmount   { get; set; }
+        [JsonProperty("card_amount")]  public decimal CardAmount   { get; set; }
+        [JsonProperty("exp_days")]     public int     ExpDays      { get; set; }
+        [JsonProperty("member_name")]  public string  MemberName   { get; set; }
+        [JsonProperty("phone_mobile")] public string  PhoneMobile  { get; set; }
+        [JsonProperty("credit_card_id")] public int   CreditCardId { get; set; }
     }
 
     public class GiftCardValidateRequest
     {
-        public string  CardNo { get; set; }
-        public decimal Amount { get; set; }  // 0 = just check card is valid; >0 = also check sufficiency
+        [JsonProperty("card_no")] public string  CardNo { get; set; }
+        [JsonProperty("amount")]  public decimal Amount { get; set; }  // 0 = just check valid; >0 = check sufficiency
     }
 
     public class GiftCardRedeemRequest
     {
-        public int     CardId { get; set; }
-        public decimal Amount { get; set; }
-        public int     SaleId { get; set; }  // optional — link to the sale this redemption belongs to
+        [JsonProperty("card_id")] public int     CardId { get; set; }
+        [JsonProperty("amount")]  public decimal Amount { get; set; }
+        [JsonProperty("sale_id")] public int     SaleId { get; set; }  // optional — link to the sale
     }
 }
