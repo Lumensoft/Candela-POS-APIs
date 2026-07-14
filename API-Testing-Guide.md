@@ -1132,51 +1132,65 @@ Content-Type: application/json
 
 ### SCENARIO 7 — Standard Customer (type 0, no customer discount)
 
+> **Config required:** `CustomerDiscType = "0"` in `tblRCMSConfiguration`.  
+> **Customer setup:** Use a member type whose `discount_percentage = 0` AND `Multiple_Customer_Disc = False` in RCMS config (or the type has no entries in `comments` when `Multiple_Customer_Disc = True`).  
+> If `discount_percentage > 0`, the customer discount WILL be applied (matching Candela behaviour) — this scenario specifically tests the zero-discount case.
+
 ```json
 {
   "customer_id": CUSTOMER_ID_TYPE0,
   "payment_type": "cash",
   "items": [
-    { "product_item_id": PRODUCT_ITEM_ID_1, "quantity": 2, "unit_discount": 0, "pack_size": 0, "con_factor": 0 }
+    { "product_item_id": PRODUCT_ITEM_ID_1, "quantity": 2, "unit_discount": 0, "pack_size": 0, "con_factor": 1 }
   ]
 }
 ```
 
-**Verify:** `customer_discount` = 0.
+**Verify:** `customer_discount` = 0. `items[0].customer_discount_per_unit` = 0.
 
 ---
 
 ### SCENARIO 8 — Employee Discount (type 1)
 
-**Configure in Candela:** Member Type → CustomerDiscType = Employee (1), discount_percentage = 15%.
+> **Config required:** `CustomerDiscType = "1"` in `tblRCMSConfiguration` (system-wide — conflicts with Scenario 7; run on a separate environment or change config between tests).  
+> **Member type setup:** `IsEmployeeDiscOn = True`, `discount_percentage = 15`, `QtyLimit` large enough that the test cart fits within the remaining allowance.
 
 ```json
 {
   "customer_id": CUSTOMER_ID_EMPLOYEE,
   "payment_type": "cash",
   "items": [
-    { "product_item_id": PRODUCT_ITEM_ID_1, "quantity": 2, "unit_discount": 0, "pack_size": 0, "con_factor": 0 }
+    { "product_item_id": PRODUCT_ITEM_ID_1, "quantity": 2, "unit_discount": 0, "pack_size": 0, "con_factor": 1 }
   ]
 }
 ```
 
-**Verify:** `customer_discount` = `Round(Rate × 15% × 2, amountRound)`.
+**Verify:** `items[0].customer_discount_per_unit` = `Round(Rate × 15%, amountRound)`.  
+`customer_discount` = `items[0].customer_discount_per_unit × 2` (per-line rounding then sum — NOT `Round(Rate × 15% × 2)`; those can differ by 1 cent for fractional rates).
+
+> If `QtyPurchased >= QtyLimit` Candela returns 0 discount. If `QtyPurchased + CartQty > QtyLimit` it also returns 0 (all-or-nothing). Confirm the test customer has room under the limit.
 
 ---
 
 ### SCENARIO 9 — Loyalty Cash Discount
+
+> **Config required:** `MemberClubPointSystemAvailable = "true"` in `tblRCMSConfiguration`. `CustomerDiscType` must NOT be `"1"`.  
+> **Group policy setup:** Customer's member type must be linked to a group policy with `Cash_Discount > 0` in `tbldefGroupPolicyDetail` for the product's `line_item_id` (department).
 
 ```json
 {
   "customer_id": CUSTOMER_ID_LOYALTY,
   "payment_type": "cash",
   "items": [
-    { "product_item_id": PRODUCT_ITEM_ID_LOYALTY, "quantity": 2, "unit_discount": 0, "pack_size": 0, "con_factor": 0 }
+    { "product_item_id": PRODUCT_ITEM_ID_LOYALTY, "quantity": 2, "unit_discount": 0, "pack_size": 0, "con_factor": 1 }
   ]
 }
 ```
 
-**Verify:** `is_loyalty_on` = true. `items[0].loyalty_cash_discount_per_unit` = `Round(Rate × loyaltyPct%, amountRound)`.
+**Verify:** `is_loyalty_on` = true.  
+`items[0].loyalty_cash_discount_per_unit` = `Round(Rate × cashDiscPct%, amountRound)`  
+where `cashDiscPct` = the `Cash_Discount` column in `tbldefGroupPolicyDetail` (NOT the `Points` column — those are different fields used only for earned-points calculation).  
+`earned_points` = `Round((Rate − loyaltyCashDisc) × pointsPct% / 100, amountRound) × qty`.
 
 ---
 
@@ -1348,21 +1362,139 @@ Content-Type: application/json
 
 ### SCENARIO 20 — Combined: SKU Discount + Loyalty + VAT
 
+> **Config required:** Loyalty ON, no discount-priority blocking, `IsSubtractUnitDiscount = True` in `tblShopConfiguration` (affects VAT base; see notes below).
+
 ```json
 {
   "customer_id": CUSTOMER_ID_LOYALTY,
   "payment_type": "cash",
   "items": [
-    { "product_item_id": PRODUCT_WITH_DISCOUNT_AND_VAT_ID, "quantity": 2, "unit_discount": 0, "pack_size": 0, "con_factor": 0 }
+    { "product_item_id": PRODUCT_WITH_DISCOUNT_AND_VAT_ID, "quantity": 2, "unit_discount": 0, "pack_size": 0, "con_factor": 1 }
+  ]
+}
+```
+
+**Verify (assuming `IsSubtractUnitDiscount=True`, `IsSubtractCustomerDiscount=False`, no marketing discount):**
+
+- `items[0].unit_discount` = `Round(Rate × skuDiscPct%, 6)` (6 places, `frmSaleAndReturn.vb:25748`)
+- `items[0].loyalty_cash_discount_per_unit` = `Round((Rate − unitDisc) × cashDiscPct%, amountRound)`  
+  where `cashDiscPct` = `Cash_Discount` column from `tbldefGroupPolicyDetail` — NOT the points %. When the product has a promo SKU discount (`discountId > 0`) and neither blocking flag is set, `Cash_Dis_During_Sales` is used instead (`frmSaleAndReturn.vb:25888`).
+- `items[0].vat_value` depends on `IsSubtractUnitDiscount`:
+  - `True` → VAT base = `Rate − unitDisc` → `vat_value = Round((Rate − unitDisc) × vatPct%, amountRound)`
+  - `False` → VAT base = `Rate` → `vat_value = Round(Rate × vatPct%, amountRound)`
+- `net_total` = `gross_total − customer_discount − marketing_discount + vat_amount`  
+  (`gross_total` in the response is already `SUM((Rate − unitDisc) × qty)`, i.e. unit discounts are baked in)
+
+---
+
+### SCENARIO 21 — Flat Customer Discount (`Multiple_Customer_Disc = False`) ⬅ NEW
+
+> **Verifies Bug G fix.** Before the fix, `customer_discount` was always 0 for this case.  
+> **Config required:** `Multiple_Customer_Disc = False` in `tblRCMSConfiguration`. Customer's `tblDefMemberTypes.discount_percentage = 5` (or any non-zero value). `CustomerDiscType = "0"` or `"2"`. Loyalty OFF.
+
+```json
+{
+  "customer_id": CUSTOMER_ID_FLAT_DISC,
+  "payment_type": "cash",
+  "items": [
+    { "product_item_id": PRODUCT_ITEM_ID_1, "quantity": 2, "unit_discount": 0, "pack_size": 0, "con_factor": 1 },
+    { "product_item_id": PRODUCT_ITEM_ID_2, "quantity": 1, "unit_discount": 0, "pack_size": 0, "con_factor": 1 }
   ]
 }
 ```
 
 **Verify:**
-- `items[0].unit_discount` = `Round(Rate × skuDiscPct%, 6)`
-- `items[0].loyalty_cash_discount_per_unit` = `Round((Rate − unitDisc) × loyaltyPct%, amountRound)`
-- `items[0].vat_value` = `Round((Rate − unitDisc) × vatPct%, amountRound)`
-- `net_total` = `gross_total − customer_discount + vat_amount`
+- `items[0].customer_discount_per_unit` = `Round(Rate1 × 5%, 4)` (hardcoded 4 d.p. — `frmSaleAndReturn.vb:13491`)
+- `items[1].customer_discount_per_unit` = `Round(Rate2 × 5%, 4)`
+- Both products get the same flat % regardless of department — Candela cross-joins ALL `tbldeflineitems` with `discount_percentage` when `Multiple_Customer_Disc=False` (`CustomerTypeDAL.vb:1644`)
+- `customer_discount` = sum of per-unit amounts × quantities
+
+**DB query to confirm setup:**
+```sql
+SELECT discount_percentage FROM tblDefMemberTypes
+WHERE member_type_id = (SELECT member_type_id FROM tblMemberInfo WHERE member_id = CUSTOMER_ID_FLAT_DISC);
+
+SELECT config_value FROM tblRCMSConfiguration WHERE config_name = 'Multiple_Customer_Disc';
+```
+
+---
+
+### SCENARIO 22 — Type "3" Customer with Loyalty ON ⬅ NEW
+
+> **Verifies Bug H fix.** Before the fix, type "3" was excluded from the loyalty path (same exclusion as type "1") and returned `loyalty_cash_discount_per_unit = 0`. Candela only excludes type "1" (`frmSaleAndReturn.vb:25879`).  
+> **Config required:** `CustomerDiscType = "3"` in `tblRCMSConfiguration`. Loyalty ON. Customer has a loyalty group policy with `Cash_Discount > 0`.
+
+```json
+{
+  "customer_id": CUSTOMER_ID_TYPE3_LOYALTY,
+  "payment_type": "cash",
+  "items": [
+    { "product_item_id": PRODUCT_ITEM_ID_LOYALTY, "quantity": 1, "unit_discount": 0, "pack_size": 0, "con_factor": 1 }
+  ]
+}
+```
+
+**Verify:**
+- `is_loyalty_on` = true
+- `items[0].loyalty_cash_discount_per_unit` > 0 (loyalty cash disc applied — NOT zero)
+- `items[0].customer_discount_per_unit` = same as `loyalty_cash_discount_per_unit` (they are the same amount; loyalty IS the customer disc for this type)
+- `earned_points` > 0
+
+---
+
+### SCENARIO 23 — `DiscountPriority = Customer` Blocks SKU Disc (Flat Disc Customer) ⬅ NEW
+
+> **Verifies Bug K fix.** Before the fix, `customerHasLineDiscounts` was `false` when `Multiple_Customer_Disc=False` (map was empty), so SKU disc was never blocked even with `DiscountPriority=Customer`.  
+> **Config required:** `DiscountPriority = "Customer"` in `tblRCMSConfiguration`. `Multiple_Customer_Disc = False`. Customer has `discount_percentage = 10%`. Product has an active SKU discount.
+
+```json
+{
+  "customer_id": CUSTOMER_ID_FLAT_DISC,
+  "payment_type": "cash",
+  "items": [
+    { "product_item_id": PRODUCT_WITH_SKU_DISCOUNT_ID, "quantity": 1, "unit_discount": 0, "pack_size": 0, "con_factor": 1 }
+  ]
+}
+```
+
+**Verify:**
+- `items[0].unit_discount` = 0 (SKU disc blocked because customer has a flat discount and `DiscountPriority=Customer`)
+- `items[0].customer_discount_per_unit` = `Round(Rate × 10%, 4)` (customer disc applied instead)
+- Compare against Candela: ring the same product for the same customer — SKU disc column should be 0, CustDisc column should be 10%
+
+---
+
+### SCENARIO 24 — Multi-Shop Loyalty (Customer Registered at Different Shop) ⬅ NEW
+
+> **Verifies Bug I fix.** Before the fix, loyalty DAL calls used the POS terminal's `shop_id` instead of the customer's registered `shop_id` (`tblMemberInfo.shop_id`). In a single-shop setup both are the same so the bug is invisible. In multi-shop setups the group policy join fails and `loyalty_cash_discount_per_unit` returns 0.  
+> **Setup required:** Customer registered (created) at Shop 1. POS terminal JWT issued for Shop 2. Loyalty group policy configured at Shop 1.
+
+```json
+{
+  "customer_id": CUSTOMER_REGISTERED_AT_SHOP_1,
+  "payment_type": "cash",
+  "items": [
+    { "product_item_id": PRODUCT_ITEM_ID_LOYALTY, "quantity": 1, "unit_discount": 0, "pack_size": 0, "con_factor": 1 }
+  ]
+}
+```
+*(Send this request with a Bearer token issued for Shop 2)*
+
+**Verify:**
+- `items[0].loyalty_cash_discount_per_unit` > 0 (group policy found via customer's home shop, not POS shop)
+
+**DB query to confirm the scenario:**
+```sql
+-- Customer's registered shop
+SELECT shop_id FROM tblMemberInfo WHERE member_id = CUSTOMER_REGISTERED_AT_SHOP_1;
+
+-- Group policy must exist under shop_id = 1 (customer's shop), not shop_id = 2 (POS shop)
+SELECT * FROM tbldefGroupPolicyDetail
+WHERE GroupPolicyID IN (
+    SELECT GroupPolicyID FROM tblDefGroupPolicy
+    WHERE MemberTypeID = (SELECT member_type_id FROM tblMemberInfo WHERE member_id = CUSTOMER_REGISTERED_AT_SHOP_1)
+);
+```
 
 ---
 

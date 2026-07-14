@@ -80,8 +80,8 @@ namespace CandelaPOS.Controllers
                 // CustomerDiscType: "1"=employee, "3"=qty-based employee variant, "0"/"2"=standard
                 // frmSaleAndReturn.vb:13406
                 string customerDiscType = rcmsCfg.TryGetValue("CustomerDiscType", out var cdt) ? cdt : "0";
-                bool   useLoyaltyCashDisc = isLoyaltyOn && req.CustomerId > 0
-                    && customerDiscType != "1" && customerDiscType != "3";
+                // Candela line 25879: loyalty path excludes only type "1" — type "3" IS included.
+                bool   useLoyaltyCashDisc = isLoyaltyOn && req.CustomerId > 0 && customerDiscType != "1";
 
                 // ESD integration (FBR/Pakistan): VAT base = MAX(Rate, RRP).
                 // frmSaleAndReturn.vb:14585-14613; config key in tblRCMSConfiguration.
@@ -125,17 +125,24 @@ namespace CandelaPOS.Controllers
 
                 // ── Employee / per-item customer discount pre-computation ─────────────
                 // Must run before Pass 1 because employee qty check needs total cart qty.
+                // empInfo is always fetched when a customer is present so MemberShopId is
+                // available for the loyalty DAL calls (frmSaleAndReturn.vb:25889 uses
+                // SelectedCustomerShopID, the customer's home shop, not the POS shop).
                 double empDiscPct = 0;                                   // type "1"/"3" qty-limited %
                 var    multiItemDiscMap = new Dictionary<int, double>(); // lineItemId (dept) → disc% (Multiple_Customer_Disc=True)
+                CustomerTypeDetails empInfo = null;
 
-                if (req.CustomerId > 0 && !useLoyaltyCashDisc)
+                if (req.CustomerId > 0)
                 {
+                    empInfo = GetCustomerTypeDetails(req.CustomerId);
+
+                    if (!useLoyaltyCashDisc && empInfo != null)
+                    {
                     if (customerDiscType == "1" || customerDiscType == "3")
                     {
                         // Employee / qty-limited discount: same global % but only if within QtyLimit.
                         // frmSaleAndReturn.vb:37283-37316, 37350-37368
-                        var empInfo = GetCustomerTypeDetails(req.CustomerId);
-                        if (empInfo != null && empInfo.IsEmployeeDiscOn && custDiscPct > 0)
+                            if (empInfo.IsEmployeeDiscOn && custDiscPct > 0)
                         {
                             double qtyPurchased = GetQtyPurchased(req.CustomerId, empInfo.MemberShopId, empInfo.DurationMonths);
                             double cartQtyForEmpLimit = req.Items.Sum(i => i.Quantity);
@@ -144,21 +151,26 @@ namespace CandelaPOS.Controllers
                             // -1 case (partial): disc = 0 (all-or-nothing, ResetDiscountOnQty)
                         }
                     }
-                    else if (isMultipleCustDisc)
+                        else if (isMultipleCustDisc && empInfo.MemberTypeId > 0)
                     {
                         // Per-item disc % from tblDefMemberTypes.comments.
                         // CustomerTypeDAL.vb:1595-1656; filter: [Customer Type ID]=X AND [Line Item ID]=Y
-                        var empInfo = GetCustomerTypeDetails(req.CustomerId);
-                        if (empInfo != null && empInfo.MemberTypeId > 0)
                             multiItemDiscMap = GetMultipleItemDiscounts(empInfo.MemberTypeId);
                     }
                 }
+                }
 
-                // Customer's member type ID — passed to GetSKUDiscountValue() so campaign
-                // discounts gated by customer type are correctly applied or skipped.
-                // Candela passes txtCustomer.CustomerTypeID (member_type_id) at line 25748.
-                int customerMemberTypeId = req.CustomerId > 0
-                    ? GetCustomerMemberTypeId(req.CustomerId) : 0;
+                // Customer's member type ID — reuse empInfo to avoid a separate DB call.
+                // Passed to GetSKUDiscountValue() so campaign discounts gated by customer
+                // type are correctly applied or skipped. frmSaleAndReturn.vb:25748.
+                int customerMemberTypeId = empInfo?.MemberTypeId ?? 0;
+
+                // Customer's registered shop — loyalty DAL uses this to traverse the group
+                // policy link (tblMemberInfo.shop_id → tblDefGroupPolicy → tbldefGroupPolicyDetail).
+                // Falls back to POS shop when customer has no shop association.
+                // frmSaleAndReturn.vb:25889: Me.txtCustomer.SelectedCustomerShopID
+                int custShopId = empInfo != null && empInfo.MemberShopId > 0
+                    ? empInfo.MemberShopId : shopId;
 
                 // ── Pass 1: resolve per-item SKU discount + loyalty + coupon ──────────
                 var states          = new List<ItemState>();
@@ -250,8 +262,11 @@ namespace CandelaPOS.Controllers
                         // Candela zeroes UnitDiscount (and skips GetSKUDiscountValue) when a customer with
                         // applicable member-type line discounts is present.
                         // frmSaleAndReturn.vb:25694–25695 (UpdateItemCalculations) and 15629–15646 (customer load).
+                        // Also true when Multiple_Customer_Disc=False and a flat % applies —
+                        // in that case multiItemDiscMap is empty but custDiscPct covers all departments.
                         bool customerHasLineDiscounts = req.CustomerId > 0
-                            && (multiItemDiscMap.Count > 0 || empDiscPct > 0);
+                            && (multiItemDiscMap.Count > 0 || empDiscPct > 0
+                                || (!isMultipleCustDisc && custDiscPct > 0));
                         bool skipSkuLookup = blockUnitDiscOnCustDisc && customerHasLineDiscounts;
 
                         // ── Normal SKU discount ────────────────────────────────────────
@@ -323,15 +338,16 @@ namespace CandelaPOS.Controllers
 
                             // Bug B + C fix: ReadCashDiscountPer for cash amount (not ReadLoyalityPointsPercentage),
                             // keyed by p.LineItemId (department), not product_item_id.
-                            // frmSaleAndReturn.vb:25879; DAL:12655 — reads Cash_Discount / Cash_Dis_During_Sales.
+                            // Bug I fix: pass custShopId (customer's registered shop), not POS shopId.
+                            // frmSaleAndReturn.vb:25889; DAL:12655 — reads Cash_Discount / Cash_Dis_During_Sales.
                             double cashDiscPct = (double)SaleAndReturnDAL.ReadCashDiscountPer(
-                                req.CustomerId, shopId, p.LineItemId, fetchPromoRate);
+                                req.CustomerId, custShopId, p.LineItemId, fetchPromoRate);
 
                             // Bug C fix: points% also uses LineItemId (department).
-                            // ReadLoyalityPointsPercentage reads Points / Points_Dis_During_Sales. DAL:12749.
+                            // Bug I fix: custShopId here too — same group-policy join path. DAL:12749.
                             // loyaltyPct is stored on ItemState for the earned-points formula in Pass 3.
                             loyaltyPct = (double)SaleAndReturnDAL.ReadLoyalityPointsPercentage(
-                                req.CustomerId, shopId, p.LineItemId, fetchPromoRate);
+                                req.CustomerId, custShopId, p.LineItemId, fetchPromoRate);
 
                             // Blocking: DiscountPriority="Product" AND a unit disc is active → cash disc = 0.
                             // Also: cashDiscPct=0 → no cash disc (same as Candela's dblCustomerDiscountAmt=0 check).
@@ -356,16 +372,23 @@ namespace CandelaPOS.Controllers
                                  && multiItemDiscMap.TryGetValue(p.LineItemId, out double itemDiscPct))
                         {
                             // Per-item customer discount (Multiple_Customer_Disc=True).
-                            // frmSaleAndReturn.vb:13425-13430, 13447: skip if NotForDiscount
+                            // Rounding: Candela line 13491 hardcodes 4 decimal places (not gintAmountRound).
+                            // frmSaleAndReturn.vb:13425-13430, 13447/13491.
                             if (!blockCustDiscOnUnitDisc || unitDisc == 0)
-                                custDiscUnit = Math.Round((unitRate - unitDisc) * (itemDiscPct / 100.0), amountRound,
+                                custDiscUnit = Math.Round((unitRate - unitDisc) * (itemDiscPct / 100.0), 4,
                                     MidpointRounding.AwayFromZero);
                         }
-                        // Standard type-0 global % (custDiscPct) is intentionally NOT applied here.
-                        // Candela's GetCustomerDiscountValue() clears CustDisc to 0 for any row
-                        // not found in GetMultipleLineItemDisCounts, which has no entries for
-                        // standard global-% customers → txtCustomerDiscount = 0 for type "0".
-                        // frmSaleAndReturn.vb:13411-13543
+                        else if (!isMultipleCustDisc && custDiscPct > 0 && p.NotForDiscount == 0)
+                        {
+                            // Flat customer type discount — Multiple_Customer_Disc=False path.
+                            // GetLineItemDiscount() cross-joins ALL departments with the same discount_percentage:
+                            //   SELECT Line_Item_ID, @Disc FROM tbldeflineitems  (CustomerTypeDAL.vb:1644)
+                            // Every product in every department effectively receives custDiscPct.
+                            // Rounding: same hardcoded 4 as the True-branch above (line 13491).
+                            if (!blockCustDiscOnUnitDisc || unitDisc == 0)
+                                custDiscUnit = Math.Round((unitRate - unitDisc) * (custDiscPct / 100.0), 4,
+                                    MidpointRounding.AwayFromZero);
+                    }
                     }
 
                     // OverrideUnitDiscount: cashier manual discount from ItemDetailModal (Discount tab).
