@@ -175,7 +175,8 @@ SELECT
     isnull(s.isCreditSale, 0)                     AS is_credit_sale,
     CASE WHEN isnull(s.SaleReturningNo, 0) > 0
          THEN 1 ELSE 0 END                        AS is_return,
-    isnull(s.SaleReturningNo, 0)                  AS return_of_sale_id
+    isnull(s.SaleReturningNo, 0)                  AS return_of_sale_id,
+    isnull(s.IsVoided, 0)                         AS is_voided
 FROM tblSales s
 LEFT JOIN tblMemberInfo m
     ON  m.member_id = s.member_id AND m.shop_id = s.MemberShopID
@@ -390,6 +391,7 @@ ORDER BY sli.sale_line_item_id", con);
         {
             var model = new SaleAndReturn();
             model.SaleID                  = saleId;
+            model.SaleDateTime            = DateTime.Now;
             model.Shop.ShopID             = shopId;
             model.UserInfo.UserID         = userId;
             model.UserInfo.POSCode        = posCode;
@@ -575,7 +577,7 @@ ORDER BY sli.sale_line_item_id", con);
                 }
                 DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message, shop_id_used = shopId, sale_date_used = sale?.SaleDateTime });
+                    new { error = "An error occurred processing the sale." });
             }
         }
 
