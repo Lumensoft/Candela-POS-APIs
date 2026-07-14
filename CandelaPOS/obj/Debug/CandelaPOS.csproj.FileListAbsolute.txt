@@ -24,7 +24,7 @@ d:\candela\5990\POS-API\CandelaPOS\bin\System.Web.Http.xml
 d:\candela\5990\POS-API\CandelaPOS\bin\System.Web.Http.WebHost.xml
 d:\candela\5990\POS-API\CandelaPOS\bin\System.Net.Http.Formatting.xml
 d:\candela\5990\POS-API\CandelaPOS\bin\Newtonsoft.Json.xml
-d:\candela\5990\POS-API\CandelaPOS\obj\Debug\CandelaPOS.csproj.CopyComplete
 d:\candela\5990\POS-API\CandelaPOS\obj\Debug\CandelaPOS.dll
 d:\candela\5990\POS-API\CandelaPOS\obj\Debug\CandelaPOS.pdb
 D:\candela\5990\POS-API\CandelaPOS\bin\CandelaPOS.dll.config
+D:\candela\5990\POS-API\CandelaPOS\obj\Debug\CandelaPOS.csproj.Up2Date
