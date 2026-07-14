@@ -17,6 +17,7 @@ namespace CandelaPOS.Infrastructure
     {
         private static volatile DataTable _configCache;
         private static readonly object _lock = new object();
+        private static System.Threading.Timer _configRefreshTimer;
 
         public static string ConnectionString =>
             ConfigurationManager.ConnectionStrings["CON_STR"].ConnectionString;
@@ -24,6 +25,9 @@ namespace CandelaPOS.Infrastructure
         public static void Initialize()
         {
             LoadConfigCache();
+            // Stored in a static field so the GC does not collect it.
+            _configRefreshTimer = new System.Threading.Timer(_ => RefreshConfigCache(), null,
+                TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
             try { EnsureSchema(); }
             catch (Exception ex)
             {

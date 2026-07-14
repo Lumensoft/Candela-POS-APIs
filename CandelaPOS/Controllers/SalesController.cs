@@ -409,8 +409,8 @@ ORDER BY sli.sale_line_item_id", con);
             {
                 con.Open();
                 var cmd = new SqlCommand(
-                    "SELECT isnull(field_value, '') FROM tblShopConfiguration " +
-                    "WHERE shop_id = @shopId AND field_name = @key", con);
+                    "SELECT isnull(config_value, '') FROM tblShopConfiguration " +
+                    "WHERE shop_id = @shopId AND config_name = @key", con);
                 cmd.Parameters.AddWithValue("@shopId", shopId);
                 cmd.Parameters.AddWithValue("@key",    key);
                 var result = cmd.ExecuteScalar();
@@ -563,7 +563,7 @@ ORDER BY sli.sale_line_item_id", con);
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // dal.Add() can throw a secondary error after tblSales/tblSalesLineItems
                 // already committed. If SaleID was assigned the sale was saved successfully.
@@ -575,7 +575,7 @@ ORDER BY sli.sale_line_item_id", con);
                 }
                 DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An error occurred processing the sale." });
+                    new { error = ex.Message, shop_id_used = shopId, sale_date_used = sale?.SaleDateTime });
             }
         }
 

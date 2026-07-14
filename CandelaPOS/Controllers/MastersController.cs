@@ -162,9 +162,10 @@ namespace CandelaPOS.Controllers
 
         // ── /masters/line-items ───────────────────────────────────────────────────
         // Returns all product departments (tblDefLineItems) for category tabs.
-        // Excludes service line items (not sold at POS). No delta — list is tiny & static.
+        // since= accepted for API consistency; tblDefLineItems has no timestamp column
+        // so always returns the full set (list is tiny and rarely changes).
         [HttpGet, Route("line-items")]
-        public HttpResponseMessage GetLineItems()
+        public HttpResponseMessage GetLineItems([FromUri] string since = null)
         {
             CandelaBootstrap.PrepareRequest();
             try
@@ -292,6 +293,7 @@ SELECT
     isnull(pd.custom_discount, 0)               AS custom_discount,
     isnull(pd.Basic_Designed, 1)                AS basic_designed,
     isnull(inv.quantity, 0)                     AS stock_qty,
+    CASE WHEN blk.Block_Product_Id IS NOT NULL THEN 1 ELSE 0 END AS is_blocked_for_sale,
     pd.entereddate,
     pd.editeddate
 FROM tblProductItem pi
@@ -305,6 +307,8 @@ LEFT JOIN tblDefProductPrice pp
         OR  (pp.start_date < GETDATE() AND pp.end_date > GETDATE()))
 LEFT JOIN tblShopProductInventory inv
        ON inv.product_item_id = pi.Product_Item_ID AND inv.shop_id = @shopId
+LEFT JOIN tblBlockPrdctsForSale blk
+       ON blk.product_item_id = pi.Product_Item_ID AND blk.shopID = @shopId
 WHERE isnull(pd.status, 1) = 1";
 
             const string delta = " AND (pd.entereddate >= @since OR pd.editeddate >= @since)";
@@ -418,18 +422,16 @@ WHERE e.shop_id = @shopId";
         private List<Dictionary<string, object>> QueryCreditCards(DateTime? since)
         {
             // tblDefCreditCards — global, not shop-scoped.
-            // Used to populate the card type dropdown on the payment screen.
+            // Real columns: credit_card_id, field_name, EnteredDate (no isActive, no editeddate).
             const string sql = @"
 SELECT
-    c.CreditCardID,
-    isnull(c.CreditCard, '') AS card_name,
-    c.entereddate,
-    c.editeddate
-FROM tblDefCreditCards c
-WHERE isnull(c.isActive, 1) = 1";
+    credit_card_id,
+    isnull(field_name, '') AS credit_card_name,
+    EnteredDate
+FROM tblDefCreditCards";
 
-            const string delta = " AND (c.entereddate >= @since OR c.editeddate >= @since)";
-            return Run(sql + (since.HasValue ? delta : ""),
+            const string delta = " WHERE EnteredDate >= @since";
+            return Run(sql + (since.HasValue ? delta : "") + " ORDER BY sort_order",
                 p => { if (since.HasValue) p.AddWithValue("@since", since.Value); });
         }
 
