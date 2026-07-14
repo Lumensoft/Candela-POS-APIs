@@ -116,6 +116,7 @@
     <Compile Include="Models\ReturnRequest.cs" />
     <Compile Include="Models\LoginRequest.cs" />
     <Compile Include="Models\LoginResponse.cs" />
+    <Compile Include="Models\SupervisorRequest.cs" />
     <Compile Include="Models\SaleRequest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

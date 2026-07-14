@@ -61,6 +61,14 @@ namespace CandelaPOS.Controllers
                 bool   blockCustDiscOnUnitDisc = string.Equals(discPriority, "Product",  StringComparison.OrdinalIgnoreCase);
                 bool   blockUnitDiscOnCustDisc = string.Equals(discPriority, "Customer", StringComparison.OrdinalIgnoreCase);
 
+                // BlockProductDiscount_Under_CustomerPrice (frmSaleAndReturn.vb:25795, 25847)
+                // Only active when RetailPriceMethodology=3. Calls GetCustomerTypeBasedSKUPrice()
+                // per line; if the customer type has a specific price for that SKU, discount is zeroed.
+                bool blockBelowCustPrice =
+                    string.Equals(rcmsCfg.TryGetValue("BlockProductDiscount_Under_CustomerPrice", out var bbcp) ? bbcp : "",
+                        "true", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(rcmsCfg.TryGetValue("RetailPriceMethodology", out var rpm) ? rpm : "1", "3");
+
                 bool isSlabVAT = string.Equals(
                     rcmsCfg.TryGetValue("VATType", out var vts) ? vts : "", "SLABS",
                     StringComparison.OrdinalIgnoreCase);
@@ -130,26 +138,26 @@ namespace CandelaPOS.Controllers
 
                     if (!useLoyaltyCashDisc && empInfo != null)
                     {
-                        if (customerDiscType == "1" || customerDiscType == "3")
-                        {
-                            // Employee / qty-limited discount: same global % but only if within QtyLimit.
-                            // frmSaleAndReturn.vb:37283-37316, 37350-37368
+                    if (customerDiscType == "1" || customerDiscType == "3")
+                    {
+                        // Employee / qty-limited discount: same global % but only if within QtyLimit.
+                        // frmSaleAndReturn.vb:37283-37316, 37350-37368
                             if (empInfo.IsEmployeeDiscOn && custDiscPct > 0)
-                            {
-                                double qtyPurchased = GetQtyPurchased(req.CustomerId, empInfo.MemberShopId, empInfo.DurationMonths);
-                                double cartQtyForEmpLimit = req.Items.Sum(i => i.Quantity);
-                                if (qtyPurchased < empInfo.QtyLimit && qtyPurchased + cartQtyForEmpLimit <= empInfo.QtyLimit)
-                                    empDiscPct = custDiscPct;
-                                // -1 case (partial): disc = 0 (all-or-nothing, ResetDiscountOnQty)
-                            }
-                        }
-                        else if (isMultipleCustDisc && empInfo.MemberTypeId > 0)
                         {
-                            // Per-item disc % from tblDefMemberTypes.comments.
-                            // CustomerTypeDAL.vb:1595-1656; filter: [Customer Type ID]=X AND [Line Item ID]=Y
-                            multiItemDiscMap = GetMultipleItemDiscounts(empInfo.MemberTypeId);
+                            double qtyPurchased = GetQtyPurchased(req.CustomerId, empInfo.MemberShopId, empInfo.DurationMonths);
+                            double cartQtyForEmpLimit = req.Items.Sum(i => i.Quantity);
+                            if (qtyPurchased < empInfo.QtyLimit && qtyPurchased + cartQtyForEmpLimit <= empInfo.QtyLimit)
+                                empDiscPct = custDiscPct;
+                            // -1 case (partial): disc = 0 (all-or-nothing, ResetDiscountOnQty)
                         }
                     }
+                        else if (isMultipleCustDisc && empInfo.MemberTypeId > 0)
+                    {
+                        // Per-item disc % from tblDefMemberTypes.comments.
+                        // CustomerTypeDAL.vb:1595-1656; filter: [Customer Type ID]=X AND [Line Item ID]=Y
+                            multiItemDiscMap = GetMultipleItemDiscounts(empInfo.MemberTypeId);
+                    }
+                }
                 }
 
                 // Customer's member type ID — reuse empInfo to avoid a separate DB call.
@@ -281,7 +289,7 @@ namespace CandelaPOS.Controllers
                             unitDisc = SaleAndReturnDAL.GetSKUDiscountValue(
                                 shopId, item.ProductItemId, now,
                                 unitRate, item.Quantity, ref discountId,
-                                false, isLoyaltyOn, customerMemberTypeId,
+                                req.CutPiece, isLoyaltyOn, customerMemberTypeId,
                                 ref qtyOfX, ref isBuyXGetY,
                                 isPack, item.PackSize, ref discType,
                                 productTotalQty, false, false);
@@ -299,6 +307,24 @@ namespace CandelaPOS.Controllers
                                 discCategory = "Q";
                         }
                         // When skipSkuLookup=true: unitDisc stays 0 and discountId stays 0 — customer disc wins.
+
+                        // BlockProductDiscount_Under_CustomerPrice (frmSaleAndReturn.vb:25795-25807, 25847-25857)
+                        // Zero discount when RetailPriceMethodology=3 AND the customer type has a specific
+                        // price defined for this SKU in tblDefProductPriceCustomerBased.
+                        // Applies to both auto SKU discount and cashier-entered manual overrides.
+                        // Not applied to coupon lines — this block is inside the else/non-coupon branch.
+                        if (blockBelowCustPrice && customerMemberTypeId > 0 && unitDisc > 0)
+                        {
+                            double custTypeSKUPrice = item.NestedItemId > 0
+                                ? GetCustomerTypeBasedNestedSKUPrice(item.ProductItemId, item.NestedItemId, customerMemberTypeId)
+                                : GetCustomerTypeBasedSKUPrice(customerMemberTypeId, item.ProductItemId);
+                            if (custTypeSKUPrice > 0)
+                            {
+                                unitDisc     = 0;
+                                discountId   = 0;
+                                discCategory = "";
+                            }
+                        }
 
                         // ── Loyalty cash discount or member-type customer disc ──────────────────────────────
                         if (useLoyaltyCashDisc)
@@ -362,7 +388,7 @@ namespace CandelaPOS.Controllers
                             if (!blockCustDiscOnUnitDisc || unitDisc == 0)
                                 custDiscUnit = Math.Round((unitRate - unitDisc) * (custDiscPct / 100.0), 4,
                                     MidpointRounding.AwayFromZero);
-                        }
+                    }
                     }
 
                     // OverrideUnitDiscount: cashier manual discount from ItemDetailModal (Discount tab).
@@ -602,7 +628,8 @@ namespace CandelaPOS.Controllers
                 // !PIV OR PIV+!isShowTagPrice: VAT is an add-on.
                 //   !PIV:             adds totalVat + totalFormula1Tax  (formula1 baked via dblVatValue line 12991)
                 //   PIV+!isShowTagPrice: adds totalVat only             (Candela strips formula1 at line 13070)
-                double netTotal = grossTotal - totalDiscount - totalCustDisc - mktDisc;
+                double totalMktDisc = mktDisc + req.ManualMarketingDiscount;
+                double netTotal = grossTotal - totalDiscount - totalCustDisc - totalMktDisc;
                 if (isSlabVAT)
                     netTotal += totalVat + totalAddSaleTax;
                 else if (!priceIncludesVAT)
@@ -633,7 +660,7 @@ namespace CandelaPOS.Controllers
                         GrossTotal        = Math.Round(grossTotal - totalDiscount, amountRound, MidpointRounding.AwayFromZero),
                         TotalDiscount     = Math.Round(totalDiscount,           amountRound, MidpointRounding.AwayFromZero),
                         CustomerDiscount  = Math.Round(totalCustDisc,           amountRound, MidpointRounding.AwayFromZero),
-                        MarketingDiscount = Math.Round(mktDisc,                 amountRound, MidpointRounding.AwayFromZero),
+                        MarketingDiscount = Math.Round(totalMktDisc,            amountRound, MidpointRounding.AwayFromZero),
                         // Formula-1 (per-item) addl tax is folded into txtVAT by Candela at line 12991.
                         // Formula-2 (on net total) is NOT folded in — reported separately.
                         // Slab VAT overrides txVAT entirely and is independent of addl tax.
@@ -869,6 +896,61 @@ ORDER BY pp.product_price_id DESC";
                         d[reader.GetString(0)] = reader.IsDBNull(1) ? "" : reader.GetString(1);
             }
             return d;
+        }
+
+        // CustomerDAL.vb:4246-4270 — tblDefProductPriceCustomerBased stores customer-type-based
+        // prices. Returns the price if the type has a specific override for this SKU; 0 otherwise.
+        // Nested-item variant — queries tblDefNestedProductPriceCustomerBased.
+        // Mirrors CustomerDAL.GetCustomerTypeBasedNestedSKUPrice (frmSaleAndReturn.vb:25802).
+        private double GetCustomerTypeBasedNestedSKUPrice(int productItemId, int nestedItemId, int customerTypeId)
+        {
+            if (customerTypeId <= 0) return 0;
+            const string sql = "SELECT TOP(1) Price FROM tblDefNestedProductPriceCustomerBased " +
+                               "WHERE item_id = @itemId AND Nested_ID = @nestedId AND customer_id = @typeId";
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(sql, con);
+                cmd.Parameters.AddWithValue("@itemId",   productItemId);
+                cmd.Parameters.AddWithValue("@nestedId", nestedItemId);
+                cmd.Parameters.AddWithValue("@typeId",   customerTypeId);
+                var result = cmd.ExecuteScalar();
+                return result != null && result != DBNull.Value ? Convert.ToDouble(result) : 0;
+            }
+        }
+
+        // Used by BlockProductDiscount_Under_CustomerPrice to decide whether to zero the discount.
+        private double GetCustomerTypeBasedSKUPrice(int customerTypeId, int productItemId)
+        {
+            if (customerTypeId <= 0) return 0;
+            const string sql = "SELECT Price FROM tblDefProductPriceCustomerBased " +
+                               "WHERE customer_id = @typeId AND Item_id = @skuId";
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(sql, con);
+                cmd.Parameters.AddWithValue("@typeId", customerTypeId);
+                cmd.Parameters.AddWithValue("@skuId",  productItemId);
+                var result = cmd.ExecuteScalar();
+                return result != null && result != DBNull.Value ? Convert.ToDouble(result) : 0;
+            }
+        }
+
+        // Returns the customer's member_type_id from tblMemberInfo.
+        // Passed to GetSKUDiscountValue() as CustomerTypeId — mirrors Candela line 25748:
+        // txtCustomer.CustomerTypeID is the member type, not the customer ID.
+        private int GetCustomerMemberTypeId(int customerId)
+        {
+            if (customerId <= 0) return 0;
+            const string sql = "SELECT ISNULL(member_type_id, 0) FROM tblMemberInfo WHERE member_id = @id";
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(sql, con);
+                cmd.Parameters.AddWithValue("@id", customerId);
+                var result = cmd.ExecuteScalar();
+                return result != null && result != DBNull.Value ? Convert.ToInt32(result) : 0;
+            }
         }
 
         private double GetCustomerDiscountPct(int customerId)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Data.SqlClient;
 using System.Net;
 using System.Net.Http;
@@ -401,6 +402,48 @@ ORDER BY sli.sale_line_item_id", con);
             return model;
         }
 
+        // tblShopConfiguration key lookup — mirrors ShopDAL.GetShopConfigurationValue().
+        private string GetShopConfig(int shopId, string key)
+        {
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(
+                    "SELECT isnull(field_value, '') FROM tblShopConfiguration " +
+                    "WHERE shop_id = @shopId AND field_name = @key", con);
+                cmd.Parameters.AddWithValue("@shopId", shopId);
+                cmd.Parameters.AddWithValue("@key",    key);
+                var result = cmd.ExecuteScalar();
+                return result?.ToString() ?? "";
+            }
+        }
+
+        // tblDefShopEmployees.commissionpercentage — the employee's default commission rate.
+        // Used to populate ListOfSalesPersonCommission before calling Add().
+        // Try-catch guards against schema versions where the column does not yet exist.
+        private double GetSalespersonCommissionPct(int shopId, int employeeId)
+        {
+            try
+            {
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT isnull(commissionpercentage, 0) FROM tblDefShopEmployees " +
+                        "WHERE shop_id = @shopId AND shop_employee_id = @empId", con);
+                    cmd.Parameters.AddWithValue("@shopId", shopId);
+                    cmd.Parameters.AddWithValue("@empId",  employeeId);
+                    var result = cmd.ExecuteScalar();
+                    return result != null && result != DBNull.Value
+                        ? Convert.ToDouble(result) : 0;
+                }
+            }
+            catch (System.Data.SqlClient.SqlException)
+            {
+                return 0;
+            }
+        }
+
         private HttpResponseMessage HandleDalException(Exception ex)
         {
             string msg = ex.Message ?? "";
@@ -741,8 +784,54 @@ ORDER BY sli.sale_line_item_id", con);
             // MemberName stored in tblSales.Cust_name (DAL line 3846); null-fix: INSERT calls .Replace()
             sale.Customer.MemberName = req.WalkInName ?? "";
 
-            // Salesperson — tblSales.SalesPerson via tblDefShopEmployees (DAL line 8024)
+            // Salesperson — tblSales.employee_id (DAL line 8024)
             sale.Employee.ShopEmployeeID = req.SalespersonId;
+
+            // Commission — frmSaleAndReturn.vb:10293-10302 (FillModel).
+            // AddSalesPersonCommissionDetails (SaleAndReturnDAL.vb:11830) writes ONE row per
+            // unique salesperson into tblSalespersonCommission (not per line item).
+            bool commEnabled = GetShopConfig(shopId, "EnableSalespersonCommissiononNetSale")
+                .Equals("true", StringComparison.OrdinalIgnoreCase);
+            bool itemWiseSP = GetShopConfig(shopId, "ItemWiseSalesPersonOnSales")
+                .Equals("true", StringComparison.OrdinalIgnoreCase);
+
+            if (commEnabled)
+            {
+                if (itemWiseSP && req.Items != null && req.Items.Count > 0)
+                {
+                    // Aggregate distinct salesperson IDs across all line items.
+                    // Items with SalespersonId=0 inherit the header salesperson (already applied
+                    // per-line above); exclude them here so the header gets its own entry only
+                    // if the header SP is also explicitly referenced by at least one line.
+                    var distinctSpIds = req.Items
+                        .Select(i => i.SalespersonId > 0 ? i.SalespersonId : req.SalespersonId)
+                        .Where(id => id > 0)
+                        .Distinct();
+
+                    var commissions = new List<SalesPersonCommissionOnNetSale>();
+                    foreach (int spId in distinctSpIds)
+                    {
+                        commissions.Add(new SalesPersonCommissionOnNetSale
+                        {
+                            EmployeeID          = spId,
+                            CommisionPercentage = GetSalespersonCommissionPct(shopId, spId)
+                        });
+                    }
+                    if (commissions.Count > 0)
+                        sale.ListOfSalesPersonCommission = commissions;
+                }
+                else if (req.SalespersonId > 0)
+                {
+                    sale.ListOfSalesPersonCommission = new List<SalesPersonCommissionOnNetSale>
+                    {
+                        new SalesPersonCommissionOnNetSale
+                        {
+                            EmployeeID          = req.SalespersonId,
+                            CommisionPercentage = GetSalespersonCommissionPct(shopId, req.SalespersonId)
+                        }
+                    };
+                }
+            }
 
             // Card
             sale.CreditCard.CreditCardID = req.CreditCardId;
@@ -820,6 +909,9 @@ ORDER BY sli.sale_line_item_id", con);
                 line.PriceForDiscount            = item.UnitRate;
                 line.PriceAfterDiscount          = item.NetAmount / (item.Quantity == 0 ? 1 : item.Quantity);
                 line.Employee.Shop.ShopID        = shopId;
+                // frmSaleAndReturn.vb:9432-9435 — per-line SP when ItemWiseSalesPersonOnSales=TRUE;
+                // falls back to header salesperson when the item carries no override.
+                line.Employee.ShopEmployeeID     = item.SalespersonId > 0 ? item.SalespersonId : req.SalespersonId;
                 sale.ListOfSaleItems.Add(line);
 
                 // Assembly component substitutions — present only when cashier modified the
