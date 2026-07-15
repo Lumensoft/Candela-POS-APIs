@@ -863,7 +863,38 @@ ORDER BY sli.sale_line_item_id", con);
             if (!string.IsNullOrEmpty(req.MobileNum))
                 sale.Comments = req.MobileNum;
 
-            sale.MemberPoints        = new MemberEarnedPoints();
+            // Loyalty earned points — triggers MemberEarnedPointsDAL.Add() → tblMemberPointsEarnings
+            // when EarnedPoints != 0 (SaleAndReturnDAL.vb:5377).
+            sale.MemberPoints = new MemberEarnedPoints();
+            if (req.EarnedPoints > 0 && req.CustomerId > 0)
+            {
+                sale.MemberPoints.MemberID        = req.CustomerId;
+                sale.MemberPoints.CustomerShopID  = shopId;
+                sale.MemberPoints.EarnedPoints    = req.EarnedPoints;
+                sale.MemberPoints.EarningDateTime = DateTime.Now;
+                sale.MemberPoints.Shop.ShopID     = shopId;
+                sale.MemberPoints.ActivityLog.ShopID      = shopId;
+                sale.MemberPoints.ActivityLog.LogGroup    = "POS API";
+                sale.MemberPoints.ActivityLog.ScreenTitle = "Sale";
+                sale.MemberPoints.ActivityLog.UserID      = userId;
+            }
+
+            // Loyalty points redemption — mirrors FillModel (frmSaleAndReturn.vb:10086-10116).
+            // PointsRedemptionDAL.Add() is called inside SaleAndReturnDAL.Add() when RedeemedPoints > 0.
+            if (req.RedeemedPoints > 0 && req.CustomerId > 0)
+            {
+                sale.MemberPointsRedeemed = new PointsRedemption
+                {
+                    Member_Id          = req.CustomerId,
+                    Member_Shop_Id     = shopId,
+                    Shop_Id            = shopId,
+                    RedeemedPoints     = req.RedeemedPoints,
+                    RedeemedValue      = (decimal)req.RedeemedValue,
+                    BirthdayPoint      = req.BirthdayPoints,
+                    One_Point_Value    = (decimal)req.OnePointValue,
+                    RedemptionDateTime = DateTime.Now,
+                };
+            }
 
             // Employee (required sub-objects)
             sale.CustomerEmployee.EmployeeName     = "";

@@ -1,4 +1,3 @@
-d:\candela\5990\POS-API\CandelaPOS\obj\Debug\CandelaPOS.csproj.AssemblyReference.cache
 d:\candela\5990\POS-API\CandelaPOS\obj\Debug\CandelaPOS.csproj.CoreCompileInputs.cache
 d:\candela\5990\POS-API\CandelaPOS\bin\CandelaPOS.dll
 d:\candela\5990\POS-API\CandelaPOS\bin\CandelaPOS.pdb
@@ -28,3 +27,4 @@ d:\candela\5990\POS-API\CandelaPOS\obj\Debug\CandelaPOS.dll
 d:\candela\5990\POS-API\CandelaPOS\obj\Debug\CandelaPOS.pdb
 D:\candela\5990\POS-API\CandelaPOS\bin\CandelaPOS.dll.config
 D:\candela\5990\POS-API\CandelaPOS\obj\Debug\CandelaPOS.csproj.CopyComplete
+D:\candela\5990\POS-API\CandelaPOS\obj\Debug\CandelaPOS.csproj.AssemblyReference.cache

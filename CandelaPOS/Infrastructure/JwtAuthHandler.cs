@@ -58,12 +58,19 @@ namespace CandelaPOS.Infrastructure
                 string sig = JwtHelper.ExtractSignature(rawToken);
                 if (string.IsNullOrEmpty(sig)) return false;
 
-                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                var csb = new System.Data.SqlClient.SqlConnectionStringBuilder(CandelaBootstrap.ConnectionString)
+                {
+                    ConnectTimeout = 2   // fail fast — don't hold the request for 15 s
+                };
+                using (var con = new SqlConnection(csb.ConnectionString))
                 {
                     con.Open();
                     var cmd = new SqlCommand(
                         "SELECT COUNT(1) FROM tblPOSTokenBlocklist " +
-                        "WHERE token_sig = @sig AND expires_at > GETDATE()", con);
+                        "WHERE token_sig = @sig AND expires_at > GETDATE()", con)
+                    {
+                        CommandTimeout = 2
+                    };
                     cmd.Parameters.AddWithValue("@sig", sig);
                     return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
                 }
@@ -75,10 +82,11 @@ namespace CandelaPOS.Infrastructure
             }
             catch (Exception ex)
             {
-                // Any other DB error (connection failure, timeout, etc.) — fail safe: treat as blocked
-                // so a revoked token cannot slip through during an outage.
-                System.Diagnostics.Trace.TraceError("IsBlocklisted DB error (fail-safe blocked): {0}", ex);
-                return true;
+                // DB error (connection failure, timeout, pool exhaustion) — fail OPEN so a DB
+                // blip does not log every user out. The blocklist is only for explicit logouts;
+                // a revoked token at worst stays valid until its JWT expiry (~12 hr shift).
+                System.Diagnostics.Trace.TraceError("IsBlocklisted DB error (fail-open): {0}", ex);
+                return false;
             }
         }
 

@@ -676,10 +676,11 @@ namespace CandelaPOS.Controllers
                         EarnedPoints      = Math.Round(totalEarnedPoints,       amountRound, MidpointRounding.AwayFromZero)
                     }));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                System.Diagnostics.Trace.TraceError("QuoteController.Quote error: {0}", ex);
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                    new { error = "An internal error occurred.", detail = ex.Message, type = ex.GetType().Name });
             }
         }
 
