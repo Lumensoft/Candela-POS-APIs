@@ -13,60 +13,77 @@ namespace CandelaPOS.Controllers
     [RoutePrefix("api/gift-cards")]
     public class GiftCardsController : ApiController
     {
-        // GET api/gift-cards/{no}/balance
+        // GET api/gift-cards/{q}/balance[?by=phone]
         // Looks up a gift card by:
-        //   1. Alternate_card_no (the scanned/printed code)
-        //   2. Numeric Card_no cast to varchar (e.g. "1")
-        //   3. Composite formatted key ShopCode-PaddedCardNo-TypeCode (returned by GetUnSoldGiftCard)
+        //   by=card (default): Alternate_card_no, numeric Card_no, or composite ShopCode-PaddedCardNo-TypeCode
+        //   by=phone: PhoneMobile column on tbldefCards (mirrors frmPaymetOptions.vb:2049-2052)
         // Balance = SUM(Top_up_Amt): top-ups positive, redemptions negative.
-        // Source: frmSaleAndReturn.vb:13839 balance SQL pattern; composite key from SaleAndReturnDAL.vb:17963.
-        [HttpGet, Route("{cardNo}/balance")]
-        public HttpResponseMessage GetBalance(string cardNo)
+        [HttpGet, Route("{q}/balance")]
+        public HttpResponseMessage GetBalance(string q, string by = "card")
         {
             CandelaBootstrap.PrepareRequest();
             try
             {
-                // Resolve the composite key format ShopCode-PaddedCardNo-TypeCode
-                // (returned by GetUnSoldGiftCard) to the raw numeric Card_no for lookup.
-                // e.g. "100-000001-lg" → middle segment "000001" → numeric "1"
-                string numericLookup = cardNo;
-                var parts = cardNo.Split('-');
-                if (parts.Length == 3 && parts[1].Length == 6 &&
-                    int.TryParse(parts[1], out int parsedCardNo))
-                {
-                    numericLookup = parsedCardNo.ToString();
-                }
+                string sql;
+                SqlCommand cmd;
 
-                const string sql = @"
+                const string selectCols = @"
 SELECT
-    c.id                                AS card_id,
-    c.Card_no                           AS card_no,
-    isnull(c.Alternate_card_no, '')     AS display_card_no,
-    isnull(c.amount, 0)                 AS original_amount,
-    isnull(c.card_status, '')           AS card_status,
-    MAX(l.CardExpiryDate)               AS expiry_date,
-    isnull(SUM(l.Top_up_Amt), 0)       AS available_balance
+    c.id                                                            AS card_id,
+    c.Card_no                                                       AS card_no,
+    isnull(c.Alternate_card_no, '')                                 AS display_card_no,
+    isnull(c.card_status, '')                                       AS card_status,
+    isnull(c.MemberName, '')                                        AS member_name,
+    isnull(c.PhoneMobile, '')                                       AS phone_mobile,
+    isnull(c.Is_Fixed_den, 0)                                       AS is_fixed_den,
+    isnull(c.amount, 0)                                             AS fixed_amount,
+    MAX(l.CardExpiryDate)                                           AS expiry_date,
+    isnull(SUM(l.Top_up_Amt), 0)                                   AS available_balance,
+    isnull(SUM(CASE WHEN l.Top_up_Amt > 0 THEN l.Top_up_Amt ELSE 0 END), 0) AS original_amount
 FROM tbldefCards c
-LEFT JOIN tblGiftCardLedger l ON l.cardid = c.id
-WHERE c.Alternate_card_no = @cardNo
-   OR CAST(c.Card_no AS varchar) = @numericLookup
-GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.amount,
-         c.card_status";
+LEFT JOIN tblGiftCardLedger l ON l.cardid = c.id";
 
                 using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
                 {
                     con.Open();
-                    var cmd = new SqlCommand(sql, con);
-                    cmd.Parameters.AddWithValue("@cardNo",        cardNo);
-                    cmd.Parameters.AddWithValue("@numericLookup", numericLookup);
 
+                    if (string.Equals(by, "phone", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Phone number search — mirrors frmPaymetOptions.vb:2050
+                        sql = selectCols + @"
+WHERE c.PhoneMobile = @q
+GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.card_status, c.MemberName, c.PhoneMobile, c.Is_Fixed_den, c.amount";
+                        cmd = new SqlCommand(sql, con);
+                        cmd.Parameters.AddWithValue("@q", q);
+                    }
+                    else
+                    {
+                        // Card number search — supports composite key, alternate_card_no, and numeric card_no
+                        string numericLookup = q;
+                        var parts = q.Split('-');
+                        if (parts.Length == 3 && parts[1].Length == 6 &&
+                            int.TryParse(parts[1], out int parsedCardNo))
+                            numericLookup = parsedCardNo.ToString();
+
+                        sql = selectCols + @"
+WHERE c.Alternate_card_no = @cardNo
+   OR CAST(c.Card_no AS varchar) = @numericLookup
+GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.card_status, c.MemberName, c.PhoneMobile, c.Is_Fixed_den, c.amount";
+                        cmd = new SqlCommand(sql, con);
+                        cmd.Parameters.AddWithValue("@cardNo",        q);
+                        cmd.Parameters.AddWithValue("@numericLookup", numericLookup);
+                    }
+
+                    using (cmd)
                     using (var dt = new DataTable())
                     {
                         new SqlDataAdapter(cmd).Fill(dt);
 
                         if (dt.Rows.Count == 0)
                             return Request.CreateResponse(HttpStatusCode.NotFound,
-                                new { error = $"Gift card '{cardNo}' not found." });
+                                new { error = by == "phone"
+                                    ? $"No gift card found for mobile '{q}'."
+                                    : $"Gift card '{q}' not found." });
 
                         var row  = dt.Rows[0];
                         var data = new Dictionary<string, object>();

@@ -98,6 +98,62 @@ VALUES
                 }
             }
         }
+
+        // GET api/customers/{id}/credit-outstanding
+        // Returns live credit outstanding for a customer: total credit billed minus receipts received.
+        // Called when a customer is selected at POS so the checkout screen always shows a fresh balance.
+        [HttpGet, Route("{id:int}/credit-outstanding")]
+        public HttpResponseMessage GetCreditOutstanding(int id)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+
+            try
+            {
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+
+                    var cmd = new SqlCommand(
+                        "SELECT " +
+                        "  isnull(m.credit_limit, 0) AS credit_limit, " +
+                        "  isnull(m.allow_credit,  0) AS allow_credit, " +
+                        "  isnull((SELECT SUM(s.NT_amount) FROM tblSales s " +
+                        "           WHERE s.member_id = @mid AND s.isCreditSale = 1 AND s.shop_id = @sid), 0) " +
+                        "- isnull((SELECT SUM(r.amount) FROM tblMemberReceipts r " +
+                        "           WHERE r.member_id = @mid AND r.shop_id = @sid), 0) " +
+                        "  AS credit_outstanding " +
+                        "FROM tblMemberInfo m " +
+                        "WHERE m.member_id = @mid AND m.shop_id = @sid", con);
+                    cmd.Parameters.AddWithValue("@mid", id);
+                    cmd.Parameters.AddWithValue("@sid", shopId);
+
+                    using (var rdr = cmd.ExecuteReader())
+                    {
+                        if (!rdr.Read())
+                            return Request.CreateResponse(HttpStatusCode.NotFound,
+                                new { error = $"Customer {id} not found." });
+
+                        decimal limit       = Convert.ToDecimal(rdr["credit_limit"]);
+                        decimal outstanding = Convert.ToDecimal(rdr["credit_outstanding"]);
+                        decimal available   = Math.Max(0, limit - outstanding);
+
+                        return Request.CreateResponse(HttpStatusCode.OK, new
+                        {
+                            member_id          = id,
+                            credit_limit       = limit,
+                            credit_outstanding = outstanding,
+                            credit_available   = available,
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message });
+            }
+        }
     }
 
     public class CreateCustomerRequest
