@@ -507,6 +507,44 @@ ORDER BY sli.sale_line_item_id", con);
                 // Build SaleAndReturn model from the DTO
                 sale = BuildModel(req, userId, shopId, posCode, userName);
 
+                // Gift card redemption: populate ListOfGftcardPaymentDetails so
+                // SaleAndReturnDAL.Add() writes the negative tblGiftCardLedger row.
+                // The model sets GiftCardAmount/GiftCardNo for the sale header, but the
+                // DAL iterates this list (VB:4559) to actually deduct the balance — an
+                // empty list means no ledger row and the balance is never decremented.
+                if (req.GiftCardAmount > 0 && !string.IsNullOrWhiteSpace(req.GiftCardNo))
+                {
+                    string gcRaw = req.GiftCardNo.Trim();
+                    string gcNumeric = gcRaw;
+                    var gcParts = gcRaw.Split('-');
+                    if (gcParts.Length == 3 && gcParts[1].Length == 6 &&
+                        int.TryParse(gcParts[1], out int gcParsed))
+                        gcNumeric = gcParsed.ToString();
+
+                    using (var gcCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                    {
+                        gcCon.Open();
+                        var gcCmd = new SqlCommand(
+                            "SELECT TOP 1 id, Card_no FROM tbldefCards " +
+                            "WHERE Alternate_card_no = @cn OR CAST(Card_no AS varchar) = @cnNum",
+                            gcCon);
+                        gcCmd.Parameters.AddWithValue("@cn",    gcRaw);
+                        gcCmd.Parameters.AddWithValue("@cnNum", gcNumeric);
+                        using (var gcRdr = gcCmd.ExecuteReader())
+                        {
+                            if (gcRdr.Read())
+                            {
+                                sale.ListOfGftcardPaymentDetails.Add(new gftCardPaymentDetail
+                                {
+                                    gftCardID  = Convert.ToInt32(gcRdr["id"]),
+                                    GftCardNo  = Convert.ToInt32(gcRdr["Card_no"]),
+                                    gftCardAmt = (decimal)req.GiftCardAmount,
+                                });
+                            }
+                        }
+                    }
+                }
+
                 // Credit sale validation: check allow_credit flag and credit limit headroom.
                 // In Candela this is a UI check in IsValidate() before dal.Add().
                 // frmSaleAndReturn.vb:14365-14370, 6344-6356
@@ -577,7 +615,7 @@ ORDER BY sli.sale_line_item_id", con);
                 }
                 DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An error occurred processing the sale." });
+                    new { error = ex.Message, detail = ex.InnerException?.Message });
             }
         }
 
@@ -726,11 +764,12 @@ ORDER BY sli.sale_line_item_id", con);
 
                 // Outstanding balance = credit sales billed - receipts received
                 // (CustomerReceiptDAL.vb:754 confirms tblMemberReceipts.amount column)
+                // is_return_item does not exist on tblSales (it's on tblSalesLineItems).
+                // Returns are credit sales with negative NT_amount, so SUM already nets them out.
                 var balCmd = new SqlCommand(
                     "SELECT " +
                     "  ISNULL((SELECT SUM(NT_amount) FROM tblSales " +
-                    "           WHERE member_id = @mid AND isCreditSale = 1 AND shop_id = @sid " +
-                    "             AND is_return_item = 0), 0) " +
+                    "           WHERE member_id = @mid AND isCreditSale = 1 AND shop_id = @sid), 0) " +
                     "- ISNULL((SELECT SUM(amount) FROM tblMemberReceipts " +
                     "           WHERE member_id = @mid AND shop_id = @sid), 0) " +
                     "AS outstanding", con);

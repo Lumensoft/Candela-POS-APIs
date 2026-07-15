@@ -374,7 +374,12 @@ SELECT" + (isSearch ? " TOP 50" : "") + @"
     isnull(m.member_type_id, 0) AS member_type_id,
     isnull(mt.discount_percentage, 0)  AS discount_pct,
     m.entereddate,
-    m.editeddate
+    m.editeddate,
+    isnull((SELECT SUM(s.NT_amount) FROM tblSales s
+            WHERE s.member_id = m.member_id AND s.isCreditSale = 1 AND s.shop_id = @shopId), 0)
+    - isnull((SELECT SUM(r.amount) FROM tblMemberReceipts r
+              WHERE r.member_id = m.member_id AND r.shop_id = @shopId), 0)
+    AS credit_outstanding
 FROM tblMemberInfo m
 LEFT JOIN tblDefMemberTypes mt ON mt.member_type_id = m.member_type_id
 WHERE m.shop_id = @shopId";

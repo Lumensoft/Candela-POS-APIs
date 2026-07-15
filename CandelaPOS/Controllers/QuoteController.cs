@@ -286,7 +286,7 @@ namespace CandelaPOS.Controllers
                             bool isPack = item.PackSize > 0;
                             double productTotalQty = productQtyMap.TryGetValue(item.ProductItemId, out double pq)
                                 ? pq : item.Quantity;
-                            unitDisc = SaleAndReturnDAL.GetSKUDiscountValue(
+                            unitDisc = GetSKUDiscountValue(
                                 shopId, item.ProductItemId, now,
                                 unitRate, item.Quantity, ref discountId,
                                 req.CutPiece, isLoyaltyOn, customerMemberTypeId,
@@ -340,13 +340,13 @@ namespace CandelaPOS.Controllers
                             // keyed by p.LineItemId (department), not product_item_id.
                             // Bug I fix: pass custShopId (customer's registered shop), not POS shopId.
                             // frmSaleAndReturn.vb:25889; DAL:12655 — reads Cash_Discount / Cash_Dis_During_Sales.
-                            double cashDiscPct = (double)SaleAndReturnDAL.ReadCashDiscountPer(
+                            double cashDiscPct = (double)ReadCashDiscountPer(
                                 req.CustomerId, custShopId, p.LineItemId, fetchPromoRate);
 
                             // Bug C fix: points% also uses LineItemId (department).
                             // Bug I fix: custShopId here too — same group-policy join path. DAL:12749.
                             // loyaltyPct is stored on ItemState for the earned-points formula in Pass 3.
-                            loyaltyPct = (double)SaleAndReturnDAL.ReadLoyalityPointsPercentage(
+                            loyaltyPct = (double)ReadLoyalityPointsPercentage(
                                 req.CustomerId, custShopId, p.LineItemId, fetchPromoRate);
 
                             // Blocking: DiscountPriority="Product" AND a unit disc is active → cash disc = 0.
@@ -692,8 +692,6 @@ namespace CandelaPOS.Controllers
             foreach (var s in states)
                 if (s.DiscCategory == "Y") s.UnitDisc = 0;
 
-            var dal = new SaleAndReturnDAL();
-
             var groups = states
                 .Where(s => (s.DiscCategory == "X" || s.DiscCategory == "Y")
                             && s.DiscountId != 0)
@@ -709,8 +707,8 @@ namespace CandelaPOS.Controllers
                 if (yItems.Count == 0) continue;
 
                 double totalXQty      = xItems.Sum(s => s.Item.Quantity);
-                double reqXQty        = dal.ReadQuantityOfX(grp.Key);
-                double perOfY         = dal.ReadPerOfY(grp.Key);
+                double reqXQty        = ReadQuantityOfX(grp.Key);
+                double perOfY         = ReadPerOfY(grp.Key);
 
                 if (reqXQty <= 0 || totalXQty < reqXQty) continue;
 
@@ -1023,6 +1021,471 @@ WHERE m.member_id = @customerId";
             public int          QtyOfX          { get; set; }
             public int          DiscType        { get; set; }
             public bool         IsCouponLine    { get; set; }
+        }
+
+        // Replaces SaleAndReturnDAL.GetSKUDiscountValue — identical SQL and logic.
+        // IsReplicatedShop (DAL:14105) eliminated: POS shops are never replicated so the
+        // non-replicated shop-filter path always applies. All readers use using blocks.
+        // SaleAndReturnDAL.vb:803
+        private static double GetSKUDiscountValue(
+            int _shopID, int _ProductItemID, DateTime _SaleDateTime,
+            double _dblItemPrice, double _dblQty, ref int _DiscountID,
+            bool _ApplyCutPieceDiscount, bool IsLoyalityClub, int CustomerTypeId,
+            ref int QtyofX, ref bool IsBuyXGetYFreeDisc,
+            bool IsPack, double PackSize, ref int DiscountType,
+            double _TotalQty, bool IsNonPaymentTill, bool LoyalityClub_ForNPTill)
+        {
+            // Cut piece path has no DB calls in the VB.NET version — delegate directly, no leak.
+            // SaleAndReturnDAL.vb:809-820
+            if (_ApplyCutPieceDiscount)
+                return SaleAndReturnDAL.GetSKUDiscountValue(
+                    _shopID, _ProductItemID, _SaleDateTime, _dblItemPrice, _dblQty,
+                    ref _DiscountID, true, IsLoyalityClub, CustomerTypeId,
+                    ref QtyofX, ref IsBuyXGetYFreeDisc, IsPack, PackSize, ref DiscountType,
+                    _TotalQty, IsNonPaymentTill, LoyalityClub_ForNPTill);
+
+            double _DiscountAmount = 0;
+
+            // CR#6574: Build shop filter WhereClause — always apply (non-replicated path).
+            // SaleAndReturnDAL.vb:827-850
+            string strDiscountIds = "";
+            string strSQL = "select discount_id from tbldefdiscountshops where shop_id=" + _shopID;
+            using (var _con0 = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                _con0.Open();
+                using (var _cmd0 = new SqlCommand(strSQL, _con0))
+                using (var objDiscounts = _cmd0.ExecuteReader())
+                {
+                    while (objDiscounts.Read())
+                        strDiscountIds += objDiscounts["discount_id"] + ",";
+                }
+            }
+            if (strDiscountIds.Length > 0)
+                strDiscountIds = strDiscountIds.Substring(0, strDiscountIds.Length - 1);
+
+            string WhereClause = strDiscountIds != ""
+                ? " and (discount_id in (" + strDiscountIds + ") OR which_shops='ALL')"
+                : " and  which_shops='ALL'";
+
+            // CR#5959 main discount query — SaleAndReturnDAL.vb:855-860
+            strSQL = "SELECT discount_id, discount_name, charged_to [Charged To], discount_type, discount, which_products [Which Products],which_shops,discount_duration, isnull(Membership_Type,0) as Membership_Type, isnull(which_Customer_Type,'Selected') as which_Customer_Type, Is_Campaign " +
+                " FROM tblDefDiscounts" +
+                " WHERE  (convert(datetime,'" + _SaleDateTime.ToString("dd-MMM-yyyy") + "',107)   BETWEEN Convert(datetime,discount_start_date,107) AND  Convert(datetime,discount_end_date,107))     " +
+                " and ( Convert(varchar,Convert(datetime,'" + _SaleDateTime.ToString("hh:m:ss tt") + "'),108)  BETWEEN CONVERT(varchar, discount_start_time, 108) AND CONVERT(varchar, discount_end_time, 108)) " +
+                " and Days_of_Weeks Like '%" + _SaleDateTime.ToString("dddd") + "%'  And charged_to = '1' " +
+                WhereClause;
+
+            bool blnIsProductFound = false;
+            bool blnIsShopFound    = false;
+
+            using (var mainCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                mainCon.Open();
+                using (var mainCmd = new SqlCommand(strSQL, mainCon))
+                using (var objDiscountDR = mainCmd.ExecuteReader())
+                {
+                    if (objDiscountDR.HasRows)
+                    {
+                        while (objDiscountDR.Read())
+                        {
+                            if (blnIsProductFound && blnIsShopFound) break; // GoTo lblReturn
+
+                            if (objDiscountDR["Charged To"].ToString() == "1")
+                            {
+                                if (objDiscountDR["Which Products"].ToString() == "All")
+                                {
+                                    _DiscountID     = Convert.ToInt32(objDiscountDR["discount_id"]);
+                                    _DiscountAmount = CalculateDiscountValue(
+                                        objDiscountDR["discount_type"].ToString(),
+                                        Safe(objDiscountDR["discount"]),
+                                        _dblItemPrice, _dblQty,
+                                        Safe(objDiscountDR["discount_duration"]));
+                                    blnIsProductFound = true;
+
+                                    if (objDiscountDR["discount_type"].ToString() == "2" && IsPack && PackSize != 0)
+                                        _DiscountAmount *= PackSize;
+                                    if (objDiscountDR["discount_type"].ToString() == "3")
+                                        DiscountType = 3;
+                                }
+                                else if (objDiscountDR["Which Products"].ToString() == "Selected" &&
+                                         Convert.ToInt32(objDiscountDR["discount_type"]) != 10)
+                                {
+                                    // Issue#3073 — isnull(b.discount,0); SaleAndReturnDAL.vb:920-925
+                                    strSQL = "SELECT b.product_item_id, b.discount_type, isnull(b.discount,0) as discount,b.discCategory   " +
+                                        " FROM tblDefDiscounts a, tblDefDiscountProducts b " +
+                                        " WHERE (convert(datetime,'" + _SaleDateTime.ToString("dd-MMM-yyyy") + "',107)    BETWEEN  convert(datetime, a.discount_start_date, 107) AND  convert(datetime, a.discount_end_date,107))  " +
+                                        " and (b.discount_id = " + objDiscountDR["discount_id"] + ")" +
+                                        " and b.product_item_id ='" + _ProductItemID + "'" +
+                                        " and a.discount_id = b.discount_id ";
+
+                                    using (var con2 = new SqlConnection(CandelaBootstrap.ConnectionString))
+                                    {
+                                        con2.Open();
+                                        using (var cmd2 = new SqlCommand(strSQL, con2))
+                                        using (var objSelectedDiscountDR = cmd2.ExecuteReader())
+                                        {
+                                            if (objSelectedDiscountDR.HasRows)
+                                            {
+                                                objSelectedDiscountDR.Read();
+
+                                                if (!objSelectedDiscountDR.IsDBNull(objSelectedDiscountDR.GetOrdinal("DiscCategory")))
+                                                {
+                                                    string discCat = objSelectedDiscountDR["DiscCategory"].ToString();
+
+                                                    if (discCat == "X")
+                                                    {
+                                                        DiscountType       = 8;
+                                                        _DiscountID        = Convert.ToInt32(objDiscountDR["discount_id"]);
+                                                        QtyofX             = (int)Convert.ToInt64(objDiscountDR["discount_duration"]);
+                                                        IsBuyXGetYFreeDisc = true;
+                                                    }
+                                                    else if (discCat == "N")
+                                                    {
+                                                        DiscountType       = 9;
+                                                        _DiscountID        = Convert.ToInt32(objDiscountDR["discount_id"]);
+                                                        QtyofX             = (int)Convert.ToInt64(objDiscountDR["discount_duration"]);
+                                                        IsBuyXGetYFreeDisc = true;
+                                                    }
+                                                    else if (discCat == "Y")
+                                                    {
+                                                        DiscountType       = 8;
+                                                        _DiscountID        = Convert.ToInt32(objDiscountDR["discount_id"]);
+                                                        _DiscountAmount    = Safe(objSelectedDiscountDR["discount"]);
+                                                        IsBuyXGetYFreeDisc = true;
+                                                        QtyofX             = 0;
+                                                    }
+                                                    else if (discCat == "Q")
+                                                    {
+                                                        DiscountType = 11;
+                                                        _DiscountID  = Convert.ToInt32(objDiscountDR["discount_id"]);
+                                                    }
+
+                                                    // CR#6574 — SaleAndReturnDAL.vb:961-991
+                                                    if (discCat == "X" || discCat == "N" || discCat == "Y")
+                                                    {
+                                                        if (objDiscountDR["which_shops"].ToString() == "Selected")
+                                                        {
+                                                            strSQL = "SELECT a.discount_type, a.discount" +
+                                                                "  FROM tblDefDiscounts a, tblDefDiscountShops  b" +
+                                                                " WHERE  convert(datetime,'" + _SaleDateTime.ToString("dd-MMM-yyyy") + "',107)   BETWEEN CONVERT(datetime, a.discount_start_date, 107) AND CONVERT(datetime, a.discount_end_date, 107) " +
+                                                                " and (b.discount_id = " + objDiscountDR["discount_id"] + ")" +
+                                                                "AND shop_id = '" + _shopID + "'" +
+                                                                "AND a.discount_id = b.discount_id";
+
+                                                            using (var con3 = new SqlConnection(CandelaBootstrap.ConnectionString))
+                                                            {
+                                                                con3.Open();
+                                                                using (var cmd3 = new SqlCommand(strSQL, con3))
+                                                                using (var objSelectedShopDR = cmd3.ExecuteReader())
+                                                                {
+                                                                    if (!objSelectedShopDR.HasRows)
+                                                                    {
+                                                                        _DiscountID        = 0;
+                                                                        _DiscountAmount    = 0;
+                                                                        blnIsShopFound     = false;
+                                                                        _DiscountID        = 0;
+                                                                        QtyofX             = 0;
+                                                                        IsBuyXGetYFreeDisc = false;
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        blnIsShopFound = true;
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            blnIsShopFound = true;
+                                                        }
+
+                                                        return _DiscountAmount; // Exit Function
+                                                    }
+                                                }
+
+                                                _DiscountID = Convert.ToInt32(objDiscountDR["discount_id"]);
+                                                if (objSelectedDiscountDR["discount_type"].ToString() != "1")
+                                                {
+                                                    // Issue#1558 / 6481 / 6596 — SaleAndReturnDAL.vb:997-1013
+                                                    if (Convert.ToInt32(objSelectedDiscountDR["discount_type"]) == 3)
+                                                    {
+                                                        _DiscountAmount = CalculateDiscountValue(
+                                                            objSelectedDiscountDR["discount_type"].ToString(),
+                                                            Safe(objSelectedDiscountDR["discount"]),
+                                                            _dblItemPrice, _dblQty,
+                                                            Safe(objDiscountDR["discount_duration"]));
+                                                        DiscountType = 3;
+                                                    }
+                                                    else
+                                                    {
+                                                        _DiscountAmount = CalculateDiscountValue(
+                                                            objSelectedDiscountDR["discount_type"].ToString(),
+                                                            Safe(objDiscountDR["discount"]),
+                                                            _dblItemPrice, _dblQty,
+                                                            Safe(objSelectedDiscountDR["discount"]));
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    _DiscountAmount = _dblItemPrice - Safe(objSelectedDiscountDR["discount"]);
+                                                }
+                                                blnIsProductFound = true;
+
+                                                // CR#5755 — SaleAndReturnDAL.vb:1021-1024
+                                                if (objSelectedDiscountDR["discount_type"].ToString() == "2" && IsPack && PackSize != 0)
+                                                    _DiscountAmount *= PackSize;
+                                            }
+                                            else
+                                            {
+                                                _DiscountID       = 0;
+                                                _DiscountAmount   = 0;
+                                                blnIsProductFound = false;
+                                            }
+                                        }
+                                    }
+                                }
+                                else if (objDiscountDR["Which Products"].ToString() == "Selected" &&
+                                         Convert.ToInt32(objDiscountDR["discount_type"]) == 10)
+                                {
+                                    // Issue#1558 tier pricing — SaleAndReturnDAL.vb:1033-1060
+                                    strSQL = "SELECT b.product_item_id, a.discount_type, b.Price as [discount],a.discount_category  [DiscCategory] " +
+                                        " FROM tblDefDiscounts a, tblDefDiscountProductsTier b " +
+                                        " WHERE (convert(datetime,'" + _SaleDateTime.ToString("dd-MMM-yyyy") + "',107)    BETWEEN  convert(datetime, a.discount_start_date, 107) AND  convert(datetime, a.discount_end_date,107))  " +
+                                        " and (b.Discount_ID = " + objDiscountDR["discount_id"] + ")" +
+                                        " and b.product_item_id ='" + _ProductItemID + "'" +
+                                        " and " + Math.Floor(_TotalQty) + " >= From_Qty and " + Math.Floor(_TotalQty) + " <= To_Qty " +
+                                        " and a.discount_id = b.discount_id ";
+
+                                    using (var con2 = new SqlConnection(CandelaBootstrap.ConnectionString))
+                                    {
+                                        con2.Open();
+                                        using (var cmd2 = new SqlCommand(strSQL, con2))
+                                        using (var objSelectedDiscountDR = cmd2.ExecuteReader())
+                                        {
+                                            if (objSelectedDiscountDR.HasRows)
+                                            {
+                                                objSelectedDiscountDR.Read();
+                                                DiscountType       = 10;
+                                                _DiscountID        = Convert.ToInt32(objDiscountDR["discount_id"]);
+                                                IsBuyXGetYFreeDisc = true;
+                                                blnIsProductFound  = true;
+                                            }
+                                            else
+                                            {
+                                                _DiscountID       = 0;
+                                                _DiscountAmount   = 0;
+                                                blnIsProductFound = false;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Shop check — SaleAndReturnDAL.vb:1066-1089
+                            if (objDiscountDR["which_shops"].ToString() == "Selected")
+                            {
+                                strSQL = "SELECT a.discount_type, a.discount" +
+                                    "  FROM tblDefDiscounts a, tblDefDiscountShops  b" +
+                                    " WHERE  convert(datetime,'" + _SaleDateTime.ToString("dd-MMM-yyyy") + "',107)   BETWEEN CONVERT(datetime, a.discount_start_date, 107) AND CONVERT(datetime, a.discount_end_date, 107) " +
+                                    " and (b.discount_id = " + objDiscountDR["discount_id"] + ")" +
+                                    "AND shop_id = '" + _shopID + "'" +
+                                    "AND a.discount_id = b.discount_id";
+
+                                using (var con2 = new SqlConnection(CandelaBootstrap.ConnectionString))
+                                {
+                                    con2.Open();
+                                    using (var cmd2 = new SqlCommand(strSQL, con2))
+                                    using (var objSelectedShopDR = cmd2.ExecuteReader())
+                                    {
+                                        if (!objSelectedShopDR.HasRows)
+                                        {
+                                            _DiscountID     = 0;
+                                            _DiscountAmount = 0;
+                                            blnIsShopFound  = false;
+                                        }
+                                        else
+                                        {
+                                            blnIsShopFound = true;
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                blnIsShopFound = true;
+                            }
+
+                            // Loyalty / campaign customer type check — SaleAndReturnDAL.vb:1103-1166
+                            if (IsLoyalityClub)
+                            {
+                                if (objDiscountDR["Is_Campaign"].ToString().ToUpper() == "TRUE")
+                                {
+                                    if (objDiscountDR["which_Customer_Type"].ToString() == "Selected")
+                                    {
+                                        strSQL = "SELECT a.discount_type, a.discount" +
+                                            "  FROM tblDefDiscounts a, tblDefDiscountCustomerType  b" +
+                                            " WHERE  convert(datetime,'" + _SaleDateTime.ToString("dd-MMM-yyyy") + "',107)   BETWEEN CONVERT(datetime, a.discount_start_date, 107) AND CONVERT(datetime, a.discount_end_date, 107) " +
+                                            " and (b.discount_id = " + objDiscountDR["discount_id"] + ")" +
+                                            "AND Customer_Type_ID = '" + CustomerTypeId + "'" +
+                                            "AND a.discount_id = b.discount_id";
+
+                                        using (var con2 = new SqlConnection(CandelaBootstrap.ConnectionString))
+                                        {
+                                            con2.Open();
+                                            using (var cmd2 = new SqlCommand(strSQL, con2))
+                                            using (var objSelectedCustomerDR = cmd2.ExecuteReader())
+                                            {
+                                                if (!objSelectedCustomerDR.HasRows)
+                                                {
+                                                    _DiscountID     = 0;
+                                                    _DiscountAmount = 0;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            else if (IsNonPaymentTill && LoyalityClub_ForNPTill)
+                            {
+                                // Issue#4920 — SaleAndReturnDAL.vb:1138-1163
+                                if (objDiscountDR["which_Customer_Type"].ToString() == "Selected")
+                                {
+                                    strSQL = "SELECT a.discount_type, a.discount" +
+                                        "  FROM tblDefDiscounts a, tblDefDiscountCustomerType  b" +
+                                        " WHERE  convert(datetime,'" + _SaleDateTime.ToString("dd-MMM-yyyy") + "',107)   BETWEEN CONVERT(datetime, a.discount_start_date, 107) AND CONVERT(datetime, a.discount_end_date, 107) " +
+                                        " and (b.discount_id = " + objDiscountDR["discount_id"] + ")" +
+                                        "AND Customer_Type_ID = '" + CustomerTypeId + "'" +
+                                        "AND a.discount_id = b.discount_id";
+
+                                    using (var con2 = new SqlConnection(CandelaBootstrap.ConnectionString))
+                                    {
+                                        con2.Open();
+                                        using (var cmd2 = new SqlCommand(strSQL, con2))
+                                        using (var objSelectedCustomerDR = cmd2.ExecuteReader())
+                                        {
+                                            if (!objSelectedCustomerDR.HasRows)
+                                            {
+                                                _DiscountID     = 0;
+                                                _DiscountAmount = 0;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return _DiscountAmount; // lblReturn:
+                }
+            }
+        }
+
+        // SaleAndReturnDAL.vb:1577 — Private Shared, cannot be called from C#; inlined here.
+        // Exact same 7-type formula logic, translated directly.
+        private static double CalculateDiscountValue(string DiscountType, double DiscountFigure, double ProductPrice, double Qty, double DiscountUnit)
+        {
+            if (DiscountType == "1") return ProductPrice - DiscountFigure;
+            if (DiscountType == "2") return DiscountUnit;
+            if (DiscountType == "3") return ProductPrice * (DiscountFigure / 100.0);
+            if (DiscountType == "4" && Qty >= DiscountFigure) return ProductPrice * (DiscountUnit / 100.0);
+            if (DiscountType == "5" && ProductPrice > DiscountUnit) return ProductPrice * (DiscountFigure / 100.0);
+            if (DiscountType == "6")
+            {
+                if (Math.Floor(Qty / DiscountFigure + 1) > 0)
+                    return Math.Round((ProductPrice * Math.Floor(Qty / (DiscountUnit + 1))) / Qty, 6);
+                return 0;
+            }
+            if (DiscountType == "7" && Qty >= DiscountFigure) return DiscountUnit;
+            return 0;
+        }
+
+        // Replaces SaleAndReturnDAL.ReadQuantityOfX — identical SQL, reader properly closed.
+        // SaleAndReturnDAL.vb:12829
+        private static double ReadQuantityOfX(int intDiscountId)
+        {
+            double DblQuantityofX = 0.0;
+            string strSQL = "SELECT discount_duration FROM tblDefDiscounts WHERE  Discount_id=" + intDiscountId;
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                using (var cmd = new SqlCommand(strSQL, con))
+                using (var dr = cmd.ExecuteReader())
+                {
+                    while (dr.Read())
+                        if (!dr.IsDBNull(dr.GetOrdinal("discount_duration")))
+                            DblQuantityofX = Convert.ToDouble(dr["discount_duration"]);
+                }
+            }
+            return DblQuantityofX;
+        }
+
+        // Replaces SaleAndReturnDAL.ReadPerOfY — identical SQL, reader properly closed.
+        // SaleAndReturnDAL.vb:12857
+        private static double ReadPerOfY(int intDiscountId)
+        {
+            double DblPerOfY = 0.0;
+            string strSQL = "select top 1 discount as DiscPer from tbldefdiscountproducts where discount_id=" + intDiscountId + " and discCategory='Y'";
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                using (var cmd = new SqlCommand(strSQL, con))
+                using (var dr = cmd.ExecuteReader())
+                {
+                    while (dr.Read())
+                        if (!dr.IsDBNull(dr.GetOrdinal("DiscPer")))
+                            DblPerOfY = Convert.ToDouble(dr["DiscPer"]);
+                }
+            }
+            return DblPerOfY;
+        }
+
+        // Replaces SaleAndReturnDAL.ReadCashDiscountPer — identical SQL and logic, reader properly closed.
+        // SaleAndReturnDAL.vb:12655
+        private decimal ReadCashDiscountPer(int customerId, int shopId, int lineItemId, bool fetchPromo)
+        {
+            if (fetchPromo)
+            {
+                decimal promo = RunGroupPolicyQuery("Cash_Dis_During_Sales", customerId, shopId, lineItemId);
+                if (promo > 0) return promo;
+            }
+            return RunGroupPolicyQuery("Cash_Discount", customerId, shopId, lineItemId);
+        }
+
+        // Replaces SaleAndReturnDAL.ReadLoyalityPointsPercentage — identical SQL and logic, reader properly closed.
+        // SaleAndReturnDAL.vb:12749
+        private decimal ReadLoyalityPointsPercentage(int customerId, int shopId, int lineItemId, bool fetchPromo)
+        {
+            if (fetchPromo)
+            {
+                decimal promo = RunGroupPolicyQuery("Points_Dis_During_Sales", customerId, shopId, lineItemId);
+                if (promo > 0) return promo;
+            }
+            return RunGroupPolicyQuery("Points", customerId, shopId, lineItemId);
+        }
+
+        // Shared runner for the 4-table group-policy JOIN used by ReadCashDiscountPer and
+        // ReadLoyalityPointsPercentage. colName is a hardcoded constant at every call site.
+        private decimal RunGroupPolicyQuery(string colName, int customerId, int shopId, int lineItemId)
+        {
+            string sql = $@"
+SELECT ISNULL(tbldefGroupPolicyDetail.{colName}, 0)
+FROM   tblMemberInfo
+INNER JOIN tblDefMemberTypes       ON tblMemberInfo.member_type_id       = tblDefMemberTypes.member_type_id
+INNER JOIN tblDefGroupPolicy       ON tblDefMemberTypes.member_type_id   = tblDefGroupPolicy.member_type_id
+INNER JOIN tbldefGroupPolicyDetail ON tblDefGroupPolicy.Group_policyID   = tbldefGroupPolicyDetail.Group_policyID
+WHERE tblMemberInfo.member_id               = @customerId
+  AND tblMemberInfo.shop_id                 = @shopId
+  AND tbldefGroupPolicyDetail.Line_Item_ID  = @lineItemId";
+
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(sql, con);
+                cmd.Parameters.AddWithValue("@customerId", customerId);
+                cmd.Parameters.AddWithValue("@shopId",     shopId);
+                cmd.Parameters.AddWithValue("@lineItemId", lineItemId);
+                using (var dr = cmd.ExecuteReader())
+                    return dr.Read() ? Convert.ToDecimal(dr[0]) : 0m;
+            }
         }
 
         private class CustomerTypeDetails
