@@ -109,6 +109,27 @@ namespace CandelaPOS.Models
 
         [JsonProperty("items")]
         public List<SaleLineItem> Items { get; set; }
+
+        // ── Loyalty Points Redemption ─────────────────────────────────────────────
+        // Points redeemed on this sale (F10 equivalent in Candela).
+        // redeemed_value is already included in marketing_discount above (server-computed via /quote).
+        // These extra fields drive tblMemberPointsRedeemed insertion via PointsRedemptionDAL.Add().
+        [JsonProperty("redeemed_points")]
+        public int RedeemedPoints { get; set; }
+
+        [JsonProperty("redeemed_value")]
+        public double RedeemedValue { get; set; }
+
+        [JsonProperty("birthday_points")]
+        public int BirthdayPoints { get; set; }
+
+        [JsonProperty("one_point_value")]
+        public double OnePointValue { get; set; }
+
+        // Points the customer earns from this sale (rounded integer from /quote earned_points).
+        // Drives MemberEarnedPointsDAL.Add() → tblMemberPointsEarnings INSERT via SaleAndReturnDAL.Add().
+        [JsonProperty("earned_points")]
+        public int EarnedPoints { get; set; }
     }
 
     public class SaleLineItem
