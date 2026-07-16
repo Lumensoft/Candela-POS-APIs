@@ -351,8 +351,10 @@ namespace CandelaPOS.Controllers
 
                             // Blocking: DiscountPriority="Product" AND a unit disc is active → cash disc = 0.
                             // Also: cashDiscPct=0 → no cash disc (same as Candela's dblCustomerDiscountAmt=0 check).
+                            // NotForDiscount: frmSaleAndReturn.vb:25859-25863 — dblCustomUnitDiscount forced to 0.
                             // frmSaleAndReturn.vb:25933–25934
-                            if (cashDiscPct > 0 && !(blockCustDiscOnUnitDisc && unitDisc > 0))
+                            if (cashDiscPct > 0 && !(blockCustDiscOnUnitDisc && unitDisc > 0)
+                                && p.NotForDiscount == 0)
                                 loyaltyCashDisc = Math.Round((unitRate - unitDisc) * (cashDiscPct / 100.0),
                                     amountRound, MidpointRounding.AwayFromZero);
                             custDiscUnit = loyaltyCashDisc;
@@ -649,12 +651,20 @@ namespace CandelaPOS.Controllers
                     netTotal  = roundedNet + addlTaxF2;
                 }
 
+                // E5: AutoRounding — CR#6898, frmSaleAndReturn.vb:13210-13385, 3464
+                // Reads AutoRounding from tblRCMSConfiguration and computes the rounding delta.
+                // Returned as suggested_adjustment; frontend auto-applies it as adjustment_amount.
+                // /sales skips AdjustmentLimit / ShowAdjustmentReason when AutoRounding is set.
+                double autoRoundNet  = Math.Round(netTotal, amountRound, MidpointRounding.AwayFromZero);
+                double suggestedAdj  = 0;
+                string autoRoundAlgo = rcmsCfg.TryGetValue("AutoRounding", out var ara) ? (ara ?? "").Trim() : "";
+                if (!string.IsNullOrEmpty(autoRoundAlgo))
+                    suggestedAdj = ComputeAutoRounding(autoRoundAlgo, autoRoundNet, amountRound);
+
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<QuoteResult>.Ok(new QuoteResult
                     {
                         Items             = lines,
-                        // Candela txtGrossTotal = SUM((Rate-UnitDisc)*Qty), not SUM(Rate*Qty).
-                        // frmSaleAndReturn.vb:26634; dblGrossTotal at line 12596.
                         // Candela txtGrossTotal = SUM((Rate-UnitDisc)*Qty), not SUM(Rate*Qty).
                         // frmSaleAndReturn.vb:26634; dblGrossTotal at line 12596.
                         GrossTotal        = Math.Round(grossTotal - totalDiscount, amountRound, MidpointRounding.AwayFromZero),
@@ -669,11 +679,12 @@ namespace CandelaPOS.Controllers
                                                 : totalVat,                     amountRound, MidpointRounding.AwayFromZero),
                         AdditionalTax     = Math.Round(addlTaxOnNetTotal ? addlTaxF2 : 0.0,
                                                                                 amountRound, MidpointRounding.AwayFromZero),
-                        NetTotal          = Math.Round(netTotal,                amountRound, MidpointRounding.AwayFromZero),
+                        NetTotal          = autoRoundNet,
                         IsLoyaltyOn       = isLoyaltyOn && req.CustomerId > 0,
                         CouponNo          = appliedCouponNo,
                         CouponDiscount    = Math.Round(totalCouponDisc,         amountRound, MidpointRounding.AwayFromZero),
-                        EarnedPoints      = Math.Round(totalEarnedPoints,       amountRound, MidpointRounding.AwayFromZero)
+                        EarnedPoints      = Math.Round(totalEarnedPoints,       amountRound, MidpointRounding.AwayFromZero),
+                        SuggestedAdjustment = Math.Round(suggestedAdj,          amountRound, MidpointRounding.AwayFromZero)
                     }));
             }
             catch (Exception ex)
@@ -984,6 +995,70 @@ WHERE m.member_id = @customerId";
         private static double Dbl(Dictionary<string, string> cfg, string key)
             => cfg.TryGetValue(key, out var v) && double.TryParse(v, out double d) ? d : 0;
 
+        // E5: AutoRounding algorithms — CR#6898, frmSaleAndReturn.vb:13218-13385
+        // Input: netTotal already rounded to amountRound decimal places.
+        // Returns delta (roundedValue - netTotal); frontend adds this as adjustment_amount.
+        private static double ComputeAutoRounding(string algo, double netTotal, int amountRound)
+        {
+            switch (algo.ToUpperInvariant())
+            {
+                case "NEAREST ZERO/FIVE":
+                {
+                    // vb:13218-13278: only fires when the last decimal digit is non-zero.
+                    // multiplyFactor = "2" + (amountRound-1) × "0"s  (e.g., amountRound=2 → 20).
+                    // Steps: absNet × factor → if fractional: + 0.5 → Truncate → ÷ factor → diff.
+                    if (amountRound <= 0) return 0;
+                    double absNet = Math.Abs(netTotal);
+                    // Check whether last decimal digit is zero (skip if so — vb:13228)
+                    long scaled = (long)Math.Round(absNet * Math.Pow(10, amountRound), 0, MidpointRounding.AwayFromZero);
+                    if (scaled % 10 == 0) return 0;
+                    // factor = "2" padded to amountRound chars: 2, 20, 200, ...
+                    int factor = (int)(2 * Math.Pow(10, amountRound - 1));
+                    double product = absNet * factor;
+                    // Only continue when multiplication still has a fractional part (vb:13247)
+                    if (Math.Abs(product - Math.Round(product, 0, MidpointRounding.AwayFromZero)) < 1e-9)
+                        return 0;
+                    double netRounded = Math.Truncate(product + 0.5) / factor;
+                    double diff = netRounded - absNet;
+                    // vb:13266-13268: negate diff for return (negative netTotal)
+                    return netTotal < 0 ? -diff : diff;
+                }
+
+                case "NEAREST 25 CENTS":
+                {
+                    // vb:13281-13346: slab-based rounding to nearest 0.25
+                    double absNet   = Math.Abs(netTotal);
+                    double whole    = Math.Truncate(absNet);
+                    double frac     = Math.Round(absNet - whole, 2, MidpointRounding.AwayFromZero);
+                    double fracRnd;
+                    if      (frac <= 0.12) fracRnd = 0.00;
+                    else if (frac <= 0.37) fracRnd = 0.25;
+                    else if (frac <= 0.62) fracRnd = 0.50;
+                    else if (frac <= 0.87) fracRnd = 0.75;
+                    else                   fracRnd = 1.00;
+                    double diff = (whole + fracRnd) - absNet;
+                    // vb:13327-13328: negate diff for return (negative netTotal)
+                    return netTotal < 0 ? -diff : diff;
+                }
+
+                case "ROUND TO ZERO":
+                    // vb:13361-13368: simple integer rounding (AwayFromZero)
+                    return Math.Round(Math.Abs(netTotal), 0, MidpointRounding.AwayFromZero)
+                           * Math.Sign(netTotal == 0 ? 1 : netTotal)
+                           - netTotal;
+
+                case "NEAREST TEN":
+                    // vb:13369-13378: round to nearest 10
+                    return Math.Round(Math.Abs(netTotal) / 10.0, 0, MidpointRounding.AwayFromZero)
+                           * 10.0
+                           * Math.Sign(netTotal == 0 ? 1 : netTotal)
+                           - netTotal;
+
+                default:
+                    return 0;
+            }
+        }
+
         // ── Inner types ───────────────────────────────────────────────────────────────
 
         private class CouponInfo
@@ -1265,6 +1340,11 @@ WHERE m.member_id = @customerId";
                                             if (objSelectedDiscountDR.HasRows)
                                             {
                                                 objSelectedDiscountDR.Read();
+                                                // Tier price is a replacement price, not a flat discount.
+                                                // Discount = original price − tier price. SaleAndReturnDAL.vb:1033-1060.
+                                                double tierPrice = Safe(objSelectedDiscountDR["discount"]);
+                                                if (tierPrice > 0)
+                                                    _DiscountAmount = _dblItemPrice - tierPrice;
                                                 DiscountType       = 10;
                                                 _DiscountID        = Convert.ToInt32(objDiscountDR["discount_id"]);
                                                 IsBuyXGetYFreeDisc = true;
