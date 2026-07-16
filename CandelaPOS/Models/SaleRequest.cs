@@ -46,6 +46,9 @@ namespace CandelaPOS.Models
         [JsonProperty("adjustment_amount")]
         public double AdjustmentAmount { get; set; }
 
+        [JsonProperty("adjustment_reason_id")]
+        public int? AdjustmentReasonId { get; set; }
+
         [JsonProperty("cash_amount")]
         public double CashAmount { get; set; }
 
@@ -69,6 +72,12 @@ namespace CandelaPOS.Models
 
         [JsonProperty("comments")]
         public string Comments { get; set; }
+
+        // F1: ShowAdditionalComments — frmSaleAndReturn.vb:3497, 8885
+        // Mapped to tblSales.Additional_Comments. Only populated when the config is True,
+        // but the DAL always writes it so sending an empty string when the config is off is safe.
+        [JsonProperty("additional_comments")]
+        public string AdditionalComments { get; set; }
 
         // Set this when finalizing a previously parked hold — DAL will delete the hold row
         [JsonProperty("holding_sale_id")]
@@ -130,6 +139,26 @@ namespace CandelaPOS.Models
         // Drives MemberEarnedPointsDAL.Add() → tblMemberPointsEarnings INSERT via SaleAndReturnDAL.Add().
         [JsonProperty("earned_points")]
         public int EarnedPoints { get; set; }
+
+        // Pharmacy — mirrors Ctrl+Q / frmCustomerEmployee (CR#6563).
+        // All fields written via sale.CustomerEmployee to tblSales.
+        [JsonProperty("dmno")]
+        public string Dmno { get; set; }
+
+        [JsonProperty("dno")]
+        public string Dno { get; set; }
+
+        [JsonProperty("registration_no")]
+        public string RegistrationNo { get; set; }
+
+        [JsonProperty("employee_name")]
+        public string EmployeeName { get; set; }
+
+        [JsonProperty("department_name")]
+        public string DepartmentName { get; set; }
+
+        [JsonProperty("is_scanned")]
+        public bool IsScanned { get; set; }
     }
 
     public class SaleLineItem
@@ -228,6 +257,15 @@ namespace CandelaPOS.Models
         // Mirrors the per-row SalesPersonId written to EnumGridSaleItems in Candela.
         [JsonProperty("salesperson_id")]
         public int SalespersonId { get; set; }
+
+        // Return reason — written to tblSalesLineItems.ReasonID / ReturnReason.
+        // Required for all non-exchange return lines when EnforceSaleReturnReason=True.
+        // frmSaleAndReturn.vb:6522, SaleAndReturnItems.ReasonID / ReasonDescription (Model.vb:1796/1804)
+        [JsonProperty("return_reason_id")]
+        public int? ReturnReasonId { get; set; }
+
+        [JsonProperty("return_reason_description")]
+        public string ReturnReasonDescription { get; set; }
     }
 
     // One component row inside a bundle/assembly line item.

@@ -246,6 +246,22 @@ ORDER BY a.ExpiryDate ASC";
             catch (Exception ex) { return Err(ex); }
         }
 
+        // ── /masters/blocked-products ─────────────────────────────────────────────
+        // Full-replace sync — tblBlockPrdctsForSale has no timestamp column so always
+        // returns the complete set. Table is tiny; full fetch is cheap.
+        [HttpGet, Route("blocked-products")]
+        public HttpResponseMessage GetBlockedProducts()
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+            try
+            {
+                var rows = QueryBlockedProducts(shopId);
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
         // ── /masters/str/{no}/products ────────────────────────────────────────────
         // Loads products from a Stock Transfer Request by STR number.
         // Wraps SaleAndReturnDAL.funGetStrProducts — mirrors txtSTRNo_GetSTR
@@ -294,6 +310,7 @@ SELECT
     isnull(pd.Basic_Designed, 1)                AS basic_designed,
     isnull(inv.quantity, 0)                     AS stock_qty,
     CASE WHEN blk.Block_Product_Id IS NOT NULL THEN 1 ELSE 0 END AS is_blocked_for_sale,
+    CASE WHEN isnull(pd.product_life_type, 0) > 0 THEN 1 ELSE 0 END AS is_control_drug,
     pd.entereddate,
     pd.editeddate
 FROM tblProductItem pi
@@ -531,6 +548,15 @@ ORDER BY li.sort_order, li.field_name";
             return Run(sql, _ => { });
         }
 
+        private List<Dictionary<string, object>> QueryBlockedProducts(int shopId)
+        {
+            const string sql = @"
+SELECT product_item_id
+FROM   tblBlockPrdctsForSale
+WHERE  shopID = @shopId";
+            return Run(sql, p => p.AddWithValue("@shopId", shopId));
+        }
+
         private List<Dictionary<string, object>> QueryStrProducts(string strNo, int shopId)
         {
             // Mirrors SaleAndReturnDAL.funGetStrProducts — frmSaleAndReturn.vb:22651
@@ -654,6 +680,111 @@ ORDER BY pd.item_name";
                                 d[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
                             list.Add(d);
                         }
+                    }
+                }
+                return Ok(list);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // GET api/masters/departments
+        // Returns shop departments from tblDefShopDepartments — populates the dept dropdown
+        // in the Patient / Prescription Info modal (mirrors frmCustomerEmployee dept combobox).
+        [HttpGet, Route("departments")]
+        public HttpResponseMessage GetDepartments()
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+            try
+            {
+                var list = new List<Dictionary<string, object>>();
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT shop_department_id, field_name " +
+                        "FROM tblDefShopDepartments " +
+                        "WHERE shop_id = @shopId " +
+                        "ORDER BY field_name", con);
+                    cmd.Parameters.AddWithValue("@shopId", shopId);
+                    using (var dt = new DataTable())
+                    {
+                        new SqlDataAdapter(cmd).Fill(dt);
+                        foreach (DataRow row in dt.Rows)
+                        {
+                            var d = new Dictionary<string, object>();
+                            foreach (DataColumn col in dt.Columns)
+                                d[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+                            list.Add(d);
+                        }
+                    }
+                }
+                return Ok(list);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // GET /api/masters/adjustment-reasons
+        // TblDefAdjustmentReason is global (no shop_id) — AdjustmentReasonDAL.vb:GetAll
+        // Shown when ShowAdjustmentReason=True and a non-zero adjustment is entered
+        // frmSaleAndReturn.vb:43826-43838 (EnterAdjustmentReason_Click)
+        [HttpGet]
+        [Route("adjustment-reasons")]
+        public HttpResponseMessage GetAdjustmentReasons()
+        {
+            try
+            {
+                var list = new List<Dictionary<string, object>>();
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT ReasonID, ReasonDescription, ISNULL(sort_order,0) AS sort_order " +
+                        "FROM TblDefAdjustmentReason " +
+                        "ORDER BY ISNULL(sort_order,0), ReasonID", con);
+                    using (var rd = cmd.ExecuteReader())
+                    {
+                        while (rd.Read())
+                            list.Add(new Dictionary<string, object>
+                            {
+                                ["reason_id"]          = rd["ReasonID"],
+                                ["reason_description"] = rd["ReasonDescription"],
+                                ["sort_order"]         = rd["sort_order"],
+                            });
+                    }
+                }
+                return Ok(list);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
+        // GET /api/masters/return-reasons
+        // TblDefReturnReasons is global (no shop_id) — SaleReasonDAL.vb:20-46
+        // Shown per return line when EnforceSaleReturnReason=True
+        // frmSaleAndReturn.vb:6522 (per-row reason gate before Save)
+        [HttpGet]
+        [Route("return-reasons")]
+        public HttpResponseMessage GetReturnReasons()
+        {
+            try
+            {
+                var list = new List<Dictionary<string, object>>();
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT ReasonID, ReasonDescription, ISNULL(sort_order,0) AS sort_order " +
+                        "FROM TblDefReturnReasons " +
+                        "ORDER BY ISNULL(sort_order,0), ReasonID", con);
+                    using (var rd = cmd.ExecuteReader())
+                    {
+                        while (rd.Read())
+                            list.Add(new Dictionary<string, object>
+                            {
+                                ["reason_id"]          = rd["ReasonID"],
+                                ["reason_description"] = rd["ReasonDescription"],
+                                ["sort_order"]         = rd["sort_order"],
+                            });
                     }
                 }
                 return Ok(list);

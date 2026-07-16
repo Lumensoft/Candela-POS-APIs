@@ -184,5 +184,13 @@ namespace CandelaPOS.Models
         // expression "([Qty]*[LoyaltyPointPercentage])" at frmSaleAndReturn.vb:2617
         [JsonProperty("earned_points")]
         public double EarnedPoints { get; set; }
+
+        // E5: AutoRounding — CR#6898, frmSaleAndReturn.vb:13210-13385
+        // Rounding delta: roundedNetTotal - netTotal. Zero when AutoRounding config is empty.
+        // Frontend applies this as adjustment_amount; /sales bypasses AdjustmentLimit and
+        // ShowAdjustmentReason checks when AutoRounding is configured (Candela never gates
+        // auto-rounding behind supervisor approval — frmSaleAndReturn.vb:13270).
+        [JsonProperty("suggested_adjustment")]
+        public double SuggestedAdjustment { get; set; }
     }
 }

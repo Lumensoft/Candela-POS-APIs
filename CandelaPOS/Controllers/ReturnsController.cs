@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Data;
 using System.Data.SqlClient;
 using System.Net;
@@ -111,6 +112,26 @@ namespace CandelaPOS.Controllers
 
                 var dal = new SaleAndReturnDAL();
 
+                // ── C-section validations ────────────────────────────────────────────────────
+                var cCfg = CandelaBootstrap.GetRCMSConfig();
+
+                // C1: EnforceSaleReturnReason — all non-exchange return lines need a reason.
+                // Mirrors frmSaleAndReturn.vb:6522 (per-row reason check before Save).
+                if (CfgIs(cCfg, "EnforceSaleReturnReason", "True") && req.Items != null)
+                {
+                    var noReason = req.Items
+                        .Where(i => !i.IsExchangeItem
+                                    && (i.ReturnReasonId == null || i.ReturnReasonId == 0))
+                        .ToList();
+                    if (noReason.Count > 0)
+                    {
+                        DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                        return Request.CreateResponse((HttpStatusCode)422,
+                            new { error = "A return reason is required for all returned items." });
+                    }
+                }
+                // ── end C-section ────────────────────────────────────────────────────────────
+
                 // Free return (no invoice): skip invoice existence and qty-cap checks.
                 // Invoice-backed return: validate the invoice and guard against over-return.
                 if (req.ReturningInvoiceNo > 0)
@@ -118,6 +139,125 @@ namespace CandelaPOS.Controllers
                     if (!dal.IsValidInvoiceForReturn(sourceShopId, req.ReturningInvoiceNo))
                         return Request.CreateResponse((HttpStatusCode)422,
                             new { error = "Invoice is not valid for return" });
+
+                    // ── C2/C3/C5: invoice-backed validations (before lock) ────────────────────
+                    // Placed before the lock to avoid holding it during extra DB queries.
+                    {
+                        // C2: EnterReturnDays — block returns beyond the allowed window.
+                        // Formula: EnterReturnDays + DATEDIFF(DAY, GETDATE(), sale_date) < 0 → blocked.
+                        // Mirrors SaleAndReturnDAL.vb:18187 and frmSaleAndReturn.vb:8229-8238.
+                        string retDaysStr;
+                        int retDays = 0;
+                        if (cCfg.TryGetValue("EnterReturnDays", out retDaysStr) && !string.IsNullOrWhiteSpace(retDaysStr))
+                            int.TryParse(retDaysStr, out retDays);
+
+                        if (retDays != 0)
+                        {
+                            using (var daysCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                            {
+                                daysCon.Open();
+                                var daysCmd = new SqlCommand(
+                                    "SELECT DATEDIFF(DAY, GETDATE(), sale_date) " +
+                                    "FROM tblSales WHERE sale_id = @sid AND shop_id = @shid", daysCon);
+                                daysCmd.Parameters.AddWithValue("@sid",  req.ReturningInvoiceNo);
+                                daysCmd.Parameters.AddWithValue("@shid", sourceShopId);
+                                var daysObj = daysCmd.ExecuteScalar();
+                                if (daysObj != null && daysObj != DBNull.Value)
+                                {
+                                    int daysDiff = Convert.ToInt32(daysObj);
+                                    if (retDays + daysDiff < 0)
+                                    {
+                                        DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                                        return Request.CreateResponse((HttpStatusCode)422,
+                                            new { error = "The return period for this invoice has expired." });
+                                    }
+                                }
+                            }
+                        }
+
+                        // C3: Apply_Disc_on_Return — original invoice's customer must match.
+                        // Mirrors SaleAndReturnDAL.vb:13027 and frmSaleAndReturn.vb:6849-6898.
+                        if (CfgIs(cCfg, "Apply_Disc_on_Return", "True"))
+                        {
+                            using (var custCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                            {
+                                custCon.Open();
+                                var custCmd = new SqlCommand(
+                                    "SELECT isnull(member_id,0), isnull(membershopID,0) " +
+                                    "FROM tblSales WHERE sale_id = @sid AND shop_id = @shid", custCon);
+                                custCmd.Parameters.AddWithValue("@sid",  req.ReturningInvoiceNo);
+                                custCmd.Parameters.AddWithValue("@shid", sourceShopId);
+                                using (var rd = custCmd.ExecuteReader())
+                                {
+                                    if (rd.Read())
+                                    {
+                                        int origMemberId     = Convert.ToInt32(rd[0]);
+                                        int origMemberShopId = Convert.ToInt32(rd[1]);
+                                        if (origMemberId > 0 && origMemberShopId > 0)
+                                        {
+                                            if (req.CustomerId == 0)
+                                            {
+                                                DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                                                return Request.CreateResponse((HttpStatusCode)422,
+                                                    new { error = "The original invoice was sold to a customer. Please select the same customer to process this return." });
+                                            }
+                                            if (req.CustomerId != origMemberId)
+                                            {
+                                                DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                                                return Request.CreateResponse((HttpStatusCode)422,
+                                                    new { error = "Customer mismatch. The return must be processed for the same customer as the original invoice." });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // C5: IgnoreReturnInvoicePaymentMode — refund tender must match original.
+                        // credit_sale=1 → must refund via credit; cash (card_id=0) → must refund cash.
+                        // Card sale (card_id>0) → any tender accepted.
+                        // Mirrors SaleAndReturnDAL.vb:13042-43 and frmSaleAndReturn.vb:6948-7056.
+                        if (!CfgIs(cCfg, "IgnoreReturnInvoicePaymentMode", "True"))
+                        {
+                            using (var pmCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                            {
+                                pmCon.Open();
+                                var pmCmd = new SqlCommand(
+                                    "SELECT isnull(iscreditsale,0), isnull(credit_card_id,0) " +
+                                    "FROM tblSales WHERE sale_id = @sid AND shop_id = @shid", pmCon);
+                                pmCmd.Parameters.AddWithValue("@sid",  req.ReturningInvoiceNo);
+                                pmCmd.Parameters.AddWithValue("@shid", sourceShopId);
+                                using (var rd = pmCmd.ExecuteReader())
+                                {
+                                    if (rd.Read())
+                                    {
+                                        bool isCreditSale = Convert.ToBoolean(rd[0]);
+                                        int  creditCardId = Convert.ToInt32(rd[1]);
+                                        if (isCreditSale)
+                                        {
+                                            if (req.CreditAmount <= 0)
+                                            {
+                                                DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                                                return Request.CreateResponse((HttpStatusCode)422,
+                                                    new { error = "The original invoice was a credit sale. The return must be processed as credit." });
+                                            }
+                                        }
+                                        else if (creditCardId == 0)
+                                        {
+                                            if (req.CashAmount <= 0)
+                                            {
+                                                DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                                                return Request.CreateResponse((HttpStatusCode)422,
+                                                    new { error = "The original invoice was a cash sale. The return must be refunded as cash." });
+                                            }
+                                        }
+                                        // Card sale: any tender is accepted.
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // ── end C2/C3/C5 ─────────────────────────────────────────────────────────
 
                     // Per-invoice lock: ensures ValidateReturnQuantities and dal.Add() are
                     // atomic so two concurrent requests for the same invoice cannot both pass
@@ -332,6 +472,9 @@ namespace CandelaPOS.Controllers
                 var line = new SaleAndReturnItems(0, item.ProductItemId, qty,
                                                   item.UnitRate, item.TaggedPrice);
                 line.ProductBatchNo             = item.BatchNo ?? "";
+                // Written to tblSalesLineItems.ReasonID / ReturnReason (SaleAndReturnDAL.vb:4885-4886)
+                line.ReasonID                   = item.ReturnReasonId         ?? 0;
+                line.ReasonDescription          = item.ReturnReasonDescription ?? "";
                 line.VATValue                   = item.VatValue;
                 line.VatFactor                  = item.VatFactor;
                 line.VatType                    = item.VatType ?? "";
@@ -427,7 +570,9 @@ SELECT
     isnull(s.vat, 0)          AS vat_amount,
     isnull(s.adjustment_amount, 0) AS adjustment_amount,
     isnull(s.Adjustment_comments,'') AS comments,
-    isnull(s.invoice_type,'') AS invoice_type
+    isnull(s.invoice_type,'') AS invoice_type,
+    isnull(s.iscreditsale, 0)  AS iscreditsale,
+    isnull(s.credit_card_id, 0) AS credit_card_id
 FROM tblSales s
 WHERE s.sale_id = @invoiceNo AND s.shop_id = @shopId";
 
@@ -605,6 +750,14 @@ WHERE li.sale_id = @invoiceNo
                 System.Diagnostics.Trace.TraceError(
                     "DeleteIdempotencySlot failed for guid={0}: {1}", clientGuid, ex);
             }
+        }
+
+        // Mirrors SalesController.CfgIs — case-insensitive config value check.
+        private static bool CfgIs(Dictionary<string, string> cfg, string key, string expected)
+        {
+            string val;
+            return cfg.TryGetValue(key, out val)
+                && string.Equals(val?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

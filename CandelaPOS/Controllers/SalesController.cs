@@ -568,6 +568,198 @@ ORDER BY sli.sale_line_item_id", con);
                             new { error = $"Coupon '{req.CouponNo}' is no longer active." });
                 }
 
+                // ── A-section config validations (frmSaleAndReturn.vb IsValidate) ──────────
+                {
+                    var rcmsCfg = CandelaBootstrap.GetRCMSConfig();
+
+                    // A1: EnforceCustomerInfo — customer required when net total exceeds threshold
+                    // frmSaleAndReturn.vb:758, 6344+
+                    if (double.TryParse(
+                            rcmsCfg.TryGetValue("EnforceCustomerInfo", out var eciStr) ? eciStr : "0",
+                            out double enforceCI) && enforceCI > 0
+                        && req.CustomerId == 0 && req.NetTotal > enforceCI)
+                    {
+                        return Request.CreateResponse((HttpStatusCode)422,
+                            new { error = $"A customer is required for sales above {enforceCI:F2}." });
+                    }
+
+                    // A2: chkEnforceCustMob — registered customer must have a mobile on file
+                    // frmSaleAndReturn.vb:759
+                    if (req.CustomerId > 0 && CfgIs(rcmsCfg, "chkEnforceCustMob", "True"))
+                    {
+                        using (var cfgCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                        {
+                            cfgCon.Open();
+                            var mobCmd = new SqlCommand(
+                                "SELECT isnull(phone_Mobile, '') FROM tblDefMembers WHERE member_id = @mid",
+                                cfgCon);
+                            mobCmd.Parameters.AddWithValue("@mid", req.CustomerId);
+                            var mob = mobCmd.ExecuteScalar()?.ToString() ?? "";
+                            if (string.IsNullOrWhiteSpace(mob))
+                                return Request.CreateResponse((HttpStatusCode)422,
+                                    new { error = "Customer mobile number is required." });
+                        }
+                    }
+
+                    // A3: Enforce_Mobile — walk-in sale must have a mobile number
+                    // frmSaleAndReturn.vb:2789
+                    if (req.CustomerId == 0
+                        && CfgIs(rcmsCfg, "Enforce_Mobile", "True")
+                        && string.IsNullOrWhiteSpace(req.WalkInPhone))
+                    {
+                        return Request.CreateResponse((HttpStatusCode)422,
+                            new { error = "A mobile number is required for walk-in sales." });
+                    }
+
+                    // A5: BlockSalesHavingZeroRetailPrice — frmSaleAndReturn.vb:5451
+                    if (CfgIs(rcmsCfg, "BlockSalesHavingZeroRetailPrice", "True")
+                        && req.Items != null && req.Items.Any(i => i.UnitRate == 0))
+                    {
+                        return Request.CreateResponse((HttpStatusCode)422,
+                            new { error = "Items with a zero retail price cannot be sold." });
+                    }
+                }
+                // ── end A-section validations ─────────────────────────────────────────────
+
+                // ── B-section config validations (Pricing & Discount Controls) ───────────
+                {
+                    var bCfg = CandelaBootstrap.GetRCMSConfig();
+
+                    // B1/B2: RestrictBelowCostSales / EnablePrdWiseBelowCost
+                    // frmSaleAndReturn.vb:6046-6151
+                    if (CfgIs(bCfg, "RestrictBelowCostSales", "True") && req.Items != null && req.Items.Count > 0)
+                    {
+                        bool prdWise = CfgIs(bCfg, "EnablePrdWiseBelowCost", "True");
+                        var itemIds  = req.Items.Select(i => i.ProductItemId).Distinct().ToList();
+                        var avgCosts   = new Dictionary<int, double>();
+                        var allowBelow = new Dictionary<int, bool>();
+
+                        if (itemIds.Count > 0)
+                        {
+                            var paramNames = string.Join(",", Enumerable.Range(0, itemIds.Count).Select(i => "@cid" + i));
+                            using (var costCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                            {
+                                costCon.Open();
+                                var costCmd = new SqlCommand(
+                                    "SELECT pi.Product_Item_ID, ISNULL(p.Average_cost,0), ISNULL(p.allow_below_cost,0) " +
+                                    "FROM tblProductItem pi JOIN tblDefProducts p ON p.Product_ID = pi.Product_ID " +
+                                    "WHERE pi.Product_Item_ID IN (" + paramNames + ")", costCon);
+                                for (int i = 0; i < itemIds.Count; i++)
+                                    costCmd.Parameters.AddWithValue("@cid" + i, itemIds[i]);
+                                using (var rd = costCmd.ExecuteReader())
+                                {
+                                    while (rd.Read())
+                                    {
+                                        int pid = Convert.ToInt32(rd[0]);
+                                        avgCosts[pid]   = Convert.ToDouble(rd[1]);
+                                        allowBelow[pid] = Convert.ToBoolean(rd[2]);
+                                    }
+                                }
+                            }
+                        }
+
+                        foreach (var item in req.Items)
+                        {
+                            double avg;
+                            if (!avgCosts.TryGetValue(item.ProductItemId, out avg) || avg <= 0) continue;
+                            if (prdWise && allowBelow.TryGetValue(item.ProductItemId, out bool ab) && ab) continue;
+                            double factor    = item.ConFactor > 1 ? item.ConFactor : 1.0;
+                            double unitPrice = item.UnitRate / factor;
+                            if (unitPrice < avg)
+                                return Request.CreateResponse((HttpStatusCode)422,
+                                    new { error = "One or more items are priced below cost. Selling below average cost is not allowed." });
+                        }
+
+                        // Backfill AvgCost on the already-built model lines (DAL uses this for inventory cost recording)
+                        if (sale?.ListOfSaleItems != null)
+                        {
+                            foreach (var ln in sale.ListOfSaleItems)
+                            {
+                                double avg;
+                                if (avgCosts.TryGetValue(ln.ProductItemID, out avg))
+                                    ln.AvgCost = avg;
+                            }
+                        }
+                    }
+
+                    // E5: AutoRounding — bypass AdjustmentLimit and ShowAdjustmentReason when AutoRounding is
+                    // configured (Candela auto-fills txtAdjustment without supervisor approval — vb:13374).
+                    bool autoRoundingActive = !string.IsNullOrWhiteSpace(
+                        bCfg.TryGetValue("AutoRounding", out var autoRndVal) ? autoRndVal : "");
+
+                    // B3: AdjustmentLimit / AdjustmentLimitType — frmSaleAndReturn.vb:15885-15907
+                    if (req.AdjustmentAmount != 0 && !autoRoundingActive)
+                    {
+                        string adjLimitStr;
+                        double adjLimit = 0;
+                        if (bCfg.TryGetValue("AdjustmentLimit", out adjLimitStr))
+                            double.TryParse(adjLimitStr, out adjLimit);
+
+                        if (adjLimit > 0)
+                        {
+                            bool hasOpenAdj = false, hasAdj = false;
+                            using (var rightsCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                            {
+                                rightsCon.Open();
+                                var grpCmd = new SqlCommand(
+                                    "SELECT TOP 1 group_id FROM TblSecurityUser WHERE user_id = @uid", rightsCon);
+                                grpCmd.Parameters.AddWithValue("@uid", userId);
+                                var grpObj = grpCmd.ExecuteScalar();
+                                if (grpObj != null)
+                                {
+                                    int grpId = Convert.ToInt32(grpObj);
+                                    var rightCmd = new SqlCommand(
+                                        "SELECT sfc.ControlName " +
+                                        "FROM tblSecurityControlRight scr " +
+                                        "INNER JOIN tblSecurityFormControl sfc ON sfc.SecurityControlID = scr.SecurityControlID " +
+                                        "WHERE scr.GroupID = @gid AND sfc.FormName = 'frmSaleAndReturn' " +
+                                        "AND sfc.ControlName IN ('ApplyOpenAdjustment','ApplyAdjustment')", rightsCon);
+                                    rightCmd.Parameters.AddWithValue("@gid", grpId);
+                                    using (var rdr = rightCmd.ExecuteReader())
+                                    {
+                                        while (rdr.Read())
+                                        {
+                                            string ctrl = rdr["ControlName"]?.ToString() ?? "";
+                                            if (ctrl == "ApplyOpenAdjustment") hasOpenAdj = true;
+                                            if (ctrl == "ApplyAdjustment")     hasAdj     = true;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (!hasOpenAdj)
+                            {
+                                if (!hasAdj)
+                                    return Request.CreateResponse((HttpStatusCode)422,
+                                        new { error = "You do not have permission to apply an invoice adjustment." });
+
+                                string adjLimitType;
+                                if (!bCfg.TryGetValue("AdjustmentLimitType", out adjLimitType))
+                                    adjLimitType = "VALUE";
+                                double absAdj = Math.Abs(req.AdjustmentAmount);
+                                bool exceeded = adjLimitType.Equals("PERCENTAGE", StringComparison.OrdinalIgnoreCase)
+                                    ? req.NetTotal > 0 && (absAdj / req.NetTotal * 100) > adjLimit
+                                    : absAdj > adjLimit;
+                                if (exceeded)
+                                    return Request.CreateResponse((HttpStatusCode)422,
+                                        new { error = "Adjustment of " + req.AdjustmentAmount.ToString("F2") + " exceeds the allowed limit." });
+                            }
+                        }
+                    }
+
+                    // B4: ShowAdjustmentReason — frmSaleAndReturn.vb:7662/7774
+                    // When adjustment is entered and ShowAdjustmentReason=True, a reason ID is mandatory
+                    if (req.AdjustmentAmount != 0
+                        && !autoRoundingActive
+                        && CfgIs(bCfg, "ShowAdjustmentReason", "True")
+                        && req.AdjustmentReasonId == null)
+                    {
+                        return Request.CreateResponse((HttpStatusCode)422,
+                            new { error = "An adjustment reason is required." });
+                    }
+                }
+                // ── end B-section validations ─────────────────────────────────────────────
+
                 // FonePay: reject if this transaction ID was already processed
                 // Mirrors frmMobilePayment.vb manual-mode validation against tblSales.transactionid
                 if (!string.IsNullOrEmpty(req.TransactionId))
@@ -788,6 +980,12 @@ ORDER BY sli.sale_line_item_id", con);
             return null;
         }
 
+        private static bool CfgIs(Dictionary<string, string> cfg, string key, string expectedValue)
+        {
+            return cfg.TryGetValue(key, out var v) &&
+                   string.Equals(v, expectedValue, StringComparison.OrdinalIgnoreCase);
+        }
+
         private SaleAndReturn BuildModel(SaleRequest req, int userId, int shopId, string posCode, string userName)
         {
             var sale = new SaleAndReturn();
@@ -812,6 +1010,7 @@ ORDER BY sli.sale_line_item_id", con);
             sale.MarketingDiscount   = req.MarketingDiscount;
             sale.VATAmount           = req.VatAmount;
             sale.AdjustmentAmount    = req.AdjustmentAmount;
+            sale.AdjustmentReasonId  = req.AdjustmentReasonId;
             sale.CashAmount          = req.CashAmount;
             sale.CreditCardAmount    = req.CardAmount;
             sale.CreditAmount        = (decimal)req.CreditAmount;
@@ -887,7 +1086,8 @@ ORDER BY sli.sale_line_item_id", con);
             sale.IsMultiplePyaments  = pt == "split" || tenderCount > 1;
             sale.SaleReturningNo     = 0;
             sale.HoldingSaleID       = req.HoldingSaleId; // 0 = new sale; >0 = finalize a parked hold (DAL deletes the hold row)
-            sale.Comments            = req.Comments ?? "";
+            sale.Comments            = req.Comments            ?? "";
+            sale.AdditionalComments  = req.AdditionalComments  ?? ""; // F1: ShowAdditionalComments — vb:8885
 
             // Mobile payment fields — frmSaleAndReturn.vb:37057 (AddMobiePayments)
             // FonePay: TransactionId + Vendor + IsManual
@@ -935,11 +1135,31 @@ ORDER BY sli.sale_line_item_id", con);
                 };
             }
 
-            // Employee (required sub-objects)
-            sale.CustomerEmployee.EmployeeName     = "";
-            sale.CustomerEmployee.RegisterationNo  = "";
+            // D1: BlockPointOnRedemption — frmSaleAndReturn.vb:10118-10127 (CR#7585)
+            // When True and redemption occurred on this sale, zero all earned-point fields so
+            // MemberEarnedPointsDAL.Add() is skipped (SaleAndReturnDAL.vb:5377 checks EarnedPoints != 0).
+            // Candela condition: BlockPointOnRedemption=TRUE AND txtMarketingDiscount.Text > 0
+            // txtMarketingDiscount carries the loyalty cash redemption — req.RedeemedPoints > 0 is equivalent.
+            if (req.RedeemedPoints > 0
+                && sale.MemberPoints.EarnedPoints != 0
+                && CfgIs(CandelaBootstrap.GetRCMSConfig(), "BlockPointOnRedemption", "True"))
+            {
+                sale.MemberPoints.EarnedPoints           = 0;
+                sale.MemberPoints.EarnedPointsValue      = 0;
+                sale.MemberPoints.EarnedBonusPoints      = 0;
+                sale.MemberPoints.EarnedBonusPointsValue = 0;
+                sale.MemberPoints.EarnedPromoPoints      = 0;
+                sale.MemberPoints.EarnedPromoPointsValue = 0;
+            }
+
+            // Employee / pharmacy (CR#6563 — mirrors frmCustomerEmployee / Ctrl+Q)
+            sale.CustomerEmployee.EmployeeName              = req.EmployeeName   ?? "";
+            sale.CustomerEmployee.RegisterationNo           = req.RegistrationNo ?? "";
             sale.CustomerEmployee.Department.ShopDepartmentID   = 0;
-            sale.CustomerEmployee.Department.ShopDepartmentName = "";
+            sale.CustomerEmployee.Department.ShopDepartmentName = req.DepartmentName ?? "";
+            sale.CustomerEmployee.DMNO                      = req.Dmno ?? "";
+            sale.CustomerEmployee.DNO                       = req.Dno  ?? "";
+            sale.CustomerEmployee.IsScanned                 = req.IsScanned;
 
             // Audit log
             sale.ActivityLog.LogGroup    = "POS API";
