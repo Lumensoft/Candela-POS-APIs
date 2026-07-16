@@ -36,9 +36,9 @@ namespace CandelaPOS.Controllers
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "sale_id is required and must be > 0" });
 
-            if (string.IsNullOrWhiteSpace(req.PrinterIp))
+            if (string.IsNullOrWhiteSpace(req.PrinterName))
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
-                    new { error = "printer_ip is required" });
+                    new { error = "printer_name is required" });
 
             CandelaBootstrap.PrepareRequest();
 
@@ -56,19 +56,24 @@ namespace CandelaPOS.Controllers
                         new { error = $"No invoice data found for sale_id {req.SaleId} in shop {shopId}" });
 
                 byte[] payload = BuildPayload(receiptText, copies);
-                SendTcp(req.PrinterIp, port, payload);
+
+                // If the value is a plain IP address → raw TCP:9100 (true LAN printer).
+                // Anything else (printer name or \\server\share) → Windows spooler.
+                if (System.Net.IPAddress.TryParse(req.PrinterName, out _))
+                    SendTcp(req.PrinterName, port, payload);
+                else
+                    RawPrinterHelper.SendBytesToPrinter(req.PrinterName, payload);
 
                 return Request.CreateResponse(HttpStatusCode.OK,
                     new { success = true,
-                          sale_id      = req.SaleId,
-                          printer_ip   = req.PrinterIp,
-                          printer_port = port,
+                          sale_id = req.SaleId,
+                          printer = req.PrinterName,
                           copies });
             }
             catch (SocketException ex)
             {
                 return Request.CreateResponse(HttpStatusCode.BadGateway,
-                    new { error = $"Could not reach printer at {req.PrinterIp}:{port}: {ex.Message}" });
+                    new { error = $"Could not reach printer at {req.PrinterName}:{port}: {ex.Message}" });
             }
             catch (Exception ex)
             {
@@ -132,10 +137,21 @@ namespace CandelaPOS.Controllers
 
     public class PrintRequest
     {
+        [Newtonsoft.Json.JsonProperty("sale_id")]
         public int    SaleId      { get; set; }
-        public string PrinterIp   { get; set; }
-        public int    PrinterPort { get; set; } // optional, defaults to 9100
+
+        // IP address → raw TCP:9100 (direct LAN printer)
+        // Printer name or \\server\share → Windows spooler (USB/shared printer)
+        [Newtonsoft.Json.JsonProperty("printer_name")]
+        public string PrinterName { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("printer_port")]
+        public int    PrinterPort { get; set; } // TCP only, optional, defaults to 9100
+
+        [Newtonsoft.Json.JsonProperty("copies")]
         public int    Copies      { get; set; } // optional, defaults to 1, max 5
+
+        [Newtonsoft.Json.JsonProperty("is_duplicate")]
         public bool   IsDuplicate { get; set; } // true → "Duplicate" printed on header
     }
 }

@@ -112,6 +112,7 @@
     <Compile Include="Infrastructure\CorsHandler.cs" />
     <Compile Include="Infrastructure\JwtHelper.cs" />
     <Compile Include="Infrastructure\JwtAuthHandler.cs" />
+    <Compile Include="Infrastructure\RawPrinterHelper.cs" />
     <Compile Include="Models\ApiResponse.cs" />
     <Compile Include="Models\QuoteRequest.cs" />
     <Compile Include="Models\ReturnRequest.cs" />
