@@ -28,8 +28,29 @@ namespace CandelaPOS.Controllers
             catch (Exception ex) { return Err(ex); }
         }
 
+        // GET api/masters/products/scan?q=X
+        // Scan-bar lookup — mirrors Candela's uiCtrlProductCode lookup sequence:
+        //   1. product_code (CI via SQL Server default collation)
+        //   2. CustomerSKUCode 1-5 (alternate/nested barcodes)
+        // Always returns TOP 1, product_code match wins over barcode match.
+        [HttpGet, Route("products/scan")]
+        public HttpResponseMessage ScanProduct([FromUri] string q = null)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+            try
+            {
+                if (string.IsNullOrWhiteSpace(q))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = "q is required" });
+                var rows = ScanProductByQuery(shopId, q.Trim());
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
         // GET api/masters/products/search?barcode=X  OR  ?code=X
-        // Live fallback when barcode is not in the app's local IndexedDB cache.
+        // Kept for backward compatibility; scan bar now uses /products/scan instead.
         [HttpGet, Route("products/search")]
         public HttpResponseMessage SearchProduct([FromUri] string barcode = null,
                                                  [FromUri] string code    = null)
@@ -300,6 +321,9 @@ SELECT
     isnull(li.field_name, '')                    AS line_item,
     isnull(pi.CustomerSKUCode,  '')              AS barcode,
     isnull(pi.CustomerSKUCode2, '')              AS barcode2,
+    isnull(pi.CustomerSKUCode3, '')              AS barcode3,
+    isnull(pi.CustomerSKUCode4, '')              AS barcode4,
+    isnull(pi.CustomerSKUCode5, '')              AS barcode5,
     isnull(pp.product_price, 0)                 AS price,
     isnull(pd.vat, 0)                           AS vat,
     isnull(pd.vat_type, '')                     AS vat_type,
@@ -311,6 +335,10 @@ SELECT
     isnull(inv.quantity, 0)                     AS stock_qty,
     CASE WHEN blk.Block_Product_Id IS NOT NULL THEN 1 ELSE 0 END AS is_blocked_for_sale,
     CASE WHEN isnull(pd.product_life_type, 0) > 0 THEN 1 ELSE 0 END AS is_control_drug,
+    CASE WHEN EXISTS (
+        SELECT 1 FROM tblDefProductAssembly pa
+        WHERE pa.Product_Item_ID_Assembly = pi.Product_Item_ID
+    ) THEN 1 ELSE 0 END                         AS is_assembly,
     pd.entereddate,
     pd.editeddate
 FROM tblProductItem pi
@@ -348,7 +376,11 @@ SELECT TOP 10
     isnull(pd.vat, 0)              AS vat,
     isnull(pd.vat_type, '')        AS vat_type,
     isnull(pd.NotForDiscount, 0)   AS not_for_discount,
-    isnull(inv.quantity, 0)        AS stock_qty
+    isnull(inv.quantity, 0)        AS stock_qty,
+    CASE WHEN EXISTS (
+        SELECT 1 FROM tblDefProductAssembly pa
+        WHERE pa.Product_Item_ID_Assembly = pi.Product_Item_ID
+    ) THEN 1 ELSE 0 END            AS is_assembly
 FROM tblProductItem pi
 JOIN tblDefProducts pd ON pd.product_id = pi.product_id
 LEFT JOIN tblDefProductPrice pp
@@ -367,6 +399,80 @@ WHERE isnull(pd.status, 1) = 1
                 p.AddWithValue("@shopId",  shopId);
                 p.AddWithValue("@barcode", string.IsNullOrWhiteSpace(barcode) ? (object)DBNull.Value : barcode);
                 p.AddWithValue("@code",    string.IsNullOrWhiteSpace(code)    ? (object)DBNull.Value : code);
+            });
+        }
+
+        // Mirrors Candela's uiCtrlProductCode.SetSelectedProductInfo scan lookup:
+        //   1st priority: product_code match (Candela DataView filter [Product Code] = @q, CI)
+        //   2nd priority: CustomerSKUCode 1–5 match (Candela [Customer SKU Code] 1–5 filter)
+        // SQL Server's default CI_AS collation makes both lookups case-insensitive, exactly
+        // matching the VB.NET DataTable.CaseSensitive = false (default) behaviour in Candela.
+        private List<Dictionary<string, object>> ScanProductByQuery(int shopId, string q)
+        {
+            const string sql = @"
+SELECT TOP 1
+    pi.Product_Item_ID                           AS product_item_id,
+    CASE WHEN li.isassortmentenabled = 1
+         THEN pd.product_code + '-' + sz.field_code + '-' + cl.field_code
+         ELSE pd.product_code END                AS product_code,
+    pd.item_name,
+    pd.line_item_id,
+    isnull(li.field_name, '')                    AS line_item,
+    isnull(pi.CustomerSKUCode,  '')              AS barcode,
+    isnull(pi.CustomerSKUCode2, '')              AS barcode2,
+    isnull(pi.CustomerSKUCode3, '')              AS barcode3,
+    isnull(pi.CustomerSKUCode4, '')              AS barcode4,
+    isnull(pi.CustomerSKUCode5, '')              AS barcode5,
+    isnull(pp.product_price, 0)                 AS price,
+    isnull(pd.vat, 0)                           AS vat,
+    isnull(pd.vat_type, '')                     AS vat_type,
+    isnull(pd.NotForDiscount, 0)                AS not_for_discount,
+    isnull(pd.Tax_At_Retail_Price, 0)           AS tax_at_retail_price,
+    isnull(pd.Sale_Tax, 0)                      AS sale_tax,
+    isnull(pd.custom_discount, 0)               AS custom_discount,
+    isnull(pd.Basic_Designed, 1)                AS basic_designed,
+    isnull(inv.quantity, 0)                     AS stock_qty,
+    CASE WHEN blk.Block_Product_Id IS NOT NULL THEN 1 ELSE 0 END AS is_blocked_for_sale,
+    CASE WHEN isnull(pd.product_life_type, 0) > 0 THEN 1 ELSE 0 END AS is_control_drug,
+    CASE WHEN EXISTS (
+        SELECT 1 FROM tblDefProductAssembly pa
+        WHERE pa.Product_Item_ID_Assembly = pi.Product_Item_ID
+    ) THEN 1 ELSE 0 END                         AS is_assembly,
+    pd.entereddate,
+    pd.editeddate
+FROM tblProductItem pi
+JOIN tblDefProducts pd      ON pd.product_id       = pi.product_id
+JOIN tblDefSizes sz         ON sz.size_id          = pi.size_id          AND sz.line_item_id  = pd.line_item_id
+JOIN tblDefCombinitions cl  ON cl.combinition_id   = pi.combinition_id   AND cl.line_item_id  = pd.line_item_id
+JOIN tblDefLineItems li     ON li.line_item_id     = pd.line_item_id
+LEFT JOIN tblDefProductPrice pp
+       ON pp.product_item_id = pi.Product_Item_ID
+      AND ((pp.start_date < GETDATE() AND pp.end_date IS NULL)
+        OR  (pp.start_date < GETDATE() AND pp.end_date > GETDATE()))
+LEFT JOIN tblShopProductInventory inv
+       ON inv.product_item_id = pi.Product_Item_ID AND inv.shop_id = @shopId
+LEFT JOIN tblBlockPrdctsForSale blk
+       ON blk.product_item_id = pi.Product_Item_ID AND blk.shopID = @shopId
+WHERE isnull(pd.status, 1) = 1
+  AND (
+    CASE WHEN li.isassortmentenabled = 1
+         THEN pd.product_code + '-' + sz.field_code + '-' + cl.field_code
+         ELSE pd.product_code END = @q
+    OR pi.CustomerSKUCode  = @q
+    OR pi.CustomerSKUCode2 = @q
+    OR pi.CustomerSKUCode3 = @q
+    OR pi.CustomerSKUCode4 = @q
+    OR pi.CustomerSKUCode5 = @q
+  )
+ORDER BY
+    CASE WHEN CASE WHEN li.isassortmentenabled = 1
+                   THEN pd.product_code + '-' + sz.field_code + '-' + cl.field_code
+                   ELSE pd.product_code END = @q THEN 0 ELSE 1 END";
+
+            return Run(sql, p =>
+            {
+                p.AddWithValue("@shopId", shopId);
+                p.AddWithValue("@q", q);
             });
         }
 
