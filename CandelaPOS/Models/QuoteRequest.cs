@@ -28,6 +28,12 @@ namespace CandelaPOS.Models
         // Added to the auto-computed marketing discount before subtracting from net total.
         [JsonProperty("manual_marketing_discount")]
         public double ManualMarketingDiscount { get; set; }
+
+        // When false, the auto-computed marketing discount is zeroed out.
+        // Mirrors the cashier-facing toggle on CheckoutScreen (Gap 6).
+        // Defaults to true so existing calls (no field sent) preserve current behaviour.
+        [JsonProperty("apply_market_discount")]
+        public bool ApplyMarketDiscount { get; set; } = true;
     }
 
     public class QuoteItem

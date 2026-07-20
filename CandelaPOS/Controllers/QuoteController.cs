@@ -456,8 +456,10 @@ namespace CandelaPOS.Controllers
                 // frmSaleAndReturn.vb:12596/12738: txtGrossTotal = sum of grid [GrossTotal] column
                 // = sum((Rate-UnitDisc)*Qty) = absoluteTotal, not sum(Rate*Qty).
                 bool   isApplicableOnAll = false;
-                double mktDisc = SaleAndReturnDAL.GetMarketingDiscountValue(
-                    shopId, now, absoluteTotal - preTotalCustDisc, ref isApplicableOnAll);
+                double mktDisc = req.ApplyMarketDiscount
+                    ? SaleAndReturnDAL.GetMarketingDiscountValue(
+                          shopId, now, absoluteTotal - preTotalCustDisc, ref isApplicableOnAll)
+                    : 0;
 
                 // Gap 1: when mkt_applicable_for="Selected", discount applies only to specific SKUs.
                 // Get the matching discount_id and its eligible product_item_ids.
