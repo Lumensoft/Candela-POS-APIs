@@ -250,12 +250,12 @@ namespace CandelaPOS.Controllers
                         {
                             runningCouponTotal += couponLineTotal;
                             unitDisc     = couponDiscUnit;
-                            custDiscUnit = 0;
                             discCategory = "C";
                             isCouponLine = true;
                         }
                     }
-                    else
+
+                    if (!isCouponLine)
                     {
                         // ── Bug A fix: "Customer" priority — zero SKU disc when customer has line discounts ──
                         // DiscountPriority="Customer" → blnBlockUnitDiscOnCustDisc=True.
@@ -326,83 +326,77 @@ namespace CandelaPOS.Controllers
                             }
                         }
 
-                        // ── Loyalty cash discount or member-type customer disc ──────────────────────────────
-                        if (useLoyaltyCashDisc)
+                        // OverrideUnitDiscount: cashier manual discount from ItemDetailModal (Discount tab).
+                        // Applied HERE — before customer/loyalty disc computation — so unitDisc reflects
+                        // the effective discount when the blocking check (blockCustDiscOnUnitDisc) runs,
+                        // and the customer disc base (unitRate - unitDisc) uses the overridden value.
+                        // This mirrors Candela's UpdateItemCalculations where the cashier-entered U.Dist
+                        // is set on the grid line before GetCustomerDiscountValue is called.
+                        if (item.OverrideUnitDiscount.HasValue)
                         {
-                            // Bug D fix: promotional rate flag.
-                            // When a promo SKU discount is present AND neither blocking flag is set, Candela
-                            // reads Cash_Dis_During_Sales / Points_Dis_During_Sales instead of the normal rate.
-                            // frmSaleAndReturn.vb:25888
-                            bool fetchPromoRate = unitDisc > 0 && discountId > 0
-                                                  && !blockCustDiscOnUnitDisc && !blockUnitDiscOnCustDisc;
-
-                            // Bug B + C fix: ReadCashDiscountPer for cash amount (not ReadLoyalityPointsPercentage),
-                            // keyed by p.LineItemId (department), not product_item_id.
-                            // Bug I fix: pass custShopId (customer's registered shop), not POS shopId.
-                            // frmSaleAndReturn.vb:25889; DAL:12655 — reads Cash_Discount / Cash_Dis_During_Sales.
-                            double cashDiscPct = (double)ReadCashDiscountPer(
-                                req.CustomerId, custShopId, p.LineItemId, fetchPromoRate);
-
-                            // Bug C fix: points% also uses LineItemId (department).
-                            // Bug I fix: custShopId here too — same group-policy join path. DAL:12749.
-                            // loyaltyPct is stored on ItemState for the earned-points formula in Pass 3.
-                            loyaltyPct = (double)ReadLoyalityPointsPercentage(
-                                req.CustomerId, custShopId, p.LineItemId, fetchPromoRate);
-
-                            // Blocking: DiscountPriority="Product" AND a unit disc is active → cash disc = 0.
-                            // Also: cashDiscPct=0 → no cash disc (same as Candela's dblCustomerDiscountAmt=0 check).
-                            // NotForDiscount: frmSaleAndReturn.vb:25859-25863 — dblCustomUnitDiscount forced to 0.
-                            // frmSaleAndReturn.vb:25933–25934
-                            if (cashDiscPct > 0 && !(blockCustDiscOnUnitDisc && unitDisc > 0)
-                                && p.NotForDiscount == 0)
-                                loyaltyCashDisc = Math.Round((unitRate - unitDisc) * (cashDiscPct / 100.0),
-                                    amountRound, MidpointRounding.AwayFromZero);
-                            custDiscUnit = loyaltyCashDisc;
+                            unitDisc     = item.OverrideUnitDiscount.Value;
+                            discCategory = "";
+                            discountId   = 0;
                         }
-                        else if ((customerDiscType == "1" || customerDiscType == "3") && empDiscPct > 0
-                                 && p.NotForDiscount == 0)
-                        {
-                            // Employee / qty-limited discount: global % applied to (Rate-UnitDisc).
-                            // frmSaleAndReturn.vb:37350-37368 (CalculateDiscountOnQty)
-                            if (!blockCustDiscOnUnitDisc || unitDisc == 0)
-                                custDiscUnit = Math.Round((unitRate - unitDisc) * (empDiscPct / 100.0), amountRound,
-                                    MidpointRounding.AwayFromZero);
-                        }
-                        else if (p.NotForDiscount == 0
-                                 // Bug F fix: multiItemDiscMap is keyed by lineItemId (department), not productItemId.
-                                 // tblDefMemberTypes.comments stores "lineItemId,pct|..." pairs. frmSaleAndReturn.vb:13432.
-                                 && multiItemDiscMap.TryGetValue(p.LineItemId, out double itemDiscPct))
-                        {
-                            // Per-item customer discount (Multiple_Customer_Disc=True).
-                            // Rounding: Candela line 13491 hardcodes 4 decimal places (not gintAmountRound).
-                            // frmSaleAndReturn.vb:13425-13430, 13447/13491.
-                            if (!blockCustDiscOnUnitDisc || unitDisc == 0)
-                                custDiscUnit = Math.Round((unitRate - unitDisc) * (itemDiscPct / 100.0), 4,
-                                    MidpointRounding.AwayFromZero);
-                        }
-                        else if (!isMultipleCustDisc && custDiscPct > 0 && p.NotForDiscount == 0)
-                        {
-                            // Flat customer type discount — Multiple_Customer_Disc=False path.
-                            // GetLineItemDiscount() cross-joins ALL departments with the same discount_percentage:
-                            //   SELECT Line_Item_ID, @Disc FROM tbldeflineitems  (CustomerTypeDAL.vb:1644)
-                            // Every product in every department effectively receives custDiscPct.
-                            // Rounding: same hardcoded 4 as the True-branch above (line 13491).
-                            if (!blockCustDiscOnUnitDisc || unitDisc == 0)
-                                custDiscUnit = Math.Round((unitRate - unitDisc) * (custDiscPct / 100.0), 4,
-                                    MidpointRounding.AwayFromZero);
-                    }
                     }
 
-                    // OverrideUnitDiscount: cashier manual discount from ItemDetailModal (Discount tab).
-                    // Replaces the auto-computed SKU/promotional unitDisc when set, but never
-                    // overrides a coupon line — coupon takes absolute priority (isCouponLine=true).
-                    // Mirrors manual grid-column edit behaviour: customer/loyalty discounts
-                    // (custDiscUnit) are still computed on top using the already-set unitDisc.
-                    if (!isCouponLine && item.OverrideUnitDiscount.HasValue)
+                    // ── Loyalty cash discount or member-type customer disc ──────────────────────────────
+                    // Runs for ALL items — coupon and non-coupon alike.
+                    // For coupon lines: base = (unitRate - couponDisc); blockCustDiscOnUnitDisc is
+                    // bypassed because the coupon is not a product-priority discount — the customer
+                    // receives their discount on the post-coupon effective price.
+                    // frmSaleAndReturn.vb:16668-16674 (CheckCouponStatus intent).
+                    if (useLoyaltyCashDisc)
                     {
-                        unitDisc     = item.OverrideUnitDiscount.Value;
-                        discCategory = "";   // clear promo category — this is a cashier override
-                        discountId   = 0;
+                        // Bug D fix: promotional rate flag — only meaningful for non-coupon SKU discounts.
+                        bool fetchPromoRate = !isCouponLine && unitDisc > 0 && discountId > 0
+                                              && !blockCustDiscOnUnitDisc && !blockUnitDiscOnCustDisc;
+
+                        // Bug B + C fix: ReadCashDiscountPer keyed by p.LineItemId (department).
+                        // Bug I fix: custShopId (customer's registered shop), not POS shopId.
+                        // frmSaleAndReturn.vb:25889; DAL:12655.
+                        double cashDiscPct = (double)ReadCashDiscountPer(
+                            req.CustomerId, custShopId, p.LineItemId, fetchPromoRate);
+
+                        // Bug C + I fix: same keys for points%. DAL:12749.
+                        loyaltyPct = (double)ReadLoyalityPointsPercentage(
+                            req.CustomerId, custShopId, p.LineItemId, fetchPromoRate);
+
+                        // Blocking: DiscountPriority="Product" AND a non-coupon unit disc is active → skip.
+                        // NotForDiscount: frmSaleAndReturn.vb:25859-25863.
+                        // frmSaleAndReturn.vb:25933–25934
+                        if (cashDiscPct > 0 && !(blockCustDiscOnUnitDisc && !isCouponLine && unitDisc > 0)
+                            && p.NotForDiscount == 0)
+                            loyaltyCashDisc = Math.Round((unitRate - unitDisc) * (cashDiscPct / 100.0),
+                                amountRound, MidpointRounding.AwayFromZero);
+                        custDiscUnit = loyaltyCashDisc;
+                    }
+                    else if ((customerDiscType == "1" || customerDiscType == "3") && empDiscPct > 0
+                             && p.NotForDiscount == 0)
+                    {
+                        // Employee / qty-limited discount. frmSaleAndReturn.vb:37350-37368.
+                        // isCouponLine bypasses blockCustDiscOnUnitDisc — coupon is not a product disc.
+                        if (isCouponLine || !blockCustDiscOnUnitDisc || unitDisc == 0)
+                            custDiscUnit = Math.Round((unitRate - unitDisc) * (empDiscPct / 100.0), amountRound,
+                                MidpointRounding.AwayFromZero);
+                    }
+                    else if (p.NotForDiscount == 0
+                             // Bug F fix: multiItemDiscMap keyed by lineItemId. frmSaleAndReturn.vb:13432.
+                             && multiItemDiscMap.TryGetValue(p.LineItemId, out double itemDiscPct))
+                    {
+                        // Per-item customer discount (Multiple_Customer_Disc=True).
+                        // Rounding: hardcoded 4 places. frmSaleAndReturn.vb:13491.
+                        if (isCouponLine || !blockCustDiscOnUnitDisc || unitDisc == 0)
+                            custDiscUnit = Math.Round((unitRate - unitDisc) * (itemDiscPct / 100.0), 4,
+                                MidpointRounding.AwayFromZero);
+                    }
+                    else if (!isMultipleCustDisc && custDiscPct > 0 && p.NotForDiscount == 0)
+                    {
+                        // Flat customer type discount (Multiple_Customer_Disc=False).
+                        // Rounding: hardcoded 4. frmSaleAndReturn.vb:13491.
+                        if (isCouponLine || !blockCustDiscOnUnitDisc || unitDisc == 0)
+                            custDiscUnit = Math.Round((unitRate - unitDisc) * (custDiscPct / 100.0), 4,
+                                MidpointRounding.AwayFromZero);
                     }
 
                     states.Add(new ItemState
@@ -456,10 +450,8 @@ namespace CandelaPOS.Controllers
                 // frmSaleAndReturn.vb:12596/12738: txtGrossTotal = sum of grid [GrossTotal] column
                 // = sum((Rate-UnitDisc)*Qty) = absoluteTotal, not sum(Rate*Qty).
                 bool   isApplicableOnAll = false;
-                double mktDisc = req.ApplyMarketDiscount
-                    ? SaleAndReturnDAL.GetMarketingDiscountValue(
-                          shopId, now, absoluteTotal - preTotalCustDisc, ref isApplicableOnAll)
-                    : 0;
+                double mktDisc = SaleAndReturnDAL.GetMarketingDiscountValue(
+                    shopId, now, absoluteTotal - preTotalCustDisc, ref isApplicableOnAll);
 
                 // Gap 1: when mkt_applicable_for="Selected", discount applies only to specific SKUs.
                 // Get the matching discount_id and its eligible product_item_ids.
@@ -746,6 +738,32 @@ namespace CandelaPOS.Controllers
                     }
                 }
             }
+
+            // N-type: same-product Buy-N-Get-1-Free (discCategory="N", discType=9).
+            // QtyOfX = threshold from discount_duration (e.g. 2 = "buy 2, get 1 free").
+            // Group size = threshold + 1; freeQty = floor(totalQty / groupSize).
+            // The free item's value is spread evenly as a per-unit discount:
+            //   unitDisc = (freeQty × unitRate) / totalQty
+            // Verified against Candela: qty=5, threshold=2 → freeQty=1, unitDisc=1638.75/5=327.75
+            var nGroups = states
+                .Where(s => s.DiscCategory == "N" && s.DiscountId != 0
+                            && s.Product.NotForDiscount == 0)
+                .GroupBy(s => s.DiscountId);
+
+            foreach (var grp in nGroups)
+            {
+                var    items     = grp.ToList();
+                double totalQty  = items.Sum(s => s.Item.Quantity);
+                int    threshold = items.First().QtyOfX;
+
+                if (threshold <= 0) continue;
+
+                double freeQty = Math.Floor(totalQty / (threshold + 1));
+                if (freeQty <= 0) continue;
+
+                foreach (var s in items)
+                    s.UnitDisc = (freeQty * s.UnitRate) / totalQty;
+            }
         }
 
         // ── Coupon helpers ────────────────────────────────────────────────────────────
@@ -869,7 +887,7 @@ ORDER BY pp.product_price_id DESC";
                         Vat              = Safe(r["vat"]),
                         VatType          = r["vat_type"].ToString(),
                         TaxAtRetailPrice = Safe(r["tax_at_retail_price"]) == 1,
-                        NotForDiscount   = (int)Safe(r["not_for_discount"]),
+                        NotForDiscount   = r["not_for_discount"] == DBNull.Value ? 0 : Convert.ToInt32(r["not_for_discount"]),
                         LineItemId       = (int)Safe(r["line_item_id"])
                     };
                 }
