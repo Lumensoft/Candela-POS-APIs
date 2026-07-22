@@ -709,8 +709,9 @@ ORDER BY sli.sale_line_item_id", con);
 
                     // E5: AutoRounding — bypass AdjustmentLimit and ShowAdjustmentReason when AutoRounding is
                     // configured (Candela auto-fills txtAdjustment without supervisor approval — vb:13374).
-                    bool autoRoundingActive = !string.IsNullOrWhiteSpace(
-                        bCfg.TryGetValue("AutoRounding", out var autoRndVal) ? autoRndVal : "");
+                    bCfg.TryGetValue("AutoRounding", out var autoRndVal);
+                    bool autoRoundingActive = !string.IsNullOrWhiteSpace(autoRndVal)
+                        && !autoRndVal.Equals("None", StringComparison.OrdinalIgnoreCase);
 
                     // B3: AdjustmentLimit / AdjustmentLimitType — frmSaleAndReturn.vb:15885-15907
                     if (req.AdjustmentAmount != 0 && !autoRoundingActive)
