@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
 using System.Data.SqlClient;
+using System.Web;
 using DAL;
 using static Utility.Utility;
 
@@ -12,22 +13,18 @@ namespace CandelaPOS.Infrastructure
     /// Loads Candela globals that DAL methods read at call time.
     /// Call Initialize() once at Application_Start; call PrepareRequest()
     /// before any DAL call within a request.
+    /// Config is read fresh from tblRCMSConfiguration on every request (once per request,
+    /// cached in HttpContext.Items) so DB changes take effect immediately with no restart.
     /// </summary>
     public static class CandelaBootstrap
     {
-        private static volatile DataTable _configCache;
-        private static readonly object _lock = new object();
-        private static System.Threading.Timer _configRefreshTimer;
+        private const string RequestCfgKey = "_rcmsDt";
 
         public static string ConnectionString =>
             ConfigurationManager.ConnectionStrings["CON_STR"].ConnectionString;
 
         public static void Initialize()
         {
-            LoadConfigCache();
-            // Stored in a static field so the GC does not collect it.
-            _configRefreshTimer = new System.Threading.Timer(_ => RefreshConfigCache(), null,
-                TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
             try { EnsureSchema(); }
             catch (Exception ex)
             {
@@ -70,39 +67,19 @@ CREATE TABLE tblPOSIdempotency (
         public static void PrepareRequest()
         {
             SQLHelper.CON_STR = ConnectionString;
-
-            var cache = _configCache;
-            if (cache == null)
-            {
-                LoadConfigCache();
-                cache = _configCache;
-            }
-
-            gObjMyAppHashTable[EnumHashTableKeyConstants.GetSystemConfigurationList.ToString()] = cache;
+            gObjMyAppHashTable[EnumHashTableKeyConstants.GetSystemConfigurationList.ToString()] = GetConfigDataTable();
         }
 
         /// <summary>
-        /// Reloads tblRCMSConfiguration into the static cache.
-        /// Safe to call periodically; uses a lock to avoid concurrent reloads.
+        /// Returns tblRCMSConfiguration as a key/value dictionary.
+        /// Reads from DB once per request; subsequent calls within the same request
+        /// return the per-request cached copy from HttpContext.Items.
         /// </summary>
-        public static void RefreshConfigCache()
-        {
-            lock (_lock)
-            {
-                LoadConfigCache();
-            }
-        }
-
         public static Dictionary<string, string> GetRCMSConfig()
         {
-            var cache = _configCache;
-            if (cache == null)
-            {
-                LoadConfigCache();
-                cache = _configCache;
-            }
-            var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (DataRow row in cache.Rows)
+            var dt = GetConfigDataTable();
+            var d  = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (DataRow row in dt.Rows)
             {
                 var name  = row["Configuration Name"]?.ToString();
                 var value = row["Configuration Value"]?.ToString() ?? "";
@@ -111,7 +88,22 @@ CREATE TABLE tblPOSIdempotency (
             return d;
         }
 
-        private static void LoadConfigCache()
+        // Returns config DataTable for the current request.
+        // Loaded from DB on first call; subsequent calls within the same request reuse
+        // the copy stored in HttpContext.Items — one DB read per request, never stale.
+        private static DataTable GetConfigDataTable()
+        {
+            var ctx = HttpContext.Current;
+            if (ctx?.Items[RequestCfgKey] is DataTable cached)
+                return cached;
+
+            var dt = LoadConfigFromDb();
+            if (ctx != null)
+                ctx.Items[RequestCfgKey] = dt;
+            return dt;
+        }
+
+        private static DataTable LoadConfigFromDb()
         {
             var dt = new DataTable(EnumHashTableKeyConstants.GetSystemConfigurationList.ToString());
             using (var da = new SqlDataAdapter(
@@ -123,7 +115,7 @@ CREATE TABLE tblPOSIdempotency (
             {
                 da.Fill(dt);
             }
-            _configCache = dt;
+            return dt;
         }
     }
 }
