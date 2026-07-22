@@ -255,6 +255,38 @@ namespace CandelaPOS.Controllers
                         }
                     }
 
+                    // For coupon lines, GetSKUDiscountValue is skipped below, so DiscCategory and
+                    // DiscountId are never set. If this item is an X participant in a Buy-X-Get-Y
+                    // discount, ApplyXYDiscounts won't count it toward Y entitlement — Y items
+                    // stay full-price even though the X qty threshold is met.
+                    // Fix: probe the SKU discount purely to detect X/Y membership; unitDisc stays
+                    // as couponDiscUnit (coupon always wins over the SKU disc for the X item itself).
+                    if (isCouponLine && p.NotForDiscount == 0)
+                    {
+                        int    tmpDiscId   = 0;
+                        int    tmpQtyOfX   = 0;
+                        bool   tmpIsXY     = false;
+                        int    tmpDiscType = 0;
+                        double tmpTotalQty = productQtyMap.TryGetValue(item.ProductItemId, out double tpq)
+                            ? tpq : item.Quantity;
+                        GetSKUDiscountValue(
+                            shopId, item.ProductItemId, now,
+                            unitRate, item.Quantity, ref tmpDiscId,
+                            req.CutPiece, isLoyaltyOn, customerMemberTypeId,
+                            ref tmpQtyOfX, ref tmpIsXY,
+                            item.PackSize > 0, item.PackSize, ref tmpDiscType,
+                            tmpTotalQty, false, false);
+                        if (tmpIsXY)
+                        {
+                            discountId   = tmpDiscId;
+                            qtyOfX       = tmpQtyOfX;
+                            isBuyXGetY   = true;
+                            discType     = tmpDiscType;
+                            discCategory = tmpQtyOfX > 0 ? "X" : "Y";
+                            // unitDisc intentionally kept as couponDiscUnit
+                        }
+                    }
+
                     if (!isCouponLine)
                     {
                         // ── Bug A fix: "Customer" priority — zero SKU disc when customer has line discounts ──
@@ -421,9 +453,21 @@ namespace CandelaPOS.Controllers
                 }
 
                 // ── Pass 2: Buy-X-Get-Y cross-item discount ───────────────────────────
-                // (only runs when no coupon — coupon has already overridden unit disc)
-                if (coupon == null)
-                    ApplyXYDiscounts(states);
+                // Always runs — coupon and X/Y apply to different items independently.
+                // Y items strip their coupon-line flag inside ApplyXYDiscounts so the
+                // coupon applies only to X items (paid), never to Y (free) items.
+                ApplyXYDiscounts(states);
+
+                // Re-block pass: ApplyXYDiscounts sets UnitDisc > 0 on N/Y items AFTER
+                // Pass 1 computed CustDiscUnit with unitDisc=0. Re-zero customer disc on
+                // any X/Y/N item where DiscountPriority=Product should block it.
+                if (blockCustDiscOnUnitDisc)
+                    foreach (var s in states)
+                        if (s.IsBuyXGetY && s.UnitDisc > 0)
+                        {
+                            s.CustDiscUnit    = 0;
+                            s.LoyaltyCashDisc = 0;
+                        }
 
                 // Fail fast if coupon was valid but none of the cart items matched it.
                 if (coupon != null && !states.Any(s => s.IsCouponLine))
@@ -728,14 +772,16 @@ namespace CandelaPOS.Controllers
 
                     if (qty <= qtyForDiscount - counter)
                     {
-                        y.UnitDisc = perOfY * y.UnitRate / 100.0;
-                        counter   += qty;
+                        y.UnitDisc     = perOfY * y.UnitRate / 100.0;
+                        y.IsCouponLine = false;
+                        counter       += qty;
                     }
                     else
                     {
                         double eligibleQty = qtyForDiscount - counter;
-                        y.UnitDisc = (perOfY * y.UnitRate * eligibleQty) / 100.0 / qty;
-                        counter   += eligibleQty;
+                        y.UnitDisc     = (perOfY * y.UnitRate * eligibleQty) / 100.0 / qty;
+                        y.IsCouponLine = false;
+                        counter       += eligibleQty;
                     }
                 }
             }

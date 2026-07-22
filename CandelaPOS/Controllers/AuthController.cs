@@ -36,6 +36,8 @@ namespace CandelaPOS.Controllers
                 string shopName            = "";
                 bool   allowDiscEditing    = false;
                 bool   allowPriceEditing   = false;
+                bool   canAdjust           = false;
+                bool   isOpenAdjust        = false;
 
                 using (var con = new SqlConnection(conStr))
                 {
@@ -45,7 +47,9 @@ namespace CandelaPOS.Controllers
                     const string credSql =
                         "SELECT b.user_id, b.User_log_password, b.User_name," +
                         " isnull(b.AllowPOSDiscountEditing,0) AS AllowPOSDiscountEditing," +
-                        " isnull(b.AllowPOSPriceEditing,0)    AS AllowPOSPriceEditing" +
+                        " isnull(b.AllowPOSPriceEditing,0)    AS AllowPOSPriceEditing," +
+                        " isnull(b.ApplyAdjustment,0)         AS ApplyAdjustment," +
+                        " isnull(b.ApplyOpenAdjustment,0)     AS ApplyOpenAdjustment" +
                         " FROM tblSecurityGroup a" +
                         " INNER JOIN TblSecurityUser b ON a.GROUP_ID = b.GROUP_ID" +
                         " WHERE b.user_log_id = @uid" +
@@ -76,6 +80,9 @@ namespace CandelaPOS.Controllers
                         userName          = reader["User_name"].ToString();
                         allowDiscEditing  = Convert.ToBoolean(reader["AllowPOSDiscountEditing"]);
                         allowPriceEditing = Convert.ToBoolean(reader["AllowPOSPriceEditing"]);
+                        canAdjust         = Convert.ToBoolean(reader["ApplyAdjustment"]) ||
+                                            Convert.ToBoolean(reader["ApplyOpenAdjustment"]);
+                        isOpenAdjust      = Convert.ToBoolean(reader["ApplyOpenAdjustment"]);
                     }
 
                     // Step 2a — check if this device is already registered in tblComputerList
@@ -147,6 +154,8 @@ namespace CandelaPOS.Controllers
                         PosCode              = posCode,
                         AllowDiscountEditing = allowDiscEditing,
                         AllowPriceEditing    = allowPriceEditing,
+                        CanAdjust            = canAdjust,
+                        IsOpenAdjust         = isOpenAdjust,
                     }));
             }
             catch (Exception)
