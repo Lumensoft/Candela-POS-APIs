@@ -288,24 +288,15 @@ namespace CandelaPOS.Controllers
         }
 
         // GET api/auth/adjustment-rights
-        // Returns whether the current user may apply a manual invoice adjustment,
-        // based on AdjustmentLimit config and frmSaleAndReturn control rights.
+        // Returns whether the current user may apply a manual invoice adjustment.
+        // Config gate (AdjustmentLimit > 0) is checked by the frontend from IndexedDB
+        // before calling this endpoint — this endpoint is purely about per-user rights.
         [HttpGet, Route("adjustment-rights")]
         public HttpResponseMessage AdjustmentRights()
         {
             try
             {
                 int userId = (int)Request.Properties["user_id"];
-
-                var cfg = CandelaBootstrap.GetRCMSConfig();
-                string adjLimitStr;
-                double adjLimit = 0;
-                if (cfg.TryGetValue("AdjustmentLimit", out adjLimitStr))
-                    double.TryParse(adjLimitStr, out adjLimit);
-
-                if (adjLimit <= 0)
-                    return Request.CreateResponse(HttpStatusCode.OK,
-                        ApiResponse<object>.Ok(new { can_adjust = false, is_open = false }));
 
                 // ApplyAdjustment / ApplyOpenAdjustment are bit columns on TblSecurityUser
                 // (per-user flags, not group control rights) — frmSaleAndReturn.vb:3126
