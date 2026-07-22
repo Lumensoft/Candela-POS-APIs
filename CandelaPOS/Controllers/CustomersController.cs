@@ -56,16 +56,27 @@ namespace CandelaPOS.Controllers
 
                     string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
+                    // Parse optional date fields — default start_date to today,
+                    // expiry_date to Dec 31 of the current year (matches Candela behaviour).
+                    DateTime startDate  = DateTime.TryParse(req.StartDate,  out DateTime sd)
+                        ? sd : DateTime.Today;
+                    DateTime expiryDate = DateTime.TryParse(req.ExpiryDate, out DateTime ed)
+                        ? ed : new DateTime(DateTime.Today.Year, 12, 31);
+                    DateTime openingDate = DateTime.TryParse(req.OpeningDate, out DateTime od)
+                        ? od : DateTime.Today;
+
                     var ins = new SqlCommand(@"
 INSERT INTO tblMemberInfo
     (member_id, shop_id, member_no, member_name, member_type_id,
      phone_mobile, phone_Res, email, cust_Address,
      allow_credit, credit_limit, card_duplicate_no,
+     group_id, start_date, expiry_date,
      status, EnteredDate, EditedDate, enteredby)
 VALUES
     (@mid, @sid, @mno, @nm, @mtid,
      @pm, @pr, @em, @addr,
      @ac, @cl, 0,
+     @gid, @sd, @ed,
      'Activate', @now, @now, @uid)",
                         con, trans);
 
@@ -74,15 +85,36 @@ VALUES
                     ins.Parameters.AddWithValue("@mno",  memberNo);
                     ins.Parameters.AddWithValue("@nm",   req.MemberName.Trim());
                     ins.Parameters.AddWithValue("@mtid", req.MemberTypeId);
-                    ins.Parameters.AddWithValue("@pm",   (object)req.PhoneMobile  ?? DBNull.Value);
-                    ins.Parameters.AddWithValue("@pr",   (object)req.PhoneRes     ?? DBNull.Value);
-                    ins.Parameters.AddWithValue("@em",   (object)req.Email        ?? DBNull.Value);
-                    ins.Parameters.AddWithValue("@addr", (object)req.Address      ?? DBNull.Value);
+                    ins.Parameters.AddWithValue("@pm",   (object)req.PhoneMobile ?? DBNull.Value);
+                    ins.Parameters.AddWithValue("@pr",   (object)req.PhoneRes    ?? DBNull.Value);
+                    ins.Parameters.AddWithValue("@em",   (object)req.Email       ?? DBNull.Value);
+                    ins.Parameters.AddWithValue("@addr", (object)req.Address     ?? DBNull.Value);
                     ins.Parameters.AddWithValue("@ac",   req.AllowCredit ? 1 : 0);
                     ins.Parameters.AddWithValue("@cl",   req.CreditLimit);
+                    ins.Parameters.AddWithValue("@gid",  req.GroupId.HasValue ? (object)req.GroupId.Value : DBNull.Value);
+                    ins.Parameters.AddWithValue("@sd",   startDate.ToString("yyyy-MM-dd"));
+                    ins.Parameters.AddWithValue("@ed",   expiryDate.ToString("yyyy-MM-dd"));
                     ins.Parameters.AddWithValue("@now",  now);
                     ins.Parameters.AddWithValue("@uid",  userId);
                     ins.ExecuteNonQuery();
+
+                    // Opening balance — stored as a seed row in tblMemberClosing
+                    // (same pattern as CustomerDAL.vb:1110). Only inserted when
+                    // allow_credit is ON and the cashier entered a non-zero balance.
+                    if (req.AllowCredit && req.OpeningBalance > 0)
+                    {
+                        string clsDate = openingDate.ToString("yyyy-MM-dd HH:mm:ss");
+                        var clsCmd = new SqlCommand(
+                            "INSERT INTO tblMemberClosing " +
+                            "(member_id, shop_id, closing_date, closing_balance, transcation_time) " +
+                            "VALUES (@mid, @sid, @cd, @bal, @cd)",
+                            con, trans);
+                        clsCmd.Parameters.AddWithValue("@mid", memberId);
+                        clsCmd.Parameters.AddWithValue("@sid", shopId);
+                        clsCmd.Parameters.AddWithValue("@cd",  clsDate);
+                        clsCmd.Parameters.AddWithValue("@bal", req.OpeningBalance);
+                        clsCmd.ExecuteNonQuery();
+                    }
 
                     trans.Commit();
 
@@ -158,13 +190,18 @@ VALUES
 
     public class CreateCustomerRequest
     {
-        public string  MemberName   { get; set; }
-        public int     MemberTypeId { get; set; }
-        public string  PhoneMobile  { get; set; }
-        public string  PhoneRes     { get; set; }
-        public string  Email        { get; set; }
-        public string  Address      { get; set; }
-        public bool    AllowCredit  { get; set; }
-        public decimal CreditLimit  { get; set; }
+        public string  MemberName      { get; set; }
+        public int     MemberTypeId    { get; set; }
+        public string  PhoneMobile     { get; set; }
+        public string  PhoneRes        { get; set; }
+        public string  Email           { get; set; }
+        public string  Address         { get; set; }
+        public bool    AllowCredit     { get; set; }
+        public decimal CreditLimit     { get; set; }
+        public int?    GroupId         { get; set; }
+        public string  StartDate       { get; set; }
+        public string  ExpiryDate      { get; set; }
+        public decimal OpeningBalance  { get; set; }
+        public string  OpeningDate     { get; set; }
     }
 }

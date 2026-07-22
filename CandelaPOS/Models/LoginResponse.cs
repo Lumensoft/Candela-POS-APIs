@@ -27,5 +27,11 @@ namespace CandelaPOS.Models
 
         [JsonProperty("allow_price_editing")]
         public bool AllowPriceEditing { get; set; }
+
+        [JsonProperty("can_adjust")]
+        public bool CanAdjust { get; set; }
+
+        [JsonProperty("is_open_adjust")]
+        public bool IsOpenAdjust { get; set; }
     }
 }

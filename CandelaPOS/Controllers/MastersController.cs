@@ -132,6 +132,22 @@ namespace CandelaPOS.Controllers
             catch (Exception ex) { return Err(ex); }
         }
 
+        // ── /masters/customer-groups ──────────────────────────────────────────────
+        // GET api/masters/customer-groups
+        // Returns all rows from tblDefMembershipGroups for the Add Customer dropdown.
+        // Synced to IndexedDB on login (full replace — table has no reliable timestamp).
+        [HttpGet, Route("customer-groups")]
+        public HttpResponseMessage GetCustomerGroups()
+        {
+            CandelaBootstrap.PrepareRequest();
+            try
+            {
+                var rows = QueryCustomerGroups();
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
         // ── /masters/payment-methods ──────────────────────────────────────────────
         // Returns enabled mobile payment providers from tblRCMSConfiguration.
         // No delta — config is returned in full. App hides mobile tab when list is empty.
@@ -563,6 +579,22 @@ FROM tblDefCreditCards";
             const string delta = " WHERE EnteredDate >= @since";
             return Run(sql + (since.HasValue ? delta : "") + " ORDER BY sort_order",
                 p => { if (since.HasValue) p.AddWithValue("@since", since.Value); });
+        }
+
+        private List<Dictionary<string, object>> QueryCustomerGroups()
+        {
+            // tblDefMembershipGroups — customer group master (Group dropdown in customer form).
+            // No timestamp column — always return full set (table is small).
+            const string sql = @"
+SELECT
+    group_id,
+    isnull(field_name,  '')  AS group_name,
+    isnull(field_code,  '')  AS group_code,
+    isnull(sort_order,  0)   AS sort_order,
+    isnull(group_discount, 0) AS group_discount
+FROM tblDefMembershipGroups
+ORDER BY sort_order, field_name";
+            return Run(sql, _ => { });
         }
 
         private List<Dictionary<string, object>> QueryMemberTypes(DateTime? since)
