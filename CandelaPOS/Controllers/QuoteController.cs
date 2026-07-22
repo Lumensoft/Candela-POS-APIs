@@ -342,14 +342,16 @@ namespace CandelaPOS.Controllers
 
                     // ── Loyalty cash discount or member-type customer disc ──────────────────────────────
                     // Runs for ALL items — coupon and non-coupon alike.
-                    // For coupon lines: base = (unitRate - couponDisc); blockCustDiscOnUnitDisc is
-                    // bypassed because the coupon is not a product-priority discount — the customer
-                    // receives their discount on the post-coupon effective price.
-                    // frmSaleAndReturn.vb:16668-16674 (CheckCouponStatus intent).
+                    // Coupon disc sets unitDisc = couponDiscUnit, so DiscountPriority blocking applies
+                    // identically to a regular unit discount: if blockCustDiscOnUnitDisc=true and
+                    // unitDisc > 0, customer disc is blocked on the coupon line — same as Candela.
+                    // Cap-exhausted items (isCouponLine=false) fall through from the coupon block above
+                    // and reach here with unitDisc=0, so blocking does not fire for them.
                     if (useLoyaltyCashDisc)
                     {
-                        // Bug D fix: promotional rate flag — only meaningful for non-coupon SKU discounts.
-                        bool fetchPromoRate = !isCouponLine && unitDisc > 0 && discountId > 0
+                        // Bug D fix: promotional rate flag.
+                        // frmSaleAndReturn.vb:25888
+                        bool fetchPromoRate = unitDisc > 0 && discountId > 0
                                               && !blockCustDiscOnUnitDisc && !blockUnitDiscOnCustDisc;
 
                         // Bug B + C fix: ReadCashDiscountPer keyed by p.LineItemId (department).
@@ -362,10 +364,10 @@ namespace CandelaPOS.Controllers
                         loyaltyPct = (double)ReadLoyalityPointsPercentage(
                             req.CustomerId, custShopId, p.LineItemId, fetchPromoRate);
 
-                        // Blocking: DiscountPriority="Product" AND a non-coupon unit disc is active → skip.
+                        // Blocking: DiscountPriority="Product" AND unitDisc > 0 → skip cash disc.
                         // NotForDiscount: frmSaleAndReturn.vb:25859-25863.
                         // frmSaleAndReturn.vb:25933–25934
-                        if (cashDiscPct > 0 && !(blockCustDiscOnUnitDisc && !isCouponLine && unitDisc > 0)
+                        if (cashDiscPct > 0 && !(blockCustDiscOnUnitDisc && unitDisc > 0)
                             && p.NotForDiscount == 0)
                             loyaltyCashDisc = Math.Round((unitRate - unitDisc) * (cashDiscPct / 100.0),
                                 amountRound, MidpointRounding.AwayFromZero);
@@ -375,8 +377,7 @@ namespace CandelaPOS.Controllers
                              && p.NotForDiscount == 0)
                     {
                         // Employee / qty-limited discount. frmSaleAndReturn.vb:37350-37368.
-                        // isCouponLine bypasses blockCustDiscOnUnitDisc — coupon is not a product disc.
-                        if (isCouponLine || !blockCustDiscOnUnitDisc || unitDisc == 0)
+                        if (!blockCustDiscOnUnitDisc || unitDisc == 0)
                             custDiscUnit = Math.Round((unitRate - unitDisc) * (empDiscPct / 100.0), amountRound,
                                 MidpointRounding.AwayFromZero);
                     }
@@ -386,7 +387,7 @@ namespace CandelaPOS.Controllers
                     {
                         // Per-item customer discount (Multiple_Customer_Disc=True).
                         // Rounding: hardcoded 4 places. frmSaleAndReturn.vb:13491.
-                        if (isCouponLine || !blockCustDiscOnUnitDisc || unitDisc == 0)
+                        if (!blockCustDiscOnUnitDisc || unitDisc == 0)
                             custDiscUnit = Math.Round((unitRate - unitDisc) * (itemDiscPct / 100.0), 4,
                                 MidpointRounding.AwayFromZero);
                     }
@@ -394,7 +395,7 @@ namespace CandelaPOS.Controllers
                     {
                         // Flat customer type discount (Multiple_Customer_Disc=False).
                         // Rounding: hardcoded 4. frmSaleAndReturn.vb:13491.
-                        if (isCouponLine || !blockCustDiscOnUnitDisc || unitDisc == 0)
+                        if (!blockCustDiscOnUnitDisc || unitDisc == 0)
                             custDiscUnit = Math.Round((unitRate - unitDisc) * (custDiscPct / 100.0), 4,
                                 MidpointRounding.AwayFromZero);
                     }

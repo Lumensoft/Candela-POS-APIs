@@ -159,6 +159,11 @@ namespace CandelaPOS.Models
 
         [JsonProperty("is_scanned")]
         public bool IsScanned { get; set; }
+
+        // Set to true on re-submission after the cashier confirmed a below-cost warning.
+        // API skips the below-cost gate but still backfills AvgCost for inventory recording.
+        [JsonProperty("bypass_below_cost_warning")]
+        public bool BypassBelowCostWarning { get; set; }
     }
 
     public class SaleLineItem

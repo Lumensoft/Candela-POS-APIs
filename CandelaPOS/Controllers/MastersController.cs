@@ -333,6 +333,7 @@ SELECT
     isnull(pd.custom_discount, 0)               AS custom_discount,
     isnull(pd.Basic_Designed, 1)                AS basic_designed,
     isnull(inv.quantity, 0)                     AS stock_qty,
+    isnull(pd.IsUserDefine, 0)                  AS is_user_define,
     CASE WHEN blk.Block_Product_Id IS NOT NULL THEN 1 ELSE 0 END AS is_blocked_for_sale,
     CASE WHEN isnull(pd.product_life_type, 0) > 0 THEN 1 ELSE 0 END AS is_control_drug,
     CASE WHEN EXISTS (
@@ -432,6 +433,7 @@ SELECT TOP 1
     isnull(pd.custom_discount, 0)               AS custom_discount,
     isnull(pd.Basic_Designed, 1)                AS basic_designed,
     isnull(inv.quantity, 0)                     AS stock_qty,
+    isnull(pd.IsUserDefine, 0)                  AS is_user_define,
     CASE WHEN blk.Block_Product_Id IS NOT NULL THEN 1 ELSE 0 END AS is_blocked_for_sale,
     CASE WHEN isnull(pd.product_life_type, 0) > 0 THEN 1 ELSE 0 END AS is_control_drug,
     CASE WHEN EXISTS (

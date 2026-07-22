@@ -583,24 +583,6 @@ ORDER BY sli.sale_line_item_id", con);
                             new { error = $"A customer is required for sales above {enforceCI:F2}." });
                     }
 
-                    // A2: chkEnforceCustMob — registered customer must have a mobile on file
-                    // frmSaleAndReturn.vb:759
-                    if (req.CustomerId > 0 && CfgIs(rcmsCfg, "chkEnforceCustMob", "True"))
-                    {
-                        using (var cfgCon = new SqlConnection(CandelaBootstrap.ConnectionString))
-                        {
-                            cfgCon.Open();
-                            var mobCmd = new SqlCommand(
-                                "SELECT isnull(phone_Mobile, '') FROM tblDefMembers WHERE member_id = @mid",
-                                cfgCon);
-                            mobCmd.Parameters.AddWithValue("@mid", req.CustomerId);
-                            var mob = mobCmd.ExecuteScalar()?.ToString() ?? "";
-                            if (string.IsNullOrWhiteSpace(mob))
-                                return Request.CreateResponse((HttpStatusCode)422,
-                                    new { error = "Customer mobile number is required." });
-                        }
-                    }
-
                     // A3: Enforce_Mobile — walk-in sale must have a mobile number
                     // frmSaleAndReturn.vb:2789
                     if (req.CustomerId == 0
@@ -625,59 +607,102 @@ ORDER BY sli.sale_line_item_id", con);
                 {
                     var bCfg = CandelaBootstrap.GetRCMSConfig();
 
-                    // B1/B2: RestrictBelowCostSales / EnablePrdWiseBelowCost
-                    // frmSaleAndReturn.vb:6046-6151
-                    if (CfgIs(bCfg, "RestrictBelowCostSales", "True") && req.Items != null && req.Items.Count > 0)
+                    // B1/B2: RestrictBelowCostSales / BelowCostSales group right / EnablePrdWiseBelowCost
+                    // Candela two-tier logic — frmSaleAndReturn.vb:4996-5006 (group right load), 6046-6196
+                    // config=T + right → hard block; config=T + no right → warning (409); config=F + right → hard block; config=F + no right → skip
                     {
-                        bool prdWise = CfgIs(bCfg, "EnablePrdWiseBelowCost", "True");
-                        var itemIds  = req.Items.Select(i => i.ProductItemId).Distinct().ToList();
-                        var avgCosts   = new Dictionary<int, double>();
-                        var allowBelow = new Dictionary<int, bool>();
+                        bool configRestrict = CfgIs(bCfg, "RestrictBelowCostSales", "True");
 
-                        if (itemIds.Count > 0)
+                        // Query BelowCostSales group right (frmSaleAndReturn.vb:4996-5006)
+                        bool hasBelowCostRight = false;
+                        using (var rightsCon = new SqlConnection(CandelaBootstrap.ConnectionString))
                         {
-                            var paramNames = string.Join(",", Enumerable.Range(0, itemIds.Count).Select(i => "@cid" + i));
-                            using (var costCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                            rightsCon.Open();
+                            var grpCmd = new SqlCommand(
+                                "SELECT TOP 1 group_id FROM TblSecurityUser WHERE user_id = @uid", rightsCon);
+                            grpCmd.Parameters.AddWithValue("@uid", userId);
+                            var grpObj = grpCmd.ExecuteScalar();
+                            if (grpObj != null)
                             {
-                                costCon.Open();
-                                var costCmd = new SqlCommand(
-                                    "SELECT pi.Product_Item_ID, ISNULL(p.Average_cost,0), ISNULL(p.allow_below_cost,0) " +
-                                    "FROM tblProductItem pi JOIN tblDefProducts p ON p.Product_ID = pi.Product_ID " +
-                                    "WHERE pi.Product_Item_ID IN (" + paramNames + ")", costCon);
-                                for (int i = 0; i < itemIds.Count; i++)
-                                    costCmd.Parameters.AddWithValue("@cid" + i, itemIds[i]);
-                                using (var rd = costCmd.ExecuteReader())
-                                {
-                                    while (rd.Read())
-                                    {
-                                        int pid = Convert.ToInt32(rd[0]);
-                                        avgCosts[pid]   = Convert.ToDouble(rd[1]);
-                                        allowBelow[pid] = Convert.ToBoolean(rd[2]);
-                                    }
-                                }
+                                int grpId = Convert.ToInt32(grpObj);
+                                var rightCmd = new SqlCommand(
+                                    "SELECT COUNT(1) FROM tblSecurityControlRight scr " +
+                                    "INNER JOIN tblSecurityFormControl sfc ON sfc.ControlId = scr.ControlId " +
+                                    "INNER JOIN tblSecurityForm sf ON sf.FORM_ID = sfc.FormID " +
+                                    "WHERE scr.GroupId = @gid AND sf.FORM_Name_New = 'frmSaleAndReturn' " +
+                                    "AND sfc.controlName = 'BelowCostSales'", rightsCon);
+                                rightCmd.Parameters.AddWithValue("@gid", grpId);
+                                hasBelowCostRight = Convert.ToInt32(rightCmd.ExecuteScalar()) > 0;
                             }
                         }
 
-                        foreach (var item in req.Items)
-                        {
-                            double avg;
-                            if (!avgCosts.TryGetValue(item.ProductItemId, out avg) || avg <= 0) continue;
-                            if (prdWise && allowBelow.TryGetValue(item.ProductItemId, out bool ab) && ab) continue;
-                            double factor    = item.ConFactor > 1 ? item.ConFactor : 1.0;
-                            double unitPrice = item.UnitRate / factor;
-                            if (unitPrice < avg)
-                                return Request.CreateResponse((HttpStatusCode)422,
-                                    new { error = "One or more items are priced below cost. Selling below average cost is not allowed." });
-                        }
+                        bool shouldCheck = configRestrict || hasBelowCostRight;
 
-                        // Backfill AvgCost on the already-built model lines (DAL uses this for inventory cost recording)
-                        if (sale?.ListOfSaleItems != null)
+                        if (shouldCheck && req.Items != null && req.Items.Count > 0)
                         {
-                            foreach (var ln in sale.ListOfSaleItems)
+                            bool prdWise   = CfgIs(bCfg, "EnablePrdWiseBelowCost", "True");
+                            var itemIds    = req.Items.Select(i => i.ProductItemId).Distinct().ToList();
+                            var avgCosts   = new Dictionary<int, double>();
+                            var allowBelow = new Dictionary<int, bool>();
+
+                            if (itemIds.Count > 0)
                             {
-                                double avg;
-                                if (avgCosts.TryGetValue(ln.ProductItemID, out avg))
-                                    ln.AvgCost = avg;
+                                var paramNames = string.Join(",", Enumerable.Range(0, itemIds.Count).Select(i => "@cid" + i));
+                                using (var costCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                                {
+                                    costCon.Open();
+                                    var costCmd = new SqlCommand(
+                                        "SELECT pi.Product_Item_ID, ISNULL(p.Average_cost,0), ISNULL(p.allow_below_cost,0) " +
+                                        "FROM tblProductItem pi JOIN tblDefProducts p ON p.Product_ID = pi.Product_ID " +
+                                        "WHERE pi.Product_Item_ID IN (" + paramNames + ")", costCon);
+                                    for (int i = 0; i < itemIds.Count; i++)
+                                        costCmd.Parameters.AddWithValue("@cid" + i, itemIds[i]);
+                                    using (var rd = costCmd.ExecuteReader())
+                                    {
+                                        while (rd.Read())
+                                        {
+                                            int pid = Convert.ToInt32(rd[0]);
+                                            avgCosts[pid]   = Convert.ToDouble(rd[1]);
+                                            allowBelow[pid] = Convert.ToBoolean(rd[2]);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Backfill AvgCost before the gate — needed for inventory recording even on bypass
+                            if (sale?.ListOfSaleItems != null)
+                            {
+                                foreach (var ln in sale.ListOfSaleItems)
+                                {
+                                    double avgC;
+                                    if (avgCosts.TryGetValue(ln.ProductItemID, out avgC))
+                                        ln.AvgCost = avgC;
+                                }
+                            }
+
+                            if (!req.BypassBelowCostWarning)
+                            {
+                                bool belowCostFound = false;
+                                foreach (var item in req.Items)
+                                {
+                                    double avg;
+                                    if (!avgCosts.TryGetValue(item.ProductItemId, out avg) || avg <= 0) continue;
+                                    if (prdWise && allowBelow.TryGetValue(item.ProductItemId, out bool ab) && ab) continue;
+                                    double factor    = item.ConFactor > 1 ? item.ConFactor : 1.0;
+                                    double unitPrice = item.UnitRate / factor;
+                                    if (unitPrice >= avg) continue;
+                                    belowCostFound = true;
+                                    break;
+                                }
+
+                                if (belowCostFound)
+                                {
+                                    if (hasBelowCostRight)
+                                        return Request.CreateResponse((HttpStatusCode)422,
+                                            new { error = "One or more items are priced below cost. Selling below average cost is not allowed." });
+                                    return Request.CreateResponse((HttpStatusCode)409,
+                                        new { warn_below_cost = true, error = "One or more items are priced below cost. Do you want to proceed?" });
+                                }
                             }
                         }
                     }
@@ -697,32 +722,23 @@ ORDER BY sli.sale_line_item_id", con);
 
                         if (adjLimit > 0)
                         {
+                            // ApplyAdjustment / ApplyOpenAdjustment are bit columns on TblSecurityUser
+                            // (per-user flags, not group control rights) — frmSaleAndReturn.vb:3126
                             bool hasOpenAdj = false, hasAdj = false;
                             using (var rightsCon = new SqlConnection(CandelaBootstrap.ConnectionString))
                             {
                                 rightsCon.Open();
-                                var grpCmd = new SqlCommand(
-                                    "SELECT TOP 1 group_id FROM TblSecurityUser WHERE user_id = @uid", rightsCon);
-                                grpCmd.Parameters.AddWithValue("@uid", userId);
-                                var grpObj = grpCmd.ExecuteScalar();
-                                if (grpObj != null)
+                                var adjRightCmd = new SqlCommand(
+                                    "SELECT isnull(ApplyAdjustment, 0)    AS ApplyAdjustment," +
+                                    "       isnull(ApplyOpenAdjustment, 0) AS ApplyOpenAdjustment" +
+                                    " FROM TblSecurityUser WHERE user_id = @uid", rightsCon);
+                                adjRightCmd.Parameters.AddWithValue("@uid", userId);
+                                using (var rdr = adjRightCmd.ExecuteReader())
                                 {
-                                    int grpId = Convert.ToInt32(grpObj);
-                                    var rightCmd = new SqlCommand(
-                                        "SELECT sfc.ControlName " +
-                                        "FROM tblSecurityControlRight scr " +
-                                        "INNER JOIN tblSecurityFormControl sfc ON sfc.SecurityControlID = scr.SecurityControlID " +
-                                        "WHERE scr.GroupID = @gid AND sfc.FormName = 'frmSaleAndReturn' " +
-                                        "AND sfc.ControlName IN ('ApplyOpenAdjustment','ApplyAdjustment')", rightsCon);
-                                    rightCmd.Parameters.AddWithValue("@gid", grpId);
-                                    using (var rdr = rightCmd.ExecuteReader())
+                                    if (rdr.Read())
                                     {
-                                        while (rdr.Read())
-                                        {
-                                            string ctrl = rdr["ControlName"]?.ToString() ?? "";
-                                            if (ctrl == "ApplyOpenAdjustment") hasOpenAdj = true;
-                                            if (ctrl == "ApplyAdjustment")     hasAdj     = true;
-                                        }
+                                        hasAdj     = Convert.ToBoolean(rdr["ApplyAdjustment"]);
+                                        hasOpenAdj = Convert.ToBoolean(rdr["ApplyOpenAdjustment"]);
                                     }
                                 }
                             }
