@@ -287,6 +287,61 @@ namespace CandelaPOS.Controllers
             }
         }
 
+        // GET api/auth/adjustment-rights
+        // Returns whether the current user may apply a manual invoice adjustment,
+        // based on AdjustmentLimit config and frmSaleAndReturn control rights.
+        [HttpGet, Route("adjustment-rights")]
+        public HttpResponseMessage AdjustmentRights()
+        {
+            try
+            {
+                int userId = (int)Request.Properties["user_id"];
+
+                var cfg = CandelaBootstrap.GetRCMSConfig();
+                string adjLimitStr;
+                double adjLimit = 0;
+                if (cfg.TryGetValue("AdjustmentLimit", out adjLimitStr))
+                    double.TryParse(adjLimitStr, out adjLimit);
+
+                if (adjLimit <= 0)
+                    return Request.CreateResponse(HttpStatusCode.OK,
+                        ApiResponse<object>.Ok(new { can_adjust = false, is_open = false }));
+
+                // ApplyAdjustment / ApplyOpenAdjustment are bit columns on TblSecurityUser
+                // (per-user flags, not group control rights) — frmSaleAndReturn.vb:3126
+                bool hasOpenAdj = false, hasAdj = false;
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var adjRightCmd = new SqlCommand(
+                        "SELECT isnull(ApplyAdjustment, 0)    AS ApplyAdjustment," +
+                        "       isnull(ApplyOpenAdjustment, 0) AS ApplyOpenAdjustment" +
+                        " FROM TblSecurityUser WHERE user_id = @uid", con);
+                    adjRightCmd.Parameters.AddWithValue("@uid", userId);
+                    using (var rdr = adjRightCmd.ExecuteReader())
+                    {
+                        if (rdr.Read())
+                        {
+                            hasAdj     = Convert.ToBoolean(rdr["ApplyAdjustment"]);
+                            hasOpenAdj = Convert.ToBoolean(rdr["ApplyOpenAdjustment"]);
+                        }
+                    }
+                }
+
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    ApiResponse<object>.Ok(new
+                    {
+                        can_adjust = hasOpenAdj || hasAdj,
+                        is_open    = hasOpenAdj,
+                    }));
+            }
+            catch (Exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = "An internal error occurred." });
+            }
+        }
+
         // Adds the token signature to tblPOSTokenBlocklist.
         // expires_at matches the token's own exp claim so the row is naturally stale
         // after the token would have expired anyway (allows periodic cleanup).
