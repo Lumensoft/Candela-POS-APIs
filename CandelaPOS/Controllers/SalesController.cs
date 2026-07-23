@@ -56,6 +56,7 @@ SELECT
     isnull(s.isCreditSale, 0)                     AS is_credit_sale,
     isnull(s.isMixSale, 0)                        AS is_mix_sale,
     CASE WHEN isnull(s.SaleReturningNo, 0) > 0
+              OR isnull(s.NT_amount, 0) < 0
          THEN 1 ELSE 0 END                        AS is_return,
     isnull(s.SaleReturningNo, 0)                  AS return_of_sale_id,
     isnull(s.invoice_type, '')                    AS invoice_type,
@@ -174,6 +175,7 @@ SELECT
     isnull(s.Card_amt, 0)                         AS card_amt,
     isnull(s.isCreditSale, 0)                     AS is_credit_sale,
     CASE WHEN isnull(s.SaleReturningNo, 0) > 0
+              OR isnull(s.NT_amount, 0) < 0
          THEN 1 ELSE 0 END                        AS is_return,
     isnull(s.SaleReturningNo, 0)                  AS return_of_sale_id,
     isnull(s.IsVoided, 0)                         AS is_voided
