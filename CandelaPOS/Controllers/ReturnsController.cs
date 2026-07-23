@@ -130,6 +130,39 @@ namespace CandelaPOS.Controllers
                             new { error = "A return reason is required for all returned items." });
                     }
                 }
+
+                // C-credit-1: Block credit return without a customer.
+                // Mirrors frmSaleAndReturn.vb:6344-6356 — credit has no account to post to
+                // without a member_id. Candela grays out the option at the UI level.
+                if ((req.PaymentType ?? "").ToLower() == "credit" && req.CustomerId == 0)
+                {
+                    DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                    return Request.CreateResponse((HttpStatusCode)422,
+                        new { error = "A customer must be selected to process a credit return." });
+                }
+
+                // C-credit-2: Validate allow_credit flag when customer is present.
+                // Mirrors SalesController.ValidateCreditSale / frmSaleAndReturn.vb:19518.
+                if ((req.PaymentType ?? "").ToLower() == "credit" && req.CustomerId > 0)
+                {
+                    using (var creditCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                    {
+                        creditCon.Open();
+                        var creditCmd = new SqlCommand(
+                            "SELECT TOP 1 isnull(allow_credit,0) FROM tblMemberInfo " +
+                            "WHERE shop_id = @sid AND member_id = @mid", creditCon);
+                        creditCmd.Parameters.AddWithValue("@sid", shopId);
+                        creditCmd.Parameters.AddWithValue("@mid", req.CustomerId);
+                        var result = creditCmd.ExecuteScalar();
+                        bool allowCredit = result != null && result != DBNull.Value && Convert.ToBoolean(result);
+                        if (!allowCredit)
+                        {
+                            DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                            return Request.CreateResponse((HttpStatusCode)422,
+                                new { error = "This customer is not enabled for credit transactions." });
+                        }
+                    }
+                }
                 // ── end C-section ────────────────────────────────────────────────────────────
 
                 // Free return (no invoice): skip invoice existence and qty-cap checks.
@@ -382,6 +415,7 @@ namespace CandelaPOS.Controllers
 
             foreach (var item in items)
             {
+                if (item.IsExchangeItem) continue;
                 double requestedQty = Math.Abs(item.Quantity);
                 if (requestedQty <= 0) continue;
 
