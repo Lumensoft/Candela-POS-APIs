@@ -163,20 +163,6 @@ namespace CandelaPOS.Controllers
             catch (Exception ex) { return Err(ex); }
         }
 
-        // ── /masters/return-reasons ───────────────────────────────────────────────
-        // GET api/masters/return-reasons
-        // GET api/masters/return-reasons?since=2026-01-01T00:00:00
-        [HttpGet, Route("return-reasons")]
-        public HttpResponseMessage GetReturnReasons([FromUri] string since = null)
-        {
-            CandelaBootstrap.PrepareRequest();
-            try
-            {
-                var rows = QueryReturnReasons(ParseSince(since));
-                return Ok(rows);
-            }
-            catch (Exception ex) { return Err(ex); }
-        }
 
         // ── /masters/config ───────────────────────────────────────────────────────
         // Returns tblShopConfiguration + tblRCMSConfiguration merged as key/value pairs.
@@ -633,22 +619,6 @@ WHERE  config_name IN ('FonePayEnabled', 'AlifPayEnabled',
             return Run(sql, _ => { });
         }
 
-        private List<Dictionary<string, object>> QueryReturnReasons(DateTime? since)
-        {
-            // tblDefReturnReasons — reason dropdown on the Return screen.
-            const string sql = @"
-SELECT
-    r.return_reason_id,
-    isnull(r.return_reason, '') AS reason_name,
-    r.entereddate,
-    r.editeddate
-FROM tblDefReturnReasons r
-WHERE isnull(r.isActive, 1) = 1";
-
-            const string delta = " AND (r.entereddate >= @since OR r.editeddate >= @since)";
-            return Run(sql + (since.HasValue ? delta : ""),
-                p => { if (since.HasValue) p.AddWithValue("@since", since.Value); });
-        }
 
         private List<Dictionary<string, object>> QueryConfig(int shopId, DateTime? since)
         {
@@ -902,10 +872,10 @@ ORDER BY pd.item_name";
         // TblDefReturnReasons is global (no shop_id) — SaleReasonDAL.vb:20-46
         // Shown per return line when EnforceSaleReturnReason=True
         // frmSaleAndReturn.vb:6522 (per-row reason gate before Save)
-        [HttpGet]
-        [Route("return-reasons")]
+        [HttpGet, Route("return-reasons")]
         public HttpResponseMessage GetReturnReasons()
         {
+            CandelaBootstrap.PrepareRequest();
             try
             {
                 var list = new List<Dictionary<string, object>>();
