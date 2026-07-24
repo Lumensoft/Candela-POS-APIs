@@ -22,6 +22,9 @@ namespace CandelaPOS.Controllers
         // GS V 0 — full cut (most thermal printers support this)
         private static readonly byte[] FullCut = { 0x1D, 0x56, 0x00 };
 
+        // ESC p 0 50ms 250ms — cash drawer kick on pin 2 (DK port)
+        private static readonly byte[] DrawerKick = { 0x1B, 0x70, 0x00, 0x32, 0xFA };
+
         // POST api/print
         // Renders a sale receipt as ESC/POS and sends it to the thermal printer via TCP.
         // Uses spSalesInvoiceNew (same SP as Candela's 3-inch text receipt) for all
@@ -54,6 +57,7 @@ namespace CandelaPOS.Controllers
             int mode   = req.IsDuplicate ? 1 : 0;
             int copies = Math.Max(1, Math.Min(req.Copies > 0 ? req.Copies : 1, 5));
             int port   = req.PrinterPort > 0 ? req.PrinterPort : DefaultPort;
+            bool openDrawer = req.OpenDrawer ?? true; // default true — cash sales always open drawer
 
             try
             {
@@ -63,11 +67,16 @@ namespace CandelaPOS.Controllers
                     return Request.CreateResponse(HttpStatusCode.NotFound,
                         new { error = $"No invoice data found for sale_id {req.SaleId} in shop {shopId}" });
 
-                byte[] payload = BuildPayload(receiptText, copies);
+                bool isTcp = System.Net.IPAddress.TryParse(printerName, out _);
+
+                // RawPrinterHelper sends RAW bytes which bypass the driver pipeline entirely —
+                // the driver's "Kick-out Drawer At: Page Start" setting is never triggered.
+                // Embed the drawer kick explicitly in the payload for both paths.
+                byte[] payload = BuildPayload(receiptText, copies, openDrawer);
 
                 // If the value is a plain IP address → raw TCP:9100 (true LAN printer).
                 // Anything else (printer name or \\server\share) → Windows spooler.
-                if (System.Net.IPAddress.TryParse(printerName, out _))
+                if (isTcp)
                     SendTcp(printerName, port, payload);
                 else
                     RawPrinterHelper.SendBytesToPrinter(printerName, payload);
@@ -108,10 +117,10 @@ namespace CandelaPOS.Controllers
         }
 
         // Encode receipt text as ESC/POS bytes.
-        // Layout per copy: [ESC @] [text bytes] [GS V 0]
-        // The text from GetOposInvoice already includes 6 trailing blank lines for tear-off.
+        // Layout: [ESC @] [text + cut] × copies [drawer kick if openDrawer]
+        // Drawer kick is appended once after all copies so it fires exactly once per job.
         // Code Page 437 is the ESC/POS standard encoding (handles basic Latin + box chars).
-        private static byte[] BuildPayload(string receiptText, int copies)
+        private static byte[] BuildPayload(string receiptText, int copies, bool openDrawer = false)
         {
             // Normalize line endings to CR+LF (ESC/POS standard)
             string normalized  = receiptText.Replace("\r\n", "\n").Replace("\r", "\n")
@@ -120,7 +129,8 @@ namespace CandelaPOS.Controllers
             byte[]   textBytes = enc.GetBytes(normalized);
 
             int totalLen = InitPrinter.Length
-                         + (textBytes.Length + FullCut.Length) * copies;
+                         + (textBytes.Length + FullCut.Length) * copies
+                         + (openDrawer ? DrawerKick.Length : 0);
 
             var payload = new byte[totalLen];
             int offset  = 0;
@@ -134,6 +144,11 @@ namespace CandelaPOS.Controllers
                 offset += textBytes.Length;
                 Buffer.BlockCopy(FullCut,   0, payload, offset, FullCut.Length);
                 offset += FullCut.Length;
+            }
+
+            if (openDrawer)
+            {
+                Buffer.BlockCopy(DrawerKick, 0, payload, offset, DrawerKick.Length);
             }
 
             return payload;
@@ -181,5 +196,9 @@ namespace CandelaPOS.Controllers
 
         [Newtonsoft.Json.JsonProperty("is_secondary")]
         public bool   IsSecondary { get; set; } // true → resolve Sec_InvoicePrinterName from tblComputerList
+
+        // Null = default (true). Set false for kitchen/label printers that have no cash drawer.
+        [Newtonsoft.Json.JsonProperty("open_drawer")]
+        public bool?  OpenDrawer  { get; set; }
     }
 }

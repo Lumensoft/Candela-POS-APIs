@@ -18,32 +18,50 @@ namespace CandelaPOS.Controllers
         private const int WriteTimeout   = 2000;
 
         // POST api/hardware/drawer
-        // Opens a TCP socket to the receipt printer and sends the ESC/POS cash drawer
-        // kick command. The printer must have a drawer cable connected to its RJ11 port.
-        // printer_ip is supplied by the app (stored in device settings during setup).
-        // Returns 200 on success, 502 if the TCP connection to the printer fails.
+        // Opens the cash drawer without printing a receipt.
+        // Supports two paths:
+        //   printer_ip   → raw TCP:9100 ESC/POS command (LAN printer)
+        //   printer_name → Windows print spooler via RawPrinterHelper (USB/shared printer)
+        // Supply exactly one of the two. printer_port is TCP-only, defaults to 9100.
         [HttpPost, Route("drawer")]
         public HttpResponseMessage OpenDrawer([FromBody] DrawerRequest req)
         {
-            if (req == null || string.IsNullOrWhiteSpace(req.PrinterIp))
+            if (req == null)
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
-                    new { error = "printer_ip is required" });
+                    new { error = "Request body is required" });
 
-            // Basic sanity — must be a valid IP or hostname (not an injection vector)
-            if (req.PrinterIp.Length > 253)
+            bool hasIp   = !string.IsNullOrWhiteSpace(req.PrinterIp);
+            bool hasName = !string.IsNullOrWhiteSpace(req.PrinterName);
+
+            if (!hasIp && !hasName)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "Either printer_ip or printer_name is required" });
+
+            if (hasIp && req.PrinterIp.Length > 253)
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "printer_ip is invalid" });
 
+            string posCode = Request.Properties.ContainsKey("pos_code")
+                ? Request.Properties["pos_code"] as string : "";
+
             try
             {
-                int port = req.PrinterPort > 0 ? req.PrinterPort : PrinterPort;
-                SendDrawerKick(req.PrinterIp, port);
-
-                string posCode = Request.Properties.ContainsKey("pos_code")
-                    ? Request.Properties["pos_code"] as string : "";
-
-                return Request.CreateResponse(HttpStatusCode.OK,
-                    new { success = true, printer_ip = req.PrinterIp, printer_port = port, pos_code = posCode });
+                if (hasIp)
+                {
+                    int port = req.PrinterPort > 0 ? req.PrinterPort : PrinterPort;
+                    SendDrawerKick(req.PrinterIp, port);
+                    return Request.CreateResponse(HttpStatusCode.OK,
+                        new { success = true, printer_ip = req.PrinterIp, printer_port = port, pos_code = posCode });
+                }
+                else
+                {
+                    // Windows spooler path — send raw ESC/POS bytes through the driver.
+                    // The Posiflex driver's "Kick-out Drawer At" setting is NOT used here;
+                    // we send the command explicitly so this works on any ESC/POS-capable driver.
+                    RawPrinterHelper.SendBytesToPrinter(req.PrinterName, DrawerKickBytes);
+                    return Request.CreateResponse(HttpStatusCode.OK,
+                        new { success = true, printer_name = req.PrinterName, pos_code = posCode });
+                }
             }
             catch (SocketException ex)
             {
@@ -81,7 +99,8 @@ namespace CandelaPOS.Controllers
 
     public class DrawerRequest
     {
-        public string PrinterIp   { get; set; }
-        public int    PrinterPort { get; set; } // optional, defaults to 9100
+        public string PrinterIp   { get; set; } // TCP path: LAN printer IP address
+        public string PrinterName { get; set; } // Spooler path: Windows printer name or \\server\share
+        public int    PrinterPort { get; set; } // TCP only, optional, defaults to 9100
     }
 }
