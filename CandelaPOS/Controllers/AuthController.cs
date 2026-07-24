@@ -34,6 +34,8 @@ namespace CandelaPOS.Controllers
                 int    shopId              = 0;
                 string posCode             = "";
                 string shopName            = "";
+                string computerName        = "";
+                string invoicePrinterName  = "";
                 bool   allowDiscEditing    = false;
                 bool   allowPriceEditing   = false;
                 bool   canAdjust           = false;
@@ -87,7 +89,8 @@ namespace CandelaPOS.Controllers
 
                     // Step 2a — check if this device is already registered in tblComputerList
                     const string findSql =
-                        "SELECT computer_id, shop_id, POS_code, isTabActive" +
+                        "SELECT computer_id, computer_name, shop_id, POS_code, isTabActive," +
+                        " isnull(InvoicePrinterName,'') AS InvoicePrinterName" +
                         " FROM tblComputerList" +
                         " WHERE deviceid = @uuid AND istablet = 1";
 
@@ -103,8 +106,10 @@ namespace CandelaPOS.Controllers
                                 return Request.CreateResponse((HttpStatusCode)403,
                                     new { error = "This tablet has been deactivated by administrator" });
 
-                            shopId  = Convert.ToInt32(dr["shop_id"]);
-                            posCode = dr["POS_code"].ToString();
+                            shopId               = Convert.ToInt32(dr["shop_id"]);
+                            posCode              = dr["POS_code"].ToString();
+                            computerName         = dr["computer_name"]?.ToString() ?? "";
+                            invoicePrinterName   = dr["InvoicePrinterName"].ToString();
                         }
                     }
 
@@ -114,7 +119,8 @@ namespace CandelaPOS.Controllers
                         const string claimSql =
                             "UPDATE TOP(1) tblComputerList" +
                             " SET deviceid = @uuid, isTabActive = 1" +
-                            " OUTPUT inserted.shop_id, inserted.POS_code" +
+                            " OUTPUT inserted.shop_id, inserted.POS_code, inserted.computer_name," +
+                            "        isnull(inserted.InvoicePrinterName,'') AS InvoicePrinterName" +
                             " WHERE istablet = 1 AND isTabActive = 0 AND deviceid IS NULL";
 
                         var claimCmd = new SqlCommand(claimSql, con);
@@ -126,8 +132,10 @@ namespace CandelaPOS.Controllers
                                 return Request.CreateResponse((HttpStatusCode)403,
                                     new { error = "No tablet slots available. Please contact HO to add a tablet." });
 
-                            shopId  = Convert.ToInt32(dr["shop_id"]);
-                            posCode = dr["POS_code"].ToString();
+                            shopId              = Convert.ToInt32(dr["shop_id"]);
+                            posCode             = dr["POS_code"].ToString();
+                            computerName        = dr["computer_name"]?.ToString() ?? "";
+                            invoicePrinterName  = dr["InvoicePrinterName"].ToString();
                         }
                     }
 
@@ -152,6 +160,8 @@ namespace CandelaPOS.Controllers
                         ShopId               = shopId,
                         ShopName             = shopName,
                         PosCode              = posCode,
+                        ComputerName         = computerName,
+                        InvoicePrinterName   = invoicePrinterName,
                         AllowDiscountEditing = allowDiscEditing,
                         AllowPriceEditing    = allowPriceEditing,
                         CanAdjust            = canAdjust,

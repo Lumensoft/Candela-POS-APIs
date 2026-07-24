@@ -33,5 +33,11 @@ namespace CandelaPOS.Models
 
         [JsonProperty("is_open_adjust")]
         public bool IsOpenAdjust { get; set; }
+
+        [JsonProperty("computer_name")]
+        public string ComputerName { get; set; }
+
+        [JsonProperty("invoice_printer_name")]
+        public string InvoicePrinterName { get; set; }
     }
 }
