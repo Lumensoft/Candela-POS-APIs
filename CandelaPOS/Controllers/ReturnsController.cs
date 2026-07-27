@@ -793,5 +793,128 @@ WHERE li.sale_id = @invoiceNo
             return cfg.TryGetValue(key, out val)
                 && string.Equals(val?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
         }
+
+        // POST api/returns/preview
+        // Re-evaluates qty-threshold discount applicability for a proposed return cart.
+        // Called before ReturnCheckoutScreen when Apply_Disc_on_Return=TRUE so that
+        // X/Y promotions (buy N get M free) only apply when the return qty meets the
+        // original buy-N threshold (tblDefDiscounts.discount_duration).
+        // Mirrors Candela SaleAndReturnDAL.ReadQuantityOfX / ApplyDiscountOnReturn logic.
+        [HttpPost, Route("preview")]
+        public HttpResponseMessage Preview([FromBody] ReturnPreviewRequest req)
+        {
+            if (req == null || req.SaleId <= 0 || req.Items == null || !req.Items.Any())
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "sale_id and items are required" });
+
+            CandelaBootstrap.PrepareRequest();
+            int shopId       = (int)Request.Properties["shop_id"];
+            int sourceShopId = req.SourceShopId > 0 ? req.SourceShopId : shopId;
+
+            try
+            {
+                var productIds = req.Items.Select(i => i.ProductItemId).Where(id => id > 0).Distinct().ToList();
+                var origLines  = QuerySaleItemsForPreview(sourceShopId, req.SaleId, productIds);
+                var result     = new List<Dictionary<string, object>>();
+
+                foreach (var reqItem in req.Items)
+                {
+                    if (!origLines.TryGetValue(reqItem.ProductItemId, out var orig))
+                        continue;
+
+                    int    discountId     = Convert.ToInt32(orig["discount_id"]);
+                    double unitPrice      = Convert.ToDouble(orig["unit_price"]);
+                    double unitDiscount   = Convert.ToDouble(orig["unit_discount"]);
+                    double priceAfterDisc = Convert.ToDouble(orig["price_after_discount"]);
+
+                    // For discounts that carry a buy-qty threshold (discount_duration > 0),
+                    // revert to full unit_price when the return qty falls below that threshold.
+                    if (discountId > 0 && unitDiscount > 0)
+                    {
+                        double threshold = GetDiscountDuration(discountId);
+                        if (threshold > 0 && reqItem.Qty < threshold + 1)
+                        {
+                            unitDiscount   = 0;
+                            priceAfterDisc = unitPrice;
+                        }
+                    }
+
+                    var item = new Dictionary<string, object>(orig);
+                    item["unit_discount"]        = unitDiscount;
+                    item["price_after_discount"] = priceAfterDisc;
+                    result.Add(item);
+                }
+
+                return Request.CreateResponse(HttpStatusCode.OK, new { success = true, items = result });
+            }
+            catch (Exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = "An internal error occurred." });
+            }
+        }
+
+        private Dictionary<int, Dictionary<string, object>> QuerySaleItemsForPreview(
+            int shopId, int saleId, List<int> productItemIds)
+        {
+            if (!productItemIds.Any()) return new Dictionary<int, Dictionary<string, object>>();
+            var ids = string.Join(",", productItemIds.Select(id => id.ToString()));
+            var sql = $@"
+SELECT
+    li.Product_Item_ID                   AS product_item_id,
+    li.Unit_price                        AS unit_price,
+    isnull(li.product_discount_amount,0) AS unit_discount,
+    isnull(li.mem_discount_amount,0)     AS customer_discount_per_unit,
+    isnull(li.pro_vat,0)                 AS vat_value,
+    isnull(li.VatFactor,0)               AS vat_factor,
+    isnull(li.Vat_Type,'')               AS vat_type,
+    isnull(li.PriceIncludeVat,0)         AS price_include_vat,
+    isnull(li.additional_tax_percent,0)  AS additional_tax_percent,
+    isnull(li.additional_tax,0)          AS additional_tax,
+    isnull(li.Taged_Price,0)             AS tagged_price,
+    isnull(li.PriceAfterDiscount,0)      AS price_after_discount,
+    isnull(li.DiscountCategory,'')       AS disc_category,
+    isnull(li.discount_ID,0)             AS discount_id,
+    isnull(li.Loyality_CashDiscount,0)   AS loyalty_cash_discount
+FROM tblSalesLineItems li
+WHERE li.sale_id  = @saleId
+  AND li.shop_id  = @shopId
+  AND li.Product_Item_ID IN ({ids})
+  AND isnull(li.is_return_item,0) = 0";
+
+            var map = new Dictionary<int, Dictionary<string, object>>();
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(sql, con);
+                cmd.Parameters.AddWithValue("@saleId", saleId);
+                cmd.Parameters.AddWithValue("@shopId", shopId);
+                using (var dt = new DataTable())
+                {
+                    new SqlDataAdapter(cmd).Fill(dt);
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        var d = new Dictionary<string, object>();
+                        foreach (DataColumn col in dt.Columns)
+                            d[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+                        map[Convert.ToInt32(row["product_item_id"])] = d;
+                    }
+                }
+            }
+            return map;
+        }
+
+        private double GetDiscountDuration(int discountId)
+        {
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(
+                    "SELECT isnull(discount_duration,0) FROM tblDefDiscounts WHERE discount_id = @did", con);
+                cmd.Parameters.AddWithValue("@did", discountId);
+                var result = cmd.ExecuteScalar();
+                return result != null && result != DBNull.Value ? Convert.ToDouble(result) : 0;
+            }
+        }
     }
 }
