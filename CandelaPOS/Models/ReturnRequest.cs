@@ -14,6 +14,27 @@ namespace CandelaPOS.Models
         public int SourceShopId { get; set; }
     }
 
+    public class ReturnPreviewRequest
+    {
+        [JsonProperty("sale_id")]
+        public int SaleId { get; set; }
+
+        [JsonProperty("source_shop_id")]
+        public int SourceShopId { get; set; }
+
+        [JsonProperty("items")]
+        public List<ReturnPreviewItem> Items { get; set; }
+    }
+
+    public class ReturnPreviewItem
+    {
+        [JsonProperty("product_item_id")]
+        public int ProductItemId { get; set; }
+
+        [JsonProperty("qty")]
+        public int Qty { get; set; }
+    }
+
     public class ReturnRequest
     {
         [JsonProperty("client_txn_guid")]
