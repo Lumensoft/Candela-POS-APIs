@@ -19,20 +19,23 @@ namespace CandelaPOS.Infrastructure
         private static string Issuer =>
             ConfigurationManager.AppSettings["Jwt:Issuer"] ?? "CandelaPOS";
 
-        public static string Generate(int userId, string userName, int shopId, string posCode, string deviceId)
+        public static string Generate(int userId, string userName, int shopId, string posCode, string deviceId, string groupName, int groupType, decimal saleReturnLimit)
         {
             var now = DateTimeOffset.UtcNow;
             var payload = new Dictionary<string, object>
             {
-                { "iss",       Issuer },
-                { "aud",       Issuer },
-                { "iat",       now.ToUnixTimeSeconds() },
-                { "exp",       now.AddHours(ExpiryHours).ToUnixTimeSeconds() },
-                { "user_id",   userId },
-                { "user_name", userName },
-                { "shop_id",   shopId },
-                { "pos_code",  posCode },
-                { "device_id", deviceId }
+                { "iss",               Issuer },
+                { "aud",               Issuer },
+                { "iat",               now.ToUnixTimeSeconds() },
+                { "exp",               now.AddHours(ExpiryHours).ToUnixTimeSeconds() },
+                { "user_id",           userId },
+                { "user_name",         userName },
+                { "shop_id",           shopId },
+                { "pos_code",          posCode },
+                { "device_id",         deviceId },
+                { "group_name",        groupName },
+                { "group_type",        groupType },
+                { "sale_return_limit", saleReturnLimit }
             };
 
             string header  = Base64UrlEncode(Encoding.UTF8.GetBytes("{\"alg\":\"HS256\",\"typ\":\"JWT\"}"));
@@ -96,11 +99,14 @@ namespace CandelaPOS.Infrastructure
             catch { return DateTime.MinValue; }
         }
 
-        public static int    GetUserId(ClaimsPrincipal p)   => int.Parse(p.FindFirst("user_id")?.Value   ?? "0");
-        public static int    GetShopId(ClaimsPrincipal p)   => int.Parse(p.FindFirst("shop_id")?.Value   ?? "0");
-        public static string GetPosCode(ClaimsPrincipal p)  => p.FindFirst("pos_code")?.Value  ?? "POS";
-        public static string GetDeviceId(ClaimsPrincipal p) => p.FindFirst("device_id")?.Value ?? "";
-        public static string GetUserName(ClaimsPrincipal p) => p.FindFirst("user_name")?.Value ?? "";
+        public static int    GetUserId(ClaimsPrincipal p)    => int.Parse(p.FindFirst("user_id")?.Value    ?? "0");
+        public static int    GetShopId(ClaimsPrincipal p)    => int.Parse(p.FindFirst("shop_id")?.Value    ?? "0");
+        public static string GetPosCode(ClaimsPrincipal p)   => p.FindFirst("pos_code")?.Value   ?? "POS";
+        public static string GetDeviceId(ClaimsPrincipal p)  => p.FindFirst("device_id")?.Value  ?? "";
+        public static string GetUserName(ClaimsPrincipal p)  => p.FindFirst("user_name")?.Value  ?? "";
+        public static string  GetGroupName(ClaimsPrincipal p)       => p.FindFirst("group_name")?.Value ?? "";
+        public static int     GetGroupType(ClaimsPrincipal p)       => int.TryParse(p.FindFirst("group_type")?.Value, out int gt) ? gt : 0;
+        public static decimal GetSaleReturnLimit(ClaimsPrincipal p) => decimal.TryParse(p.FindFirst("sale_return_limit")?.Value, out decimal v) ? v : 0m;
 
         private static string Sign(string input)
         {

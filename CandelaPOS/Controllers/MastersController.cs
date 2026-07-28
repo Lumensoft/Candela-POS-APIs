@@ -500,6 +500,7 @@ SELECT" + (isSearch ? " TOP 50" : "") + @"
     isnull(m.allow_credit, 0)  AS allow_credit,
     isnull(m.member_type_id, 0) AS member_type_id,
     isnull(mt.discount_percentage, 0)  AS discount_pct,
+    m.end_date,
     m.entereddate,
     m.editeddate,
     isnull((SELECT SUM(s.NT_amount) FROM tblSales s

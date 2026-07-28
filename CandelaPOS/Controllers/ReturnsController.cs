@@ -163,6 +163,33 @@ namespace CandelaPOS.Controllers
                         }
                     }
                 }
+                // C4: SaleReturnLimit — block returns exceeding the cashier's security group limit.
+                // Mirrors SaleAndReturnDAL.vb:319-345 (IsValidateForUpdate, Issue#2439).
+                // Runs for both invoice-backed and free returns before any dal.Add() path.
+                {
+                    string grpName = Request.Properties.ContainsKey("group_name") ? (string)Request.Properties["group_name"] : "";
+                    int    grpType = Request.Properties.ContainsKey("group_type") ? (int)   Request.Properties["group_type"] : 0;
+                    using (var lcon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                    {
+                        lcon.Open();
+                        var lcmd = new SqlCommand(
+                            "SELECT isnull(SaleReturnLimit, 0) FROM tblSecurityGroup " +
+                            "WHERE GROUP_TYPE = @gt AND GROUP_NAME = @gn", lcon);
+                        lcmd.Parameters.AddWithValue("@gt", grpType);
+                        lcmd.Parameters.AddWithValue("@gn", grpName);
+                        var limitObj = lcmd.ExecuteScalar();
+                        if (limitObj != null && limitObj != DBNull.Value)
+                        {
+                            decimal saleReturnLimit = Convert.ToDecimal(limitObj);
+                            if (saleReturnLimit != 0 && Math.Abs((decimal)req.NetTotal) > saleReturnLimit)
+                            {
+                                DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                                return Request.CreateResponse((HttpStatusCode)422,
+                                    new { error = "You are not allowed to return more than the defined return limit." });
+                            }
+                        }
+                    }
+                }
                 // ── end C-section ────────────────────────────────────────────────────────────
 
                 // Free return (no invoice): skip invoice existence and qty-cap checks.
@@ -817,6 +844,22 @@ WHERE li.sale_id = @invoiceNo
                 var origLines  = QuerySaleItemsForPreview(sourceShopId, req.SaleId, productIds);
                 var result     = new List<Dictionary<string, object>>();
 
+                // Pre-compute total return qty per discount_id across ALL items in this request
+                // (X + Y items combined). Candela stores the same discount_id on both the trigger
+                // item (X, disc_category='X') and the free item (Y, disc_category='Y') in
+                // tblSalesLineItems. Using the group total instead of the individual Y item qty
+                // fixes buy-N-get-M promotions where X and Y are different products — the Y qty
+                // is always 1 regardless of N, so comparing it against the threshold always fails.
+                var discountGroupQty = new Dictionary<int, double>();
+                foreach (var ri in req.Items)
+                {
+                    if (!origLines.TryGetValue(ri.ProductItemId, out var ol)) continue;
+                    int did = Convert.ToInt32(ol["discount_id"]);
+                    if (did <= 0) continue;
+                    if (!discountGroupQty.ContainsKey(did)) discountGroupQty[did] = 0;
+                    discountGroupQty[did] += ri.Qty;
+                }
+
                 foreach (var reqItem in req.Items)
                 {
                     if (!origLines.TryGetValue(reqItem.ProductItemId, out var orig))
@@ -828,14 +871,21 @@ WHERE li.sale_id = @invoiceNo
                     double priceAfterDisc = Convert.ToDouble(orig["price_after_discount"]);
 
                     // For discounts that carry a buy-qty threshold (discount_duration > 0),
-                    // revert to full unit_price when the return qty falls below that threshold.
+                    // revert to full unit_price when the total returned qty for this discount
+                    // group (X + Y combined) falls below threshold + 1.
                     if (discountId > 0 && unitDiscount > 0)
                     {
                         double threshold = GetDiscountDuration(discountId);
-                        if (threshold > 0 && reqItem.Qty < threshold + 1)
+                        if (threshold > 0)
                         {
-                            unitDiscount   = 0;
-                            priceAfterDisc = unitPrice;
+                            double groupQty = discountGroupQty.ContainsKey(discountId)
+                                ? discountGroupQty[discountId]
+                                : reqItem.Qty;
+                            if (groupQty < threshold + 1)
+                            {
+                                unitDiscount   = 0;
+                                priceAfterDisc = unitPrice;
+                            }
                         }
                     }
 

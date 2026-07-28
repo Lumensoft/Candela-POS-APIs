@@ -36,13 +36,16 @@ namespace CandelaPOS.Infrastructure
             if (IsBlocklisted(auth.Parameter))
                 return Unauthorized(request, "Token has been revoked");
 
-            request.Properties["user_id"]   = JwtHelper.GetUserId(principal);
-            request.Properties["shop_id"]   = JwtHelper.GetShopId(principal);
-            request.Properties["pos_code"]  = JwtHelper.GetPosCode(principal);
-            request.Properties["device_id"] = JwtHelper.GetDeviceId(principal);
-            request.Properties["user_name"] = JwtHelper.GetUserName(principal);
+            request.Properties["user_id"]    = JwtHelper.GetUserId(principal);
+            request.Properties["shop_id"]    = JwtHelper.GetShopId(principal);
+            request.Properties["pos_code"]   = JwtHelper.GetPosCode(principal);
+            request.Properties["device_id"]  = JwtHelper.GetDeviceId(principal);
+            request.Properties["user_name"]  = JwtHelper.GetUserName(principal);
+            request.Properties["group_name"]        = JwtHelper.GetGroupName(principal);
+            request.Properties["group_type"]        = JwtHelper.GetGroupType(principal);
+            request.Properties["sale_return_limit"] = JwtHelper.GetSaleReturnLimit(principal);
             // Carry raw token so /auth/refresh and /auth/logout can blocklist it
-            request.Properties["raw_token"] = auth.Parameter;
+            request.Properties["raw_token"]  = auth.Parameter;
 
             Thread.CurrentPrincipal = principal;
 

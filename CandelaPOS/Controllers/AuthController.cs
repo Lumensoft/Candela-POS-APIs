@@ -40,6 +40,9 @@ namespace CandelaPOS.Controllers
                 bool   allowPriceEditing   = false;
                 bool   canAdjust           = false;
                 bool   isOpenAdjust        = false;
+                string  groupName           = "";
+                int     groupType          = 0;
+                decimal saleReturnLimit    = 0m;
 
                 using (var con = new SqlConnection(conStr))
                 {
@@ -51,7 +54,10 @@ namespace CandelaPOS.Controllers
                         " isnull(b.AllowPOSDiscountEditing,0) AS AllowPOSDiscountEditing," +
                         " isnull(b.AllowPOSPriceEditing,0)    AS AllowPOSPriceEditing," +
                         " isnull(b.ApplyAdjustment,0)         AS ApplyAdjustment," +
-                        " isnull(b.ApplyOpenAdjustment,0)     AS ApplyOpenAdjustment" +
+                        " isnull(b.ApplyOpenAdjustment,0)     AS ApplyOpenAdjustment," +
+                        " isnull(a.GROUP_NAME,'')              AS GROUP_NAME," +
+                        " isnull(a.GROUP_TYPE,0)               AS GROUP_TYPE," +
+                        " isnull(a.SaleReturnLimit,0)          AS SaleReturnLimit" +
                         " FROM tblSecurityGroup a" +
                         " INNER JOIN TblSecurityUser b ON a.GROUP_ID = b.GROUP_ID" +
                         " WHERE b.user_log_id = @uid" +
@@ -85,6 +91,9 @@ namespace CandelaPOS.Controllers
                         canAdjust         = Convert.ToBoolean(reader["ApplyAdjustment"]) ||
                                             Convert.ToBoolean(reader["ApplyOpenAdjustment"]);
                         isOpenAdjust      = Convert.ToBoolean(reader["ApplyOpenAdjustment"]);
+                        groupName         = reader["GROUP_NAME"].ToString();
+                        groupType         = Convert.ToInt32(reader["GROUP_TYPE"]);
+                        saleReturnLimit   = Convert.ToDecimal(reader["SaleReturnLimit"]);
                     }
 
                     // Step 2a — check if this device is already registered in tblComputerList
@@ -149,7 +158,7 @@ namespace CandelaPOS.Controllers
 
                 // Step 4 — bootstrap Candela globals then issue JWT
                 CandelaBootstrap.PrepareRequest();
-                string token = JwtHelper.Generate(userId, userName, shopId, posCode, req.DeviceId);
+                string token = JwtHelper.Generate(userId, userName, shopId, posCode, req.DeviceId, groupName, groupType, saleReturnLimit);
 
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<LoginResponse>.Ok(new LoginResponse
@@ -190,18 +199,21 @@ namespace CandelaPOS.Controllers
                 return Request.CreateResponse(HttpStatusCode.Unauthorized,
                     new { error = "No token found on request" });
 
-            int    userId   = (int)   Request.Properties["user_id"];
-            int    shopId   = (int)   Request.Properties["shop_id"];
-            string posCode  = (string)Request.Properties["pos_code"];
-            string deviceId = (string)Request.Properties["device_id"];
-            string userName = (string)Request.Properties["user_name"];
+            int    userId    = (int)   Request.Properties["user_id"];
+            int    shopId    = (int)   Request.Properties["shop_id"];
+            string posCode   = (string)Request.Properties["pos_code"];
+            string deviceId  = (string)Request.Properties["device_id"];
+            string userName  = (string)Request.Properties["user_name"];
+            string  groupName       = (string) Request.Properties["group_name"];
+            int     groupType       = (int)    Request.Properties["group_type"];
+            decimal saleReturnLimit = (decimal) Request.Properties["sale_return_limit"];
 
             try
             {
                 // Blocklist the old token so it can't be reused after this refresh
                 BlocklistToken(rawToken);
 
-                string newToken = JwtHelper.Generate(userId, userName, shopId, posCode, deviceId);
+                string newToken = JwtHelper.Generate(userId, userName, shopId, posCode, deviceId, groupName, groupType, saleReturnLimit);
 
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<object>.Ok(new { token = newToken }));
