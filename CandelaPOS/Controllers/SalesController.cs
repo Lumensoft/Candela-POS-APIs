@@ -1214,7 +1214,7 @@ ORDER BY sli.sale_line_item_id", con);
                 // Con_Factor=0 means unit sale; keep 1.0 so DAL inventory math is correct
                 line.Con_Factor                  = item.ConFactor > 0 ? item.ConFactor : 1.0;
                 line.Con_Unit                    = "";
-                line.AvgCost                     = 0.0;
+                line.AvgCost                     = item.AvgCost;
                 line.VatChargedPerUnit           = 0.0;
                 line.VatOnRetailPrice            = 0.0;
                 line.PriceForDiscount            = item.UnitRate;

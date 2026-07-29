@@ -271,6 +271,13 @@ namespace CandelaPOS.Models
 
         [JsonProperty("return_reason_description")]
         public string ReturnReasonDescription { get; set; }
+
+        // Cost price for this line — used for profit/margin recording in tblSalesLineItems.avg_cost.
+        // For is_user_define products with UserCostPrice=True: app sends (Average_cost/100 × unit_rate).
+        // For all other products: app sends the product's avg_cost (absolute cost).
+        // Mirrors frmSaleAndReturn.vb:31484-31492 (CR#7270) applied before SaleAndReturnDAL.Add().
+        [JsonProperty("avg_cost")]
+        public double AvgCost { get; set; }
     }
 
     // One component row inside a bundle/assembly line item.

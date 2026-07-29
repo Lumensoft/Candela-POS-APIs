@@ -327,6 +327,7 @@ SELECT
     isnull(pi.CustomerSKUCode4, '')              AS barcode4,
     isnull(pi.CustomerSKUCode5, '')              AS barcode5,
     isnull(pp.product_price, 0)                 AS price,
+    isnull(pd.Average_cost, 0)                  AS avg_cost,
     isnull(pd.vat, 0)                           AS vat,
     isnull(pd.vat_type, '')                     AS vat_type,
     isnull(pd.NotForDiscount, 0)                AS not_for_discount,
@@ -376,6 +377,8 @@ SELECT TOP 10
     isnull(pi.CustomerSKUCode,  '') AS barcode,
     isnull(pi.CustomerSKUCode2, '') AS barcode2,
     isnull(pp.product_price, 0)    AS price,
+    isnull(pd.Average_cost, 0)    AS avg_cost,
+    isnull(pd.IsUserDefine, 0)    AS is_user_define,
     isnull(pd.vat, 0)              AS vat,
     isnull(pd.vat_type, '')        AS vat_type,
     isnull(pd.NotForDiscount, 0)   AS not_for_discount,
@@ -427,6 +430,7 @@ SELECT TOP 1
     isnull(pi.CustomerSKUCode4, '')              AS barcode4,
     isnull(pi.CustomerSKUCode5, '')              AS barcode5,
     isnull(pp.product_price, 0)                 AS price,
+    isnull(pd.Average_cost, 0)                  AS avg_cost,
     isnull(pd.vat, 0)                           AS vat,
     isnull(pd.vat_type, '')                     AS vat_type,
     isnull(pd.NotForDiscount, 0)                AS not_for_discount,
@@ -651,7 +655,8 @@ SELECT
     li.line_item_id,
     isnull(li.field_name, '') AS field_name,
     isnull(li.field_code, '') AS field_code,
-    isnull(li.sort_order, 0)  AS sort_order
+    isnull(li.sort_order, 0)  AS sort_order,
+    isnull(li.IsAllowDecimal, 1) AS is_allow_decimal
 FROM tblDefLineItems li
 WHERE isnull(li.IsServiceLineItem, 0) = 0
 ORDER BY li.sort_order, li.field_name";
