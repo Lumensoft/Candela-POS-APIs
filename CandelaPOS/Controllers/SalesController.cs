@@ -690,8 +690,7 @@ ORDER BY sli.sale_line_item_id", con);
                                     double avg;
                                     if (!avgCosts.TryGetValue(item.ProductItemId, out avg) || avg <= 0) continue;
                                     if (prdWise && allowBelow.TryGetValue(item.ProductItemId, out bool ab) && ab) continue;
-                                    double factor    = item.ConFactor > 1 ? item.ConFactor : 1.0;
-                                    double unitPrice = item.UnitRate / factor;
+                                    double unitPrice = item.UnitRate;
                                     if (unitPrice >= avg) continue;
                                     belowCostFound = true;
                                     break;
@@ -1213,7 +1212,7 @@ ORDER BY sli.sale_line_item_id", con);
                 line.PackSize                    = item.PackSize;
                 // Con_Factor=0 means unit sale; keep 1.0 so DAL inventory math is correct
                 line.Con_Factor                  = item.ConFactor > 0 ? item.ConFactor : 1.0;
-                line.Con_Unit                    = "";
+                line.Con_Unit                    = item.ConUnit ?? "Single";
                 line.AvgCost                     = item.AvgCost;
                 line.VatChargedPerUnit           = 0.0;
                 line.VatOnRetailPrice            = 0.0;
