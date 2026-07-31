@@ -278,6 +278,12 @@ namespace CandelaPOS.Models
         // Mirrors frmSaleAndReturn.vb:31484-31492 (CR#7270) applied before SaleAndReturnDAL.Add().
         [JsonProperty("avg_cost")]
         public double AvgCost { get; set; }
+
+        // "Single" or "Pack" — mirrors tblSalesLineItems.Con_Unit (frmSaleAndReturn.vb:9297).
+        // When "Pack": quantity is effective units (display_qty × con_factor), rate is per single unit.
+        // DAL uses Con_Unit for reporting; inventory deduction uses the raw Qty value directly.
+        [JsonProperty("con_unit")]
+        public string ConUnit { get; set; }
     }
 
     // One component row inside a bundle/assembly line item.
