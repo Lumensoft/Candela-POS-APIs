@@ -1244,6 +1244,38 @@ ORDER BY sli.sale_line_item_id", con);
                 }
             }
 
+            // Multi-batch deduction: build dtBatchDetails when any item carries batch_allocations.
+            // SaleAndReturnDAL.Add() calls CommonDAL.InsertBatch() when ManageBatch=True AND
+            // dtBatchDetails.Rows.Count > 0.  Columns must match CommonDAL.GetBatchQty output —
+            // the inner Add() (line 4820) sets dr("TransactionDetailID") and line 4930 filters on
+            // NestedItemId; both columns must exist or DataRow throws ArgumentException.
+            bool hasAllocations = req.Items.Any(i => i.BatchAllocations?.Count > 0);
+            if (hasAllocations)
+            {
+                var bdt = new DataTable();
+                bdt.Columns.Add("ProductItemID",      typeof(int));
+                bdt.Columns.Add("BatchNo",            typeof(string));
+                bdt.Columns.Add("ExpiryDate",         typeof(DateTime));
+                bdt.Columns.Add("Quantity",           typeof(double));
+                bdt.Columns.Add("TransactionDetailID",typeof(int));
+                bdt.Columns.Add("NestedItemId",       typeof(int));
+
+                foreach (var item in req.Items)
+                {
+                    if (item.BatchAllocations == null) continue;
+                    foreach (var alloc in item.BatchAllocations)
+                    {
+                        if (alloc.Qty <= 0) continue;
+                        DateTime expiry;
+                        if (!DateTime.TryParse(alloc.ExpiryDate, out expiry))
+                            expiry = new DateTime(2099, 12, 31);
+                        bdt.Rows.Add(item.ProductItemId, alloc.BatchNo ?? "", expiry, alloc.Qty, 0, 0);
+                    }
+                }
+                if (bdt.Rows.Count > 0)
+                    sale.dtBatchDetails = bdt;
+            }
+
             return sale;
         }
     }

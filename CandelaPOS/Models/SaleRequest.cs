@@ -226,6 +226,12 @@ namespace CandelaPOS.Models
         [JsonProperty("batch_no")]
         public string BatchNo { get; set; }
 
+        // Multi-batch allocation list.  When present, one dtBatchDetails row is built per entry
+        // so SaleAndReturnDAL.Add() calls CommonDAL.InsertBatch() for each batch segment.
+        // batch_no on this line item carries the first allocation for invoice display.
+        [JsonProperty("batch_allocations")]
+        public List<BatchAllocationDto> BatchAllocations { get; set; }
+
         // Pack selling — Con_Factor=pack size multiplier, PackSize=units per pack
         // Affects discount calc (SaleAndReturnDAL.vb:901) and inventory movement
         [JsonProperty("con_factor")]
@@ -284,6 +290,15 @@ namespace CandelaPOS.Models
         // DAL uses Con_Unit for reporting; inventory deduction uses the raw Qty value directly.
         [JsonProperty("con_unit")]
         public string ConUnit { get; set; }
+    }
+
+    // One allocation row for multi-batch splitting.
+    // batch_no + qty together tell InsertBatch how much to deduct from each batch segment.
+    public class BatchAllocationDto
+    {
+        [JsonProperty("batch_no")]    public string BatchNo    { get; set; }
+        [JsonProperty("qty")]         public double Qty        { get; set; }
+        [JsonProperty("expiry_date")] public string ExpiryDate { get; set; }
     }
 
     // One component row inside a bundle/assembly line item.
