@@ -57,6 +57,30 @@ CREATE TABLE tblPOSIdempotency (
     created_at      DATETIME     NOT NULL DEFAULT GETDATE(),
     UNIQUE INDEX IX_POSIdempotencyGuid (client_txn_guid, shop_id)
 )", con).ExecuteNonQuery();
+
+                // Denomination breakdown for a till shift close (Shift Management / POS Cash
+                // Flow feature). Audit-trail only — the authoritative CashCounted/CashDifference
+                // reconciliation lives in tblPOSCashManagement via POSCashManagmentDAL.
+                new SqlCommand(@"
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'tblPOSShiftCashCount')
+CREATE TABLE tblPOSShiftCashCount (
+    id                  INT IDENTITY(1,1) PRIMARY KEY,
+    POSCashManagementID INT           NOT NULL,
+    ShopID              INT           NOT NULL,
+    POSCode             VARCHAR(50)   NOT NULL,
+    Denom_5000          INT           NOT NULL DEFAULT 0,
+    Denom_1000          INT           NOT NULL DEFAULT 0,
+    Denom_500           INT           NOT NULL DEFAULT 0,
+    Denom_100           INT           NOT NULL DEFAULT 0,
+    Denom_50            INT           NOT NULL DEFAULT 0,
+    Denom_20            INT           NOT NULL DEFAULT 0,
+    Denom_10            INT           NOT NULL DEFAULT 0,
+    Denom_5             INT           NOT NULL DEFAULT 0,
+    Denom_Other_Amount  DECIMAL(18,2) NOT NULL DEFAULT 0,
+    TotalCounted        DECIMAL(18,2) NOT NULL DEFAULT 0,
+    CountedAt           DATETIME      NOT NULL,
+    INDEX IX_POSShiftCashCountShift (POSCashManagementID, ShopID)
+)", con).ExecuteNonQuery();
             }
         }
 

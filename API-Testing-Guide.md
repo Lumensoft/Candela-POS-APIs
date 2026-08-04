@@ -1013,6 +1013,220 @@ WHERE IsClosed = 0 AND POSCode = 'POS1' AND ShopID = 1;
 
 ---
 
+### GET /pos/shift-status
+
+Full till-shift cash breakdown, mirrors `frmPOSCashManagement`'s live drawer summary.
+Same calculation as `cash-status` above, plus a `last_closed` block (previous shift's
+counted cash and difference) when no shift is currently open — used to drive the
+"Open Till" vs live-summary state on the Shift Management screen.
+
+```http
+GET /api/pos/shift-status
+Authorization: Bearer <token>
+```
+
+**Expected response (shift open):**
+
+```json
+{
+  "success": true,
+  "shift_open": true,
+  "opening": 20000.00,
+  "cash_received": 5000.00,
+  "cash_sales": 12500.00,
+  "net_sales": 12500.00,
+  "cash_skimmed": 3000.00,
+  "available_cash": 34500.00,
+  "shift_since": "2026-08-03 09:00",
+  "pos_code": "POS1",
+  "shop_id": 1,
+  "last_closed": null
+}
+```
+
+**Expected response (no shift open):**
+
+```json
+{
+  "success": true,
+  "shift_open": false,
+  "opening": 0,
+  "cash_received": 0,
+  "cash_sales": 0,
+  "net_sales": 0,
+  "cash_skimmed": 0,
+  "available_cash": 0,
+  "shift_since": null,
+  "pos_code": "POS1",
+  "shop_id": 1,
+  "last_closed": {
+    "closed_at": "2026-08-02 21:15:00",
+    "cash_counted": 41000.00,
+    "cash_difference": -500.00
+  }
+}
+```
+
+---
+
+### POST /pos/shift-open
+
+Explicitly opens a till shift for this POS/shop. Idempotent — if a shift is already
+open, just returns its opening cash instead of erroring. Internally calls the same
+`POSCashManagmentDAL.CloseShift()` the DAL already uses to auto-open a shift on the
+first Received/Skimmed movement — this just exposes it as an explicit user action so
+"Open Till" appears as a real step in the UI instead of happening silently.
+
+```http
+POST /api/pos/shift-open
+Authorization: Bearer <token>
+```
+
+**Expected response:**
+
+```json
+{
+  "success": true,
+  "already_open": false,
+  "opened_at": "2026-08-03 09:00:00",
+  "opening": 20000.00,
+  "pos_code": "POS1",
+  "shop_id": 1
+}
+```
+
+**DB verification:**
+
+```sql
+SELECT TOP 1 * FROM tblPOSCashManagement
+WHERE IsClosed = 0 AND POSCode = 'POS1' AND ShopID = 1
+ORDER BY POSCashManagementID DESC;
+```
+
+---
+
+### POST /pos/cash-receive
+
+Records a mid-shift cash addition to the till drawer (float top-up from the shop
+safe). Mirrors `cash-skim` above exactly, with `Type = Received`.
+
+```http
+POST /api/pos/cash-receive
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+```json
+{
+  "amount": 5000.00,
+  "notes": "Float top-up from shop safe"
+}
+```
+
+**Expected response:**
+
+```json
+{
+  "success": true,
+  "amount": 5000.00,
+  "notes": "Float top-up from shop safe",
+  "pos_code": "POS1",
+  "shop_id": 1,
+  "received_at": "2026-08-03 11:15:00"
+}
+```
+
+**Error cases:**
+- `400` — `amount` missing or ≤ 0
+
+**DB verification:**
+
+```sql
+SELECT TOP 1 * FROM tblPOSCashManagementDetail
+WHERE Type = 'Received'
+ORDER BY POSCashManagementDetailID DESC;
+```
+
+---
+
+### POST /pos/shift-close
+
+Closes the currently open till shift. Records physical cash counted (a single total,
+or a denomination breakdown that's summed into the total) and cash submitted, then
+computes `CashDifference` via `POSCashManagmentDAL.UpdateShiftClosing` — the same
+formula as `frmPOSCashManagement`'s "Cash / Shift Closing" panel:
+
+```
+CashDifference = CashCounted - (Opening + CashReceived + NetSales - CashSkimmed)
+```
+
+`denominations` is optional; when present it's persisted to `tblPOSShiftCashCount`
+purely as a physical-count audit trail — `cash_counted` remains the authoritative
+figure used for reconciliation regardless of whether it came from a quick total or a
+denomination breakdown.
+
+```http
+POST /api/pos/shift-close
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+```json
+{
+  "cash_counted": 34000.00,
+  "cash_submitted": 30000.00,
+  "notes": "End of shift closing",
+  "denominations": {
+    "d5000": 6, "d1000": 4, "d500": 0, "d100": 0,
+    "d50": 0, "d20": 0, "d10": 0, "d5": 0, "other": 0
+  }
+}
+```
+
+> `denominations` may be omitted entirely for a quick single-total close.
+
+**Expected response:**
+
+```json
+{
+  "success": true,
+  "closed_at": "2026-08-03 21:00:00",
+  "cash_counted": 34000.00,
+  "cash_submitted": 30000.00,
+  "closing_cash": 4000.00,
+  "net_sales": 12500.00,
+  "opening": 20000.00,
+  "cash_received": 5000.00,
+  "cash_skimmed": 3000.00,
+  "cash_difference": -500.00,
+  "pos_code": "POS1",
+  "shop_id": 1
+}
+```
+
+**Error cases:**
+- `400` — `cash_counted` missing or negative
+- `422` — no open shift to close for this till
+
+**DB verification:**
+
+```sql
+-- Closed shift row
+SELECT TOP 1 * FROM tblPOSCashManagement
+WHERE IsClosed = 1 AND POSCode = 'POS1' AND ShopID = 1
+ORDER BY POSCashManagementID DESC;
+
+-- Opening-balance audit row written by UpdateShiftClosing
+SELECT TOP 1 * FROM tblPosOpeningBalance
+WHERE Pos_name = 'POS1' ORDER BY pos_open_balance_id DESC;
+
+-- Denomination breakdown (only if denominations was sent)
+SELECT TOP 1 * FROM tblPOSShiftCashCount
+WHERE ShopID = 1 AND POSCode = 'POS1' ORDER BY id DESC;
+```
+
+---
+
 ## 11. Quote API — Discount & Tax Parity Scenarios
 
 All requests:
