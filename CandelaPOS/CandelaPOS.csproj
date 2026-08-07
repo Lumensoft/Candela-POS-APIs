@@ -46,7 +46,7 @@
   <ItemGroup>
     <!-- Candela DAL/Model/Utility — file references, not project references -->
     <Reference Include="DAL">
-      <HintPath>..\..\CandelaRMS\DAL\bin\Debug\DAL.dll</HintPath>
+      <HintPath>lib\DAL.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Microsoft.ReportViewer.Common, Version=15.0.0.0, Culture=neutral, PublicKeyToken=89845dcd8080cc91, processorArchitecture=MSIL">
@@ -71,18 +71,17 @@
     </Reference>
     <Reference Include="Microsoft.SqlServer.Types, Version=14.0.0.0, Culture=neutral, PublicKeyToken=89845dcd8080cc91, processorArchitecture=MSIL">
       <HintPath>..\packages\Microsoft.SqlServer.Types.14.0.314.76\lib\net40\Microsoft.SqlServer.Types.dll</HintPath>
-      <Private>True</Private>
     </Reference>
     <Reference Include="Model">
-      <HintPath>..\..\CandelaRMS\Model\bin\Debug\Model.dll</HintPath>
+      <HintPath>lib\Model.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Utility">
-      <HintPath>..\..\CandelaRMS\Utility\bin\Debug\Utility.dll</HintPath>
+      <HintPath>lib\Utility.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="EncryptionClassLibrary">
-      <HintPath>..\..\CandelaRMS\DAL\bin\Debug\EncryptionClassLibrary.dll</HintPath>
+      <HintPath>lib\EncryptionClassLibrary.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <!-- Web API -->
