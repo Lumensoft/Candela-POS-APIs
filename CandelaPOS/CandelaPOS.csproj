@@ -84,6 +84,18 @@
       <HintPath>lib\EncryptionClassLibrary.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="SMSUtility">
+      <HintPath>lib\SMSUtility.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="JsonFx.Json">
+      <HintPath>lib\JsonFx.Json.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Neodynamic.SDK.Barcode">
+      <HintPath>lib\Neodynamic.SDK.Barcode.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <!-- Web API -->
     <Reference Include="System.Web.Http, Version=5.2.7.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35">
       <HintPath>..\packages\Microsoft.AspNet.WebApi.Core.5.2.7\lib\net45\System.Web.Http.dll</HintPath>
