@@ -221,6 +221,15 @@ FROM tblComputerList WHERE POS_code = @posCode";
             // parse the RDLC XML directly — that is always available at this point.
             SetDefaultParameters(report, info.RdlcPath);
 
+            RenderAndPrint(report, printerName, copies, settings);
+        }
+
+        // Renders an already-configured LocalReport (datasources + parameters set) to EMF
+        // pages and sends them to the Windows print spooler. Shared by Print() and
+        // PrintSkimReport() so both report types go through the same GDI print path.
+        private static void RenderAndPrint(LocalReport report, string printerName, int copies,
+                                           ComputerSettings settings)
+        {
             var streams = new List<MemoryStream>();
             report.Render("Image", DeviceInfo(settings),
                 (name, ext, enc, mime, willSeek) => { var ms = new MemoryStream(); streams.Add(ms); return ms; },
@@ -248,6 +257,149 @@ FROM tblComputerList WHERE POS_code = @posCode";
             }
 
             foreach (var ms in streams) ms.Dispose();
+        }
+
+        // Renders and prints the "Summary Report" cash-skim slip (Shop Activiites\POSCashManagementSkimmed.rdlc),
+        // mirroring frmPOSCashManagement.vb's FunAddSkimReportParameters(). DataSet5 lists the shift's
+        // individual Skimmed-type detail rows; the 7 ReportParameters carry the header/amount fields
+        // the RDLC pulls in directly (this report has no invoice-style stored-proc datasource).
+        internal static void PrintSkimReport(SkimReportParams p, string printerName, int copies,
+                                             ComputerSettings settings, string basePath, string connStr)
+        {
+            if (!basePath.EndsWith("\\") && !basePath.EndsWith("/"))
+                basePath += "\\";
+            string rdlcPath = basePath + @"Shop Activiites\POSCashManagementSkimmed.rdlc";
+
+            DataTable detailData = Fetch(
+                $"SELECT DetailDate, Amount FROM tblPOSCashManagementDetail WHERE POSCashManagementID={p.PosCashManagementId} AND Type='Skimmed' ORDER BY DetailDate",
+                connStr);
+
+            var report = new LocalReport { ReportPath = rdlcPath, EnableExternalImages = true };
+            report.DataSources.Add(new ReportDataSource("DataSet5", detailData));
+            report.SetParameters(new[]
+            {
+                new ReportParameter("CompanyNameSkimmed",    p.CompanyName ?? ""),
+                new ReportParameter("CompanyAddressSkimmed", p.CompanyAddress ?? ""),
+                new ReportParameter("POSCashIDSkimmed",      p.PosCashManagementId.ToString()),
+                new ReportParameter("ShopIDSkimmed",         p.ShopId.ToString()),
+                new ReportParameter("POSCodeSkimmed",        p.PosCode ?? ""),
+                new ReportParameter("UserSkimmed",           p.UserName ?? ""),
+                new ReportParameter("SkimCash",              p.SkimAmount.ToString("0.00")),
+            });
+            // No SetDefaultParameters() call here, unlike Print(): this RDLC has exactly
+            // these 7 ReportParameters and no others, so there's nothing left to default -
+            // calling it would re-walk these same 7 (none have an RDLC-side <DefaultValue>)
+            // and stamp them back to "False", clobbering the real values just set above.
+
+            RenderAndPrint(report, printerName, copies, settings);
+        }
+
+        internal sealed class SkimReportParams
+        {
+            public string CompanyName          { get; set; }
+            public string CompanyAddress       { get; set; }
+            public int    PosCashManagementId  { get; set; }
+            public int    ShopId               { get; set; }
+            public string PosCode              { get; set; }
+            public string UserName             { get; set; }
+            public double SkimAmount           { get; set; }
+        }
+
+        // Renders and prints the "POS Cash Management" summary report - available in two RDLC
+        // layouts (3-inch and A4) sharing the exact same 4-dataset/9-parameter data contract,
+        // mirroring frmPOSCashManagement.vb's FunAddReport3inchPramaters(). Traced from
+        // ReportViewerFor2005.vb: DataSet2 (the header row) yields the OpeningTime/End_Date/
+        // POSCode used as the date range for the other three stored-proc calls.
+        internal static void PrintPosCashManagement3Inch(PosCashSummaryParams p, string printerName, int copies,
+                                                          ComputerSettings settings, string basePath, string connStr)
+            => PrintPosCashManagement("POSCashManagement.rdlc", p, printerName, copies, settings, basePath, connStr);
+
+        // A4 layout uses fixed A4 page dimensions rather than this terminal's configured
+        // receipt-printer page size (tblComputerList.InvoiceWidth/Height, which is narrow/
+        // receipt-sized) - otherwise the report would render correctly but onto the wrong
+        // "paper" size.
+        internal static void PrintPosCashManagementA4(PosCashSummaryParams p, string printerName, int copies,
+                                                       string basePath, string connStr)
+        {
+            var a4Settings = new ComputerSettings
+            {
+                PageWidth = 8.27, PageHeight = 11.69,
+                TopMargin = 0.4, BottomMargin = 0.4, LeftMargin = 0.4, RightMargin = 0.4
+            };
+            PrintPosCashManagement("POSCashManagementA4.rdlc", p, printerName, copies, a4Settings, basePath, connStr);
+        }
+
+        private static void PrintPosCashManagement(string rdlcFileName, PosCashSummaryParams p, string printerName,
+                                                    int copies, ComputerSettings settings, string basePath, string connStr)
+        {
+            if (!basePath.EndsWith("\\") && !basePath.EndsWith("/"))
+                basePath += "\\";
+            string rdlcPath = basePath + "Shop Activiites\\" + rdlcFileName;
+
+            DataTable dt2 = Fetch($"exec spPOSCashManagment {p.PosCashManagementId},{p.ShopId}", connStr);
+            if (dt2.Rows.Count == 0)
+                throw new InvalidOperationException(
+                    $"spPOSCashManagment returned no row for POSCashManagementID={p.PosCashManagementId}.");
+
+            DateTime start  = Convert.ToDateTime(dt2.Rows[0]["OpeningTime"]);
+            DateTime end    = Convert.ToDateTime(dt2.Rows[0]["End_Date"]);
+            string posCode  = dt2.Rows[0]["POSCode"].ToString();
+            string startStr = start.ToString("yyyy-MM-dd HH:mm:ss");
+            string endStr   = end.ToString("yyyy-MM-dd HH:mm:ss");
+            string posCodeEsc = posCode.Replace("'", "''");
+
+            DataTable dt3 = Fetch($"exec spPOSCashTenders {p.ShopId},'{posCodeEsc}','{startStr}','{endStr}'", connStr);
+            DataTable dt4 = Fetch($"exec spPOSSaleDetails '{posCodeEsc}',{p.ShopId},'{startStr}','{endStr}'", connStr);
+            DataTable dt5 = Fetch($"exec spPOSLineItemDetail '{posCodeEsc}',{p.ShopId},'{startStr}','{endStr}'", connStr);
+
+            var report = new LocalReport { ReportPath = rdlcPath, EnableExternalImages = true };
+            report.DataSources.Add(new ReportDataSource("DataSet2", dt2));
+            report.DataSources.Add(new ReportDataSource("DataSet3", dt3));
+            report.DataSources.Add(new ReportDataSource("DataSet4", dt4));
+            report.DataSources.Add(new ReportDataSource("DataSet5", dt5));
+
+            // Cash Received Detail / Cash Skimmed Detail boxes - only the A4 layout defines
+            // DataSet6/DataSet7, so this is skipped for the 3-inch report (POSCashManagement.rdlc,
+            // the pre-existing legacy file, is left completely untouched by this feature).
+            if (rdlcFileName == "POSCashManagementA4.rdlc")
+            {
+                DataTable dt6 = Fetch(
+                    $"SELECT DetailDate, Amount FROM tblPOSCashManagementDetail WHERE POSCashManagementID={p.PosCashManagementId} AND Type='Received' ORDER BY DetailDate",
+                    connStr);
+                DataTable dt7 = Fetch(
+                    $"SELECT DetailDate, Amount FROM tblPOSCashManagementDetail WHERE POSCashManagementID={p.PosCashManagementId} AND Type='Skimmed' ORDER BY DetailDate",
+                    connStr);
+                report.DataSources.Add(new ReportDataSource("DataSet6", dt6));
+                report.DataSources.Add(new ReportDataSource("DataSet7", dt7));
+            }
+
+            report.SetParameters(new[]
+            {
+                new ReportParameter("POSCashID",              p.PosCashManagementId.ToString()),
+                new ReportParameter("POSCode",                 posCode ?? ""),
+                new ReportParameter("CompanyNamePOS",          p.CompanyName ?? ""),
+                new ReportParameter("AddressPOS",              p.CompanyAddress ?? ""),
+                new ReportParameter("ShopIDPOS",                p.ShopId.ToString()),
+                new ReportParameter("UserPOS",                 p.UserName ?? ""),
+                new ReportParameter("ShowMultiplePaymentsPOS", "True"),
+                new ReportParameter("ShowSaleDetailPOS",       p.ShowDetail ? "True" : "False"),
+                new ReportParameter("SubreportShowPOS",        p.ShowDetail ? "True" : "False"),
+            });
+            // No SetDefaultParameters() call - same reasoning as PrintSkimReport: these 9
+            // names are exactly what both RDLCs define, none have an RDLC-side <DefaultValue>,
+            // so re-walking them would clobber the real values back to "False".
+
+            RenderAndPrint(report, printerName, copies, settings);
+        }
+
+        internal sealed class PosCashSummaryParams
+        {
+            public int    PosCashManagementId { get; set; }
+            public int    ShopId              { get; set; }
+            public string CompanyName         { get; set; }
+            public string CompanyAddress      { get; set; }
+            public string UserName            { get; set; }
+            public bool   ShowDetail          { get; set; } = true;
         }
 
         // ── ReportInfo factory helpers ────────────────────────────────────────

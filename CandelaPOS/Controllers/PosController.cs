@@ -234,7 +234,8 @@ WHERE  pos_code = @pos AND shop_id = @sid
                           notes    = req.Notes ?? string.Empty,
                           pos_code = posCode,
                           shop_id  = shopId,
-                          skimmed_at = now.ToString("yyyy-MM-dd HH:mm:ss") });
+                          skimmed_at = now.ToString("yyyy-MM-dd HH:mm:ss"),
+                          pos_cash_management_id = model.PosCashManagementID });
             }
             catch (Exception ex)
             {
@@ -280,7 +281,8 @@ WHERE  pos_code = @pos AND shop_id = @sid
                         shift_since    = bd.OpeningTime.HasValue ? bd.OpeningTime.Value.ToString("yyyy-MM-dd HH:mm") : null,
                         pos_code       = posCode,
                         shop_id        = shopId,
-                        last_closed    = lastClosed
+                        last_closed    = lastClosed,
+                        pos_cash_management_id = bd.ShiftOpen ? (int?)bd.PosCashManagementId : null
                     });
                 }
             }
@@ -853,7 +855,7 @@ WHERE  pos_code = @pos AND shop_id = @sid
         private object GetLastClosedShiftSummary(SqlConnection con, int shopId, string posCode)
         {
             const string sql = @"
-SELECT TOP 1 POSDate, CashCounted, CashDifference
+SELECT TOP 1 POSCashManagementID, POSDate, CashCounted, CashDifference
 FROM   tblPOSCashManagement
 WHERE  IsClosed = 1 AND POSCode = @pos AND ShopID = @sid
 ORDER BY POSDate DESC";
@@ -867,6 +869,7 @@ ORDER BY POSDate DESC";
                 if (!rdr.Read()) return null;
                 return new
                 {
+                    pos_cash_management_id = Convert.ToInt32(rdr["POSCashManagementID"]),
                     closed_at       = Convert.ToDateTime(rdr["POSDate"]).ToString("yyyy-MM-dd HH:mm:ss"),
                     cash_counted    = Convert.ToDouble(rdr["CashCounted"]),
                     cash_difference = Convert.ToDouble(rdr["CashDifference"])

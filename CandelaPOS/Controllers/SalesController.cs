@@ -808,6 +808,15 @@ ORDER BY sli.sale_line_item_id", con);
                     return Request.CreateResponse(HttpStatusCode.InternalServerError,
                         new { error = "SaleAndReturnDAL.Add() returned false. " + auditMsg });
 
+                // SaleAndReturnDAL.Add() writes Card_amt/credit_card_id onto tblSales itself
+                // but never inserts the matching row into tblsalesCashTenders. spPOSCashTenders
+                // (the POS Cash Management "Tender Details" report section) reads card-type
+                // totals exclusively from tblsalesCashTenders via an inner join to
+                // tbldefCreditCards - without this row, card payments silently vanish from
+                // that report even though the sale itself saved correctly.
+                if (req.CardAmount > 0 && req.CreditCardId > 0)
+                    InsertSalesCashTender(sale.SaleID, shopId, req.CreditCardId, req.CardAmount);
+
                 UpdateIdempotencySlot(req.ClientTxnGuid, sale.SaleID, shopId);
 
                 return Request.CreateResponse(HttpStatusCode.OK,
@@ -911,6 +920,34 @@ ORDER BY sli.sale_line_item_id", con);
                     if (attempt < 3)
                         System.Threading.Thread.Sleep(50 * attempt);
                 }
+            }
+        }
+
+        // Records the card-type tender breakdown for a sale so spPOSCashTenders (the POS
+        // Cash Management "Tender Details" report) can find it via its join to
+        // tbldefCreditCards. Best-effort: the sale itself already saved successfully by the
+        // time this runs, so a failure here is logged, not surfaced to the caller.
+        private void InsertSalesCashTender(int saleId, int shopId, int creditCardId, double cardAmount)
+        {
+            try
+            {
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "INSERT INTO tblsalesCashTenders (SaleID, ShopID, TenderID, TenderAmount) " +
+                        "VALUES (@saleId, @sid, @tenderId, @amount)", con);
+                    cmd.Parameters.AddWithValue("@saleId",   saleId);
+                    cmd.Parameters.AddWithValue("@sid",      shopId);
+                    cmd.Parameters.AddWithValue("@tenderId", creditCardId);
+                    cmd.Parameters.AddWithValue("@amount",   (decimal)cardAmount);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.TraceError(
+                    "InsertSalesCashTender failed for saleId={0}: {1}", saleId, ex);
             }
         }
 
