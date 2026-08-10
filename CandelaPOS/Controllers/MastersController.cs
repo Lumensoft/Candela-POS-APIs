@@ -109,9 +109,10 @@ namespace CandelaPOS.Controllers
         public HttpResponseMessage GetCreditCards([FromUri] string since = null)
         {
             CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
             try
             {
-                var rows = QueryCreditCards(ParseSince(since));
+                var rows = QueryCreditCards(shopId, ParseSince(since));
                 return Ok(rows);
             }
             catch (Exception ex) { return Err(ex); }
@@ -559,20 +560,25 @@ WHERE e.shop_id = @shopId";
                        if (since.HasValue) p.AddWithValue("@since", since.Value); });
         }
 
-        private List<Dictionary<string, object>> QueryCreditCards(DateTime? since)
+        private List<Dictionary<string, object>> QueryCreditCards(int shopId, DateTime? since)
         {
-            // tblDefCreditCards — global, not shop-scoped.
+            // tblDefCreditCards holds every card type defined system-wide, but Candela's
+            // desktop app only offers the subset mapped to the current shop via
+            // tblDefShopCreditCards (frmSaleAndReturn's card-type dropdown mirrors this).
             // Real columns: credit_card_id, field_name, EnteredDate (no isActive, no editeddate).
             const string sql = @"
 SELECT
-    credit_card_id,
-    isnull(field_name, '') AS credit_card_name,
-    EnteredDate
-FROM tblDefCreditCards";
+    c.credit_card_id,
+    isnull(c.field_name, '') AS credit_card_name,
+    c.EnteredDate
+FROM tblDefCreditCards c
+INNER JOIN tblDefShopCreditCards sc
+    ON sc.credit_card_id = c.credit_card_id AND sc.shop_id = @shopId";
 
-            const string delta = " WHERE EnteredDate >= @since";
-            return Run(sql + (since.HasValue ? delta : "") + " ORDER BY sort_order",
-                p => { if (since.HasValue) p.AddWithValue("@since", since.Value); });
+            const string delta = " WHERE c.EnteredDate >= @since";
+            return Run(sql + (since.HasValue ? delta : "") + " ORDER BY c.sort_order",
+                p => { p.AddWithValue("@shopId", shopId);
+                       if (since.HasValue) p.AddWithValue("@since", since.Value); });
         }
 
         private List<Dictionary<string, object>> QueryCustomerGroups()
