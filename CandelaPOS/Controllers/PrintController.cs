@@ -92,6 +92,162 @@ namespace CandelaPOS.Controllers
                     new { error = ex.Message, detail = ex.ToString() });
             }
         }
+
+        // POST api/print/skim-report
+        // Renders and prints the "Summary Report" cash-skim slip (Shop Activiites\POSCashManagementSkimmed.rdlc),
+        // mirroring frmPOSCashManagement.vb's "Summary Report" checkbox. Company name/address come from
+        // tblRCMSConfiguration (same keys the legacy app reads), cashier name from the JWT's user_name claim.
+        [HttpPost, Route("skim-report")]
+        public HttpResponseMessage PrintSkimReport([FromBody] SkimPrintRequest req)
+        {
+            if (req == null || req.PosCashManagementId <= 0)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "pos_cash_management_id is required and must be > 0" });
+
+            CandelaBootstrap.PrepareRequest();
+
+            int    shopId   = (int)   Request.Properties["shop_id"];
+            string posCode  = (string)Request.Properties["pos_code"];
+            string userName = (string)Request.Properties["user_name"];
+            int    copies   = Math.Max(1, Math.Min(req.Copies > 0 ? req.Copies : 1, 5));
+            string connStr  = CandelaBootstrap.ConnectionString;
+
+            string basePath = !string.IsNullOrWhiteSpace(req.ReportsPath)
+                              ? req.ReportsPath
+                              : ConfigurationManager.AppSettings["CandelaReportPath"];
+
+            if (string.IsNullOrWhiteSpace(basePath))
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "No reports path configured. Set it in Device Setup or add CandelaReportPath to Web.config." });
+
+            try
+            {
+                if (!RdlcInvoicePrinter.TryGetComputerSettings(
+                        posCode, connStr, isSecondary: false, out var cs))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = $"No printer configured in tblComputerList for POS terminal {posCode}." });
+
+                string rdlcPath = basePath.TrimEnd('\\', '/') + @"\Shop Activiites\POSCashManagementSkimmed.rdlc";
+                if (!File.Exists(rdlcPath))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = $"RDLC file not found: {rdlcPath}" });
+
+                var config = CandelaBootstrap.GetRCMSConfig();
+                config.TryGetValue("Invoice_Company_Name", out string companyName);
+                config.TryGetValue("Company_Address",      out string companyAddress);
+
+                string printer = !string.IsNullOrWhiteSpace(req.PrinterName)
+                                 ? req.PrinterName
+                                 : cs.InvoicePrinterName;
+
+                var p = new RdlcInvoicePrinter.SkimReportParams
+                {
+                    CompanyName         = companyName,
+                    CompanyAddress      = companyAddress,
+                    PosCashManagementId = req.PosCashManagementId,
+                    ShopId              = shopId,
+                    PosCode             = posCode,
+                    UserName            = userName,
+                    SkimAmount          = req.Amount,
+                };
+
+                RdlcInvoicePrinter.PrintSkimReport(p, printer, copies, cs, basePath, connStr);
+
+                return Request.CreateResponse(HttpStatusCode.OK, new
+                {
+                    success                = true,
+                    pos_cash_management_id = req.PosCashManagementId,
+                    printer,
+                    copies
+                });
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message, detail = ex.ToString() });
+            }
+        }
+
+        // POST api/print/pos-cash-summary
+        // Renders and prints the "POS Cash Management" summary report - the same report the
+        // legacy app's "Cash / Shift Closing" screen prints, available in two RDLC layouts
+        // (format: "3inch" or "a4") sharing one data contract. See RdlcInvoicePrinter.
+        // PrintPosCashManagement3Inch/A4 for the underlying stored-proc/parameter details.
+        [HttpPost, Route("pos-cash-summary")]
+        public HttpResponseMessage PrintPosCashSummary([FromBody] PosCashSummaryPrintRequest req)
+        {
+            if (req == null || req.PosCashManagementId <= 0)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "pos_cash_management_id is required and must be > 0" });
+
+            CandelaBootstrap.PrepareRequest();
+
+            int    shopId   = (int)   Request.Properties["shop_id"];
+            string posCode  = (string)Request.Properties["pos_code"];
+            string userName = (string)Request.Properties["user_name"];
+            int    copies   = Math.Max(1, Math.Min(req.Copies > 0 ? req.Copies : 1, 5));
+            string connStr  = CandelaBootstrap.ConnectionString;
+            bool   isA4     = string.Equals(req.Format, "a4", StringComparison.OrdinalIgnoreCase);
+
+            string basePath = !string.IsNullOrWhiteSpace(req.ReportsPath)
+                              ? req.ReportsPath
+                              : ConfigurationManager.AppSettings["CandelaReportPath"];
+
+            if (string.IsNullOrWhiteSpace(basePath))
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "No reports path configured. Set it in Device Setup or add CandelaReportPath to Web.config." });
+
+            try
+            {
+                if (!RdlcInvoicePrinter.TryGetComputerSettings(
+                        posCode, connStr, isSecondary: false, out var cs))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = $"No printer configured in tblComputerList for POS terminal {posCode}." });
+
+                string rdlcFileName = isA4 ? "POSCashManagementA4.rdlc" : "POSCashManagement.rdlc";
+                string rdlcPath = basePath.TrimEnd('\\', '/') + @"\Shop Activiites\" + rdlcFileName;
+                if (!File.Exists(rdlcPath))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = $"RDLC file not found: {rdlcPath}" });
+
+                var config = CandelaBootstrap.GetRCMSConfig();
+                config.TryGetValue("Invoice_Company_Name", out string companyName);
+                config.TryGetValue("Company_Address",      out string companyAddress);
+
+                string printer = !string.IsNullOrWhiteSpace(req.PrinterName)
+                                 ? req.PrinterName
+                                 : cs.InvoicePrinterName;
+
+                var p = new RdlcInvoicePrinter.PosCashSummaryParams
+                {
+                    PosCashManagementId = req.PosCashManagementId,
+                    ShopId              = shopId,
+                    CompanyName         = companyName,
+                    CompanyAddress      = companyAddress,
+                    UserName            = userName,
+                    ShowDetail          = true,
+                };
+
+                if (isA4)
+                    RdlcInvoicePrinter.PrintPosCashManagementA4(p, printer, copies, basePath, connStr);
+                else
+                    RdlcInvoicePrinter.PrintPosCashManagement3Inch(p, printer, copies, cs, basePath, connStr);
+
+                return Request.CreateResponse(HttpStatusCode.OK, new
+                {
+                    success                = true,
+                    pos_cash_management_id = req.PosCashManagementId,
+                    format                 = isA4 ? "a4" : "3inch",
+                    printer,
+                    copies
+                });
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message, detail = ex.ToString() });
+            }
+        }
     }
 
     public class PrintRequest
@@ -119,5 +275,46 @@ namespace CandelaPOS.Controllers
         // Null = default (true). Set false for kitchen/label printers with no cash drawer.
         [Newtonsoft.Json.JsonProperty("open_drawer")]
         public bool?  OpenDrawer  { get; set; }
+    }
+
+    public class SkimPrintRequest
+    {
+        [Newtonsoft.Json.JsonProperty("pos_cash_management_id")]
+        public int    PosCashManagementId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("amount")]
+        public double Amount              { get; set; }
+
+        // Optional: overrides tblComputerList.InvoicePrinterName for this job.
+        [Newtonsoft.Json.JsonProperty("printer_name")]
+        public string PrinterName         { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("copies")]
+        public int    Copies              { get; set; }     // optional, defaults to 1, max 5
+
+        // Set once in the Device Setup screen so Web.config never needs manual editing.
+        [Newtonsoft.Json.JsonProperty("reports_path")]
+        public string ReportsPath         { get; set; }
+    }
+
+    public class PosCashSummaryPrintRequest
+    {
+        [Newtonsoft.Json.JsonProperty("pos_cash_management_id")]
+        public int    PosCashManagementId { get; set; }
+
+        // "3inch" or "a4" - defaults to "3inch" for anything else/missing.
+        [Newtonsoft.Json.JsonProperty("format")]
+        public string Format              { get; set; }
+
+        // Optional: overrides tblComputerList.InvoicePrinterName for this job.
+        [Newtonsoft.Json.JsonProperty("printer_name")]
+        public string PrinterName         { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("copies")]
+        public int    Copies              { get; set; }     // optional, defaults to 1, max 5
+
+        // Set once in the Device Setup screen so Web.config never needs manual editing.
+        [Newtonsoft.Json.JsonProperty("reports_path")]
+        public string ReportsPath         { get; set; }
     }
 }
