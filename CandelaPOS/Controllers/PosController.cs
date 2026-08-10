@@ -448,7 +448,7 @@ FROM (" + where.ToString() + ") totals_src";
             try
             {
                 const string sql = @"
-SELECT d.Amount, d.DetailDate, d.Notes, d.Type
+SELECT d.POSCashManagementDetailID, d.Amount, d.DetailDate, d.Notes, d.Type
 FROM tblPOSCashManagement m
 INNER JOIN tblPOSCashManagementDetail d
     ON d.POSCashManagementID = m.POSCashManagementID AND d.ShopId = m.ShopID
@@ -472,6 +472,7 @@ ORDER BY d.DetailDate";
                         {
                             var row = new
                             {
+                                id          = Convert.ToInt32(rdr["POSCashManagementDetailID"]),
                                 amount      = Convert.ToDouble(rdr["Amount"]),
                                 detail_date = Convert.ToDateTime(rdr["DetailDate"]).ToString("yyyy-MM-dd HH:mm:ss"),
                                 notes       = rdr["Notes"] == DBNull.Value ? "" : rdr["Notes"].ToString(),
@@ -491,6 +492,91 @@ ORDER BY d.DetailDate";
                     received,
                     skimmed
                 });
+            }
+            catch (Exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = "An internal error occurred." });
+            }
+        }
+
+        // DELETE api/pos/shifts/{closingId}/detail/{detailId}
+        // Removes a single Cash Received / Cash Skimmed entry (row shown by GetShiftDetail
+        // above) and rolls its amount back out of tblPOSCashManagement's CashReceived/
+        // CashSkimmed running total. Scoped to shop_id/pos_code from the JWT so a terminal
+        // can only delete its own entries — works for both the currently open shift and a
+        // past closed one, matching GetShiftDetail's own scoping.
+        [HttpDelete, Route("shifts/{closingId:int}/detail/{detailId:int}")]
+        public HttpResponseMessage DeleteShiftDetail(int closingId, int detailId)
+        {
+            CandelaBootstrap.PrepareRequest();
+
+            int    shopId  = (int)   Request.Properties["shop_id"];
+            string posCode = (string)Request.Properties["pos_code"];
+
+            try
+            {
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var trans = con.BeginTransaction();
+                    try
+                    {
+                        const string lookupSql = @"
+SELECT d.Amount, d.Type
+FROM tblPOSCashManagement m
+INNER JOIN tblPOSCashManagementDetail d
+    ON d.POSCashManagementID = m.POSCashManagementID AND d.ShopId = m.ShopID
+WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @pos
+      AND d.POSCashManagementDetailID = @detailId";
+
+                        double amount; string type;
+                        using (var lookupCmd = new SqlCommand(lookupSql, con, trans))
+                        {
+                            lookupCmd.Parameters.AddWithValue("@closingId", closingId);
+                            lookupCmd.Parameters.AddWithValue("@sid", shopId);
+                            lookupCmd.Parameters.AddWithValue("@pos", posCode);
+                            lookupCmd.Parameters.AddWithValue("@detailId", detailId);
+                            using (var rdr = lookupCmd.ExecuteReader())
+                            {
+                                if (!rdr.Read())
+                                {
+                                    trans.Rollback();
+                                    return Request.CreateResponse(HttpStatusCode.NotFound,
+                                        new { error = "Entry not found." });
+                                }
+                                amount = Convert.ToDouble(rdr["Amount"]);
+                                type   = rdr["Type"].ToString();
+                            }
+                        }
+
+                        using (var delCmd = new SqlCommand(
+                            "DELETE FROM tblPOSCashManagementDetail WHERE POSCashManagementDetailID = @detailId", con, trans))
+                        {
+                            delCmd.Parameters.AddWithValue("@detailId", detailId);
+                            delCmd.ExecuteNonQuery();
+                        }
+
+                        string aggregateColumn = type == "Received" ? "CashReceived" : "CashSkimmed";
+                        using (var updCmd = new SqlCommand(
+                            $"UPDATE tblPOSCashManagement SET {aggregateColumn} = ISNULL({aggregateColumn}, 0) - @amount " +
+                            "WHERE POSCashManagementID = @closingId AND ShopID = @sid", con, trans))
+                        {
+                            updCmd.Parameters.AddWithValue("@amount", amount);
+                            updCmd.Parameters.AddWithValue("@closingId", closingId);
+                            updCmd.Parameters.AddWithValue("@sid", shopId);
+                            updCmd.ExecuteNonQuery();
+                        }
+
+                        trans.Commit();
+                        return Request.CreateResponse(HttpStatusCode.OK, new { success = true });
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
             }
             catch (Exception)
             {
