@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Net;
 using System.Net.Http;
@@ -43,6 +44,9 @@ namespace CandelaPOS.Controllers
                 string  groupName           = "";
                 int     groupType          = 0;
                 decimal saleReturnLimit    = 0m;
+                int     groupId            = 0;
+                bool    hasBelowCostRight  = false;
+                var     grantedRights      = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 using (var con = new SqlConnection(conStr))
                 {
@@ -57,7 +61,8 @@ namespace CandelaPOS.Controllers
                         " isnull(b.ApplyOpenAdjustment,0)     AS ApplyOpenAdjustment," +
                         " isnull(a.GROUP_NAME,'')              AS GROUP_NAME," +
                         " isnull(a.GROUP_TYPE,0)               AS GROUP_TYPE," +
-                        " isnull(a.SaleReturnLimit,0)          AS SaleReturnLimit" +
+                        " isnull(a.SaleReturnLimit,0)          AS SaleReturnLimit," +
+                        " a.GROUP_ID                           AS GROUP_ID" +
                         " FROM tblSecurityGroup a" +
                         " INNER JOIN TblSecurityUser b ON a.GROUP_ID = b.GROUP_ID" +
                         " WHERE b.user_log_id = @uid" +
@@ -94,7 +99,23 @@ namespace CandelaPOS.Controllers
                         groupName         = reader["GROUP_NAME"].ToString();
                         groupType         = Convert.ToInt32(reader["GROUP_TYPE"]);
                         saleReturnLimit   = Convert.ToDecimal(reader["SaleReturnLimit"]);
+                        groupId           = Convert.ToInt32(reader["GROUP_ID"]);
                     }
+
+                    // Step 1b — fetch all frmSaleAndReturn control rights for this group in one query
+                    var rightsCmd = new SqlCommand(
+                        "SELECT sfc.controlName " +
+                        "FROM tblSecurityControlRight scr " +
+                        "INNER JOIN tblSecurityFormControl sfc ON sfc.ControlId = scr.ControlId " +
+                        "INNER JOIN tblSecurityForm sf ON sf.FORM_ID = sfc.FormID " +
+                        "WHERE scr.GroupId = @gid AND sf.Form_Name_New = 'frmSaleAndReturn'", con);
+                    rightsCmd.Parameters.AddWithValue("@gid", groupId);
+                    using (var rdr = rightsCmd.ExecuteReader())
+                    {
+                        while (rdr.Read())
+                            grantedRights.Add(rdr["controlName"].ToString());
+                    }
+                    hasBelowCostRight = grantedRights.Contains("BelowCostSales");
 
                     // Step 2a — check if this device is already registered in tblComputerList
                     const string findSql =
@@ -158,7 +179,8 @@ namespace CandelaPOS.Controllers
 
                 // Step 4 — bootstrap Candela globals then issue JWT
                 CandelaBootstrap.PrepareRequest();
-                string token = JwtHelper.Generate(userId, userName, shopId, posCode, req.DeviceId, groupName, groupType, saleReturnLimit);
+                string controlRightsStr = string.Join(",", grantedRights);
+                string token = JwtHelper.Generate(userId, userName, shopId, posCode, req.DeviceId, groupName, groupType, saleReturnLimit, hasBelowCostRight, controlRightsStr);
 
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<LoginResponse>.Ok(new LoginResponse
@@ -175,6 +197,7 @@ namespace CandelaPOS.Controllers
                         AllowPriceEditing    = allowPriceEditing,
                         CanAdjust            = canAdjust,
                         IsOpenAdjust         = isOpenAdjust,
+                        ControlRights        = new List<string>(grantedRights),
                     }));
             }
             catch (Exception)

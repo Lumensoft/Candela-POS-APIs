@@ -44,6 +44,8 @@ namespace CandelaPOS.Infrastructure
             request.Properties["group_name"]        = JwtHelper.GetGroupName(principal);
             request.Properties["group_type"]        = JwtHelper.GetGroupType(principal);
             request.Properties["sale_return_limit"] = JwtHelper.GetSaleReturnLimit(principal);
+            request.Properties["below_cost_right"]  = JwtHelper.GetBelowCostRight(principal);
+            request.Properties["scr_rights"]         = JwtHelper.GetControlRightsSet(principal);
             // Carry raw token so /auth/refresh and /auth/logout can blocklist it
             request.Properties["raw_token"]  = auth.Parameter;
 
