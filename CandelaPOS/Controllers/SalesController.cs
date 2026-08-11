@@ -615,28 +615,9 @@ ORDER BY sli.sale_line_item_id", con);
                     {
                         bool configRestrict = CfgIs(bCfg, "RestrictBelowCostSales", "True");
 
-                        // Query BelowCostSales group right (frmSaleAndReturn.vb:4996-5006)
-                        bool hasBelowCostRight = false;
-                        using (var rightsCon = new SqlConnection(CandelaBootstrap.ConnectionString))
-                        {
-                            rightsCon.Open();
-                            var grpCmd = new SqlCommand(
-                                "SELECT TOP 1 group_id FROM TblSecurityUser WHERE user_id = @uid", rightsCon);
-                            grpCmd.Parameters.AddWithValue("@uid", userId);
-                            var grpObj = grpCmd.ExecuteScalar();
-                            if (grpObj != null)
-                            {
-                                int grpId = Convert.ToInt32(grpObj);
-                                var rightCmd = new SqlCommand(
-                                    "SELECT COUNT(1) FROM tblSecurityControlRight scr " +
-                                    "INNER JOIN tblSecurityFormControl sfc ON sfc.ControlId = scr.ControlId " +
-                                    "INNER JOIN tblSecurityForm sf ON sf.FORM_ID = sfc.FormID " +
-                                    "WHERE scr.GroupId = @gid AND sf.FORM_Name_New = 'frmSaleAndReturn' " +
-                                    "AND sfc.controlName = 'BelowCostSales'", rightsCon);
-                                rightCmd.Parameters.AddWithValue("@gid", grpId);
-                                hasBelowCostRight = Convert.ToInt32(rightCmd.ExecuteScalar()) > 0;
-                            }
-                        }
+                        // BelowCostSales right — resolved at login and carried in the JWT
+                        bool hasBelowCostRight = Request.Properties.ContainsKey("below_cost_right")
+                            && (bool)Request.Properties["below_cost_right"];
 
                         bool shouldCheck = configRestrict || hasBelowCostRight;
 

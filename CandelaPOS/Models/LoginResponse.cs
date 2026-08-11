@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Newtonsoft.Json;
 
 namespace CandelaPOS.Models
@@ -39,5 +40,8 @@ namespace CandelaPOS.Models
 
         [JsonProperty("invoice_printer_name")]
         public string InvoicePrinterName { get; set; }
+
+        [JsonProperty("control_rights")]
+        public List<string> ControlRights { get; set; }
     }
 }

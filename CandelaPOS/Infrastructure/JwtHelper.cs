@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Linq;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -19,7 +20,7 @@ namespace CandelaPOS.Infrastructure
         private static string Issuer =>
             ConfigurationManager.AppSettings["Jwt:Issuer"] ?? "CandelaPOS";
 
-        public static string Generate(int userId, string userName, int shopId, string posCode, string deviceId, string groupName, int groupType, decimal saleReturnLimit)
+        public static string Generate(int userId, string userName, int shopId, string posCode, string deviceId, string groupName, int groupType, decimal saleReturnLimit, bool hasBelowCostRight = false, string controlRightsStr = "")
         {
             var now = DateTimeOffset.UtcNow;
             var payload = new Dictionary<string, object>
@@ -35,7 +36,9 @@ namespace CandelaPOS.Infrastructure
                 { "device_id",         deviceId },
                 { "group_name",        groupName },
                 { "group_type",        groupType },
-                { "sale_return_limit", saleReturnLimit }
+                { "sale_return_limit", saleReturnLimit },
+                { "below_cost_right",  hasBelowCostRight ? 1 : 0 },
+                { "scr_rights",        controlRightsStr }
             };
 
             string header  = Base64UrlEncode(Encoding.UTF8.GetBytes("{\"alg\":\"HS256\",\"typ\":\"JWT\"}"));
@@ -107,6 +110,17 @@ namespace CandelaPOS.Infrastructure
         public static string  GetGroupName(ClaimsPrincipal p)       => p.FindFirst("group_name")?.Value ?? "";
         public static int     GetGroupType(ClaimsPrincipal p)       => int.TryParse(p.FindFirst("group_type")?.Value, out int gt) ? gt : 0;
         public static decimal GetSaleReturnLimit(ClaimsPrincipal p) => decimal.TryParse(p.FindFirst("sale_return_limit")?.Value, out decimal v) ? v : 0m;
+        public static bool    GetBelowCostRight(ClaimsPrincipal p)  => p.FindFirst("below_cost_right")?.Value == "1";
+
+        public static HashSet<string> GetControlRightsSet(ClaimsPrincipal p)
+        {
+            var raw = p.FindFirst("scr_rights")?.Value ?? "";
+            if (string.IsNullOrEmpty(raw)) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return new HashSet<string>(raw.Split(','), StringComparer.OrdinalIgnoreCase);
+        }
+
+        public static bool GetControlRight(ClaimsPrincipal p, string name)
+            => GetControlRightsSet(p).Contains(name);
 
         private static string Sign(string input)
         {
