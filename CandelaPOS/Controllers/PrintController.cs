@@ -93,6 +93,66 @@ namespace CandelaPOS.Controllers
             }
         }
 
+        // POST api/print/preview
+        // Renders the sale receipt to PNG page images for an on-screen preview - same
+        // report/parameter resolution as Print() above, but never touches the print
+        // spooler. The preview modal stays open until the user clicks Print (which then
+        // calls POST api/print for real) or Close.
+        [HttpPost, Route("preview")]
+        public HttpResponseMessage PreviewSale([FromBody] PrintRequest req)
+        {
+            if (req == null || req.SaleId <= 0)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "sale_id is required and must be > 0" });
+
+            CandelaBootstrap.PrepareRequest();
+
+            int    shopId  = (int)   Request.Properties["shop_id"];
+            string posCode = (string)Request.Properties["pos_code"];
+            int    mode    = req.IsDuplicate ? 1 : 0;
+            string connStr = CandelaBootstrap.ConnectionString;
+
+            string basePath = !string.IsNullOrWhiteSpace(req.ReportsPath)
+                              ? req.ReportsPath
+                              : ConfigurationManager.AppSettings["CandelaReportPath"];
+
+            if (string.IsNullOrWhiteSpace(basePath))
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "No reports path configured. Set it in Device Setup or add CandelaReportPath to Web.config." });
+
+            try
+            {
+                if (!RdlcInvoicePrinter.TryGetComputerSettings(
+                        posCode, connStr, req.IsSecondary, out var cs)
+                    || string.IsNullOrEmpty(cs?.InvoiceType))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = $"No InvoiceType configured in tblComputerList for POS terminal {posCode}." });
+
+                var info = RdlcInvoicePrinter.GetReportInfo(cs.InvoiceType, basePath);
+                if (info == null)
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = $"InvoiceType '{cs.InvoiceType}' is not mapped to an RDLC file." });
+
+                if (!File.Exists(info.RdlcPath))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = $"RDLC file not found: {info.RdlcPath}" });
+
+                var report = RdlcInvoicePrinter.BuildSaleReport(shopId, req.SaleId, mode, info, connStr);
+                var pages  = RdlcInvoicePrinter.RenderToPngPages(report, cs);
+
+                return Request.CreateResponse(HttpStatusCode.OK, new
+                {
+                    success = true,
+                    pages   = Array.ConvertAll(pages, Convert.ToBase64String)
+                });
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message, detail = ex.ToString() });
+            }
+        }
+
         // POST api/print/skim-report
         // Renders and prints the "Summary Report" cash-skim slip (Shop Activiites\POSCashManagementSkimmed.rdlc),
         // mirroring frmPOSCashManagement.vb's "Summary Report" checkbox. Company name/address come from
@@ -159,6 +219,74 @@ namespace CandelaPOS.Controllers
                     pos_cash_management_id = req.PosCashManagementId,
                     printer,
                     copies
+                });
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message, detail = ex.ToString() });
+            }
+        }
+
+        // POST api/print/skim-report/preview
+        // Renders the cash-skim slip to PNG page images for an on-screen preview - same
+        // resolution as PrintSkimReport() above, never touches the print spooler.
+        [HttpPost, Route("skim-report/preview")]
+        public HttpResponseMessage PreviewSkimReport([FromBody] SkimPrintRequest req)
+        {
+            if (req == null || req.PosCashManagementId <= 0)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "pos_cash_management_id is required and must be > 0" });
+
+            CandelaBootstrap.PrepareRequest();
+
+            int    shopId   = (int)   Request.Properties["shop_id"];
+            string posCode  = (string)Request.Properties["pos_code"];
+            string userName = (string)Request.Properties["user_name"];
+            string connStr  = CandelaBootstrap.ConnectionString;
+
+            string basePath = !string.IsNullOrWhiteSpace(req.ReportsPath)
+                              ? req.ReportsPath
+                              : ConfigurationManager.AppSettings["CandelaReportPath"];
+
+            if (string.IsNullOrWhiteSpace(basePath))
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "No reports path configured. Set it in Device Setup or add CandelaReportPath to Web.config." });
+
+            try
+            {
+                if (!RdlcInvoicePrinter.TryGetComputerSettings(
+                        posCode, connStr, isSecondary: false, out var cs))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = $"No printer configured in tblComputerList for POS terminal {posCode}." });
+
+                string rdlcPath = basePath.TrimEnd('\\', '/') + @"\Shop Activiites\POSCashManagementSkimmed.rdlc";
+                if (!File.Exists(rdlcPath))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = $"RDLC file not found: {rdlcPath}" });
+
+                var config = CandelaBootstrap.GetRCMSConfig();
+                config.TryGetValue("Invoice_Company_Name", out string companyName);
+                config.TryGetValue("Company_Address",      out string companyAddress);
+
+                var p = new RdlcInvoicePrinter.SkimReportParams
+                {
+                    CompanyName         = companyName,
+                    CompanyAddress      = companyAddress,
+                    PosCashManagementId = req.PosCashManagementId,
+                    ShopId              = shopId,
+                    PosCode             = posCode,
+                    UserName            = userName,
+                    SkimAmount          = req.Amount,
+                };
+
+                var report = RdlcInvoicePrinter.BuildSkimReport(p, basePath, connStr);
+                var pages  = RdlcInvoicePrinter.RenderToPngPages(report, cs);
+
+                return Request.CreateResponse(HttpStatusCode.OK, new
+                {
+                    success = true,
+                    pages   = Array.ConvertAll(pages, Convert.ToBase64String)
                 });
             }
             catch (Exception ex)
@@ -240,6 +368,77 @@ namespace CandelaPOS.Controllers
                     format                 = isA4 ? "a4" : "3inch",
                     printer,
                     copies
+                });
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message, detail = ex.ToString() });
+            }
+        }
+
+        // POST api/print/pos-cash-summary/preview
+        // Renders the POS Cash Management summary (3-inch or A4, via format) to PNG page
+        // images for an on-screen preview - same resolution as PrintPosCashSummary() above,
+        // never touches the print spooler.
+        [HttpPost, Route("pos-cash-summary/preview")]
+        public HttpResponseMessage PreviewPosCashSummary([FromBody] PosCashSummaryPrintRequest req)
+        {
+            if (req == null || req.PosCashManagementId <= 0)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "pos_cash_management_id is required and must be > 0" });
+
+            CandelaBootstrap.PrepareRequest();
+
+            int    shopId   = (int)   Request.Properties["shop_id"];
+            string posCode  = (string)Request.Properties["pos_code"];
+            string userName = (string)Request.Properties["user_name"];
+            string connStr  = CandelaBootstrap.ConnectionString;
+            bool   isA4     = string.Equals(req.Format, "a4", StringComparison.OrdinalIgnoreCase);
+
+            string basePath = !string.IsNullOrWhiteSpace(req.ReportsPath)
+                              ? req.ReportsPath
+                              : ConfigurationManager.AppSettings["CandelaReportPath"];
+
+            if (string.IsNullOrWhiteSpace(basePath))
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "No reports path configured. Set it in Device Setup or add CandelaReportPath to Web.config." });
+
+            try
+            {
+                if (!RdlcInvoicePrinter.TryGetComputerSettings(
+                        posCode, connStr, isSecondary: false, out var cs))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = $"No printer configured in tblComputerList for POS terminal {posCode}." });
+
+                string rdlcFileName = isA4 ? "POSCashManagementA4.rdlc" : "POSCashManagement.rdlc";
+                string rdlcPath = basePath.TrimEnd('\\', '/') + @"\Shop Activiites\" + rdlcFileName;
+                if (!File.Exists(rdlcPath))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { error = $"RDLC file not found: {rdlcPath}" });
+
+                var config = CandelaBootstrap.GetRCMSConfig();
+                config.TryGetValue("Invoice_Company_Name", out string companyName);
+                config.TryGetValue("Company_Address",      out string companyAddress);
+
+                var p = new RdlcInvoicePrinter.PosCashSummaryParams
+                {
+                    PosCashManagementId = req.PosCashManagementId,
+                    ShopId              = shopId,
+                    CompanyName         = companyName,
+                    CompanyAddress      = companyAddress,
+                    UserName            = userName,
+                    ShowDetail          = true,
+                };
+
+                var report = RdlcInvoicePrinter.BuildPosCashManagementReport(rdlcFileName, p, basePath, connStr);
+                var pages  = RdlcInvoicePrinter.RenderToPngPages(report, isA4 ? RdlcInvoicePrinter.A4Settings() : cs);
+
+                return Request.CreateResponse(HttpStatusCode.OK, new
+                {
+                    success = true,
+                    format  = isA4 ? "a4" : "3inch",
+                    pages   = Array.ConvertAll(pages, Convert.ToBase64String)
                 });
             }
             catch (Exception ex)

@@ -197,11 +197,11 @@ FROM tblComputerList WHERE POS_code = @posCode";
             }
         }
 
-        // Renders the RDLC to EMF streams then prints via PrintDocument (GDI driver).
-        // printerName may be a local name or UNC path (\\server\share).
-        internal static void Print(int shopId, int saleId, int mode, int copies,
-                                   string printerName, ComputerSettings settings,
-                                   ReportInfo info, string connStr)
+        // Builds the LocalReport for a sale invoice (data sources + parameters set) without
+        // rendering it. Shared by Print() and the preview endpoint so both go through the
+        // exact same report-construction logic.
+        internal static LocalReport BuildSaleReport(int shopId, int saleId, int mode,
+                                                     ReportInfo info, string connStr)
         {
             DataTable invoiceData = Fetch(
                 $"exec {info.StoredProc} 1,{saleId},{shopId},{mode}", connStr);
@@ -221,6 +221,16 @@ FROM tblComputerList WHERE POS_code = @posCode";
             // parse the RDLC XML directly — that is always available at this point.
             SetDefaultParameters(report, info.RdlcPath);
 
+            return report;
+        }
+
+        // Renders the RDLC to EMF streams then prints via PrintDocument (GDI driver).
+        // printerName may be a local name or UNC path (\\server\share).
+        internal static void Print(int shopId, int saleId, int mode, int copies,
+                                   string printerName, ComputerSettings settings,
+                                   ReportInfo info, string connStr)
+        {
+            var report = BuildSaleReport(shopId, saleId, mode, info, connStr);
             RenderAndPrint(report, printerName, copies, settings);
         }
 
@@ -231,7 +241,7 @@ FROM tblComputerList WHERE POS_code = @posCode";
                                            ComputerSettings settings)
         {
             var streams = new List<MemoryStream>();
-            report.Render("Image", DeviceInfo(settings),
+            report.Render("Image", DeviceInfo(settings, "EMF"),
                 (name, ext, enc, mime, willSeek) => { var ms = new MemoryStream(); streams.Add(ms); return ms; },
                 out Warning[] _);
 
@@ -259,12 +269,78 @@ FROM tblComputerList WHERE POS_code = @posCode";
             foreach (var ms in streams) ms.Dispose();
         }
 
-        // Renders and prints the "Summary Report" cash-skim slip (Shop Activiites\POSCashManagementSkimmed.rdlc),
-        // mirroring frmPOSCashManagement.vb's FunAddSkimReportParameters(). DataSet5 lists the shift's
-        // individual Skimmed-type detail rows; the 7 ReportParameters carry the header/amount fields
-        // the RDLC pulls in directly (this report has no invoice-style stored-proc datasource).
-        internal static void PrintSkimReport(SkimReportParams p, string printerName, int copies,
-                                             ComputerSettings settings, string basePath, string connStr)
+        // Renders an already-configured LocalReport to PNG, one byte array per page, for an
+        // on-screen preview. Never touches the print spooler - purely a rendering call.
+        internal static byte[][] RenderToPngPages(LocalReport report, ComputerSettings settings)
+        {
+            var streams = new List<MemoryStream>();
+            report.Render("Image", DeviceInfo(settings, "PNG"),
+                (name, ext, enc, mime, willSeek) => { var ms = new MemoryStream(); streams.Add(ms); return ms; },
+                out Warning[] _);
+
+            var pages = new byte[streams.Count][];
+            for (int i = 0; i < streams.Count; i++)
+            {
+                streams[i].Position = 0;
+                pages[i] = TrimTrailingWhitespace(streams[i].ToArray());
+                streams[i].Dispose();
+            }
+            return pages;
+        }
+
+        // The RDLC page height passed to Render() is deliberately generous (so tall content
+        // never gets clipped - see PrintPosCashManagement's dynamic height handling), which
+        // leaves a lot of blank canvas below the actual receipt content in a preview image.
+        // Crop the PNG down to where the real content ends (plus a small margin) so the
+        // on-screen preview isn't mostly empty white space.
+        private static byte[] TrimTrailingWhitespace(byte[] pngBytes)
+        {
+            using (var msIn = new MemoryStream(pngBytes))
+            using (var bmp = new Bitmap(msIn))
+            {
+                int width = bmp.Width, height = bmp.Height;
+                var rect = new Rectangle(0, 0, width, height);
+                var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                int stride = data.Stride;
+                byte[] buffer = new byte[stride * height];
+                System.Runtime.InteropServices.Marshal.Copy(data.Scan0, buffer, 0, buffer.Length);
+                bmp.UnlockBits(data);
+
+                const byte whiteThreshold = 245;
+                int lastContentRow = -1;
+                for (int y = height - 1; y >= 0; y--)
+                {
+                    int rowStart = y * stride;
+                    for (int x = 0; x < width; x++)
+                    {
+                        int idx = rowStart + x * 4;
+                        if (buffer[idx] < whiteThreshold || buffer[idx + 1] < whiteThreshold || buffer[idx + 2] < whiteThreshold)
+                        {
+                            lastContentRow = y;
+                            break;
+                        }
+                    }
+                    if (lastContentRow >= 0) break;
+                }
+
+                if (lastContentRow < 0) return pngBytes; // fully blank page - leave as-is
+
+                const int bottomMargin = 24; // px of breathing room below the last content row
+                int newHeight = Math.Min(height, lastContentRow + 1 + bottomMargin);
+                if (newHeight >= height) return pngBytes; // nothing worth trimming
+
+                using (var cropped = bmp.Clone(new Rectangle(0, 0, width, newHeight), bmp.PixelFormat))
+                using (var msOut = new MemoryStream())
+                {
+                    cropped.Save(msOut, ImageFormat.Png);
+                    return msOut.ToArray();
+                }
+            }
+        }
+
+        // Builds the LocalReport for the cash-skim slip without rendering it. Shared by
+        // PrintSkimReport() and the preview endpoint.
+        internal static LocalReport BuildSkimReport(SkimReportParams p, string basePath, string connStr)
         {
             if (!basePath.EndsWith("\\") && !basePath.EndsWith("/"))
                 basePath += "\\";
@@ -286,11 +362,23 @@ FROM tblComputerList WHERE POS_code = @posCode";
                 new ReportParameter("UserSkimmed",           p.UserName ?? ""),
                 new ReportParameter("SkimCash",              p.SkimAmount.ToString("0.00")),
             });
-            // No SetDefaultParameters() call here, unlike Print(): this RDLC has exactly
-            // these 7 ReportParameters and no others, so there's nothing left to default -
-            // calling it would re-walk these same 7 (none have an RDLC-side <DefaultValue>)
-            // and stamp them back to "False", clobbering the real values just set above.
+            // No SetDefaultParameters() call here, unlike BuildSaleReport(): this RDLC has
+            // exactly these 7 ReportParameters and no others, so there's nothing left to
+            // default - calling it would re-walk these same 7 (none have an RDLC-side
+            // <DefaultValue>) and stamp them back to "False", clobbering the real values
+            // just set above.
 
+            return report;
+        }
+
+        // Renders and prints the "Summary Report" cash-skim slip (Shop Activiites\POSCashManagementSkimmed.rdlc),
+        // mirroring frmPOSCashManagement.vb's FunAddSkimReportParameters(). DataSet5 lists the shift's
+        // individual Skimmed-type detail rows; the 7 ReportParameters carry the header/amount fields
+        // the RDLC pulls in directly (this report has no invoice-style stored-proc datasource).
+        internal static void PrintSkimReport(SkimReportParams p, string printerName, int copies,
+                                             ComputerSettings settings, string basePath, string connStr)
+        {
+            var report = BuildSkimReport(p, basePath, connStr);
             RenderAndPrint(report, printerName, copies, settings);
         }
 
@@ -312,25 +400,32 @@ FROM tblComputerList WHERE POS_code = @posCode";
         // POSCode used as the date range for the other three stored-proc calls.
         internal static void PrintPosCashManagement3Inch(PosCashSummaryParams p, string printerName, int copies,
                                                           ComputerSettings settings, string basePath, string connStr)
-            => PrintPosCashManagement("POSCashManagement.rdlc", p, printerName, copies, settings, basePath, connStr);
+        {
+            var report = BuildPosCashManagementReport("POSCashManagement.rdlc", p, basePath, connStr);
+            RenderAndPrint(report, printerName, copies, settings);
+        }
 
         // A4 layout uses fixed A4 page dimensions rather than this terminal's configured
         // receipt-printer page size (tblComputerList.InvoiceWidth/Height, which is narrow/
         // receipt-sized) - otherwise the report would render correctly but onto the wrong
         // "paper" size.
+        internal static ComputerSettings A4Settings() => new ComputerSettings
+        {
+            PageWidth = 8.27, PageHeight = 11.69,
+            TopMargin = 0.4, BottomMargin = 0.4, LeftMargin = 0.4, RightMargin = 0.4
+        };
+
         internal static void PrintPosCashManagementA4(PosCashSummaryParams p, string printerName, int copies,
                                                        string basePath, string connStr)
         {
-            var a4Settings = new ComputerSettings
-            {
-                PageWidth = 8.27, PageHeight = 11.69,
-                TopMargin = 0.4, BottomMargin = 0.4, LeftMargin = 0.4, RightMargin = 0.4
-            };
-            PrintPosCashManagement("POSCashManagementA4.rdlc", p, printerName, copies, a4Settings, basePath, connStr);
+            var report = BuildPosCashManagementReport("POSCashManagementA4.rdlc", p, basePath, connStr);
+            RenderAndPrint(report, printerName, copies, A4Settings());
         }
 
-        private static void PrintPosCashManagement(string rdlcFileName, PosCashSummaryParams p, string printerName,
-                                                    int copies, ComputerSettings settings, string basePath, string connStr)
+        // Builds the LocalReport for the POS Cash Management summary (3-inch or A4, chosen
+        // via rdlcFileName) without rendering it. Shared by the Print*/preview call sites.
+        internal static LocalReport BuildPosCashManagementReport(string rdlcFileName, PosCashSummaryParams p,
+                                                                  string basePath, string connStr)
         {
             if (!basePath.EndsWith("\\") && !basePath.EndsWith("/"))
                 basePath += "\\";
@@ -385,11 +480,11 @@ FROM tblComputerList WHERE POS_code = @posCode";
                 new ReportParameter("ShowSaleDetailPOS",       p.ShowDetail ? "True" : "False"),
                 new ReportParameter("SubreportShowPOS",        p.ShowDetail ? "True" : "False"),
             });
-            // No SetDefaultParameters() call - same reasoning as PrintSkimReport: these 9
+            // No SetDefaultParameters() call - same reasoning as BuildSkimReport: these 9
             // names are exactly what both RDLCs define, none have an RDLC-side <DefaultValue>,
             // so re-walking them would clobber the real values back to "False".
 
-            RenderAndPrint(report, printerName, copies, settings);
+            return report;
         }
 
         internal sealed class PosCashSummaryParams
@@ -439,12 +534,12 @@ FROM tblComputerList WHERE POS_code = @posCode";
             return dt;
         }
 
-        private static string DeviceInfo(ComputerSettings s)
+        private static string DeviceInfo(ComputerSettings s, string outputFormat)
         {
             double w = s.PageWidth  > 0 ? s.PageWidth  : 3.2;
             double h = s.PageHeight > 0 ? s.PageHeight : 11.0;
             return
-                $"<DeviceInfo><OutputFormat>EMF</OutputFormat>" +
+                $"<DeviceInfo><OutputFormat>{outputFormat}</OutputFormat>" +
                 $"<PageWidth>{w}in</PageWidth><PageHeight>{h}in</PageHeight>" +
                 $"<MarginTop>{s.TopMargin}in</MarginTop><MarginLeft>{s.LeftMargin}in</MarginLeft>" +
                 $"<MarginRight>{s.RightMargin}in</MarginRight><MarginBottom>{s.BottomMargin}in</MarginBottom>" +
