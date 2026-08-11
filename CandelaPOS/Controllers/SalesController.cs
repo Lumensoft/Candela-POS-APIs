@@ -1052,7 +1052,11 @@ ORDER BY sli.sale_line_item_id", con);
             sale.CreditAmount        = (decimal)req.CreditAmount;
             sale.GiftCardAmount      = (decimal)req.GiftCardAmount;
             sale.GiftCardNo          = req.GiftCardNo ?? "";
-            sale.BalanceAmount       = 0;
+            // Change due back to the customer - mirrors frmSaleAndReturn.vb's invariant
+            // NetTotal = Cash - Balance (line ~9094), i.e. Balance = Cash - NetTotal. Clamped
+            // to >= 0 since card/credit/split tenders never carry an overpayment here (those
+            // branches always send CashAmount <= NetTotal).
+            sale.BalanceAmount       = Math.Max(0, req.CashAmount - req.NetTotal);
 
             // Customer
             if (req.CustomerId > 0)
