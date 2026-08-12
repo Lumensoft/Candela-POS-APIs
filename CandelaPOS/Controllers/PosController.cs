@@ -76,6 +76,7 @@ GROUP BY m.POSCashManagementID, m.OpeningTime, m.POSDate";
                     DateTime openingTime   = DateTime.Now;
                     DateTime posDate       = DateTime.Now;
                     bool     shiftOpen     = false;
+                    int      posCashManagementId = 0;
 
                     var shiftCmd = new SqlCommand(shiftSql, con);
                     shiftCmd.Parameters.AddWithValue("@pos", posCode);
@@ -89,6 +90,7 @@ GROUP BY m.POSCashManagementID, m.OpeningTime, m.POSDate";
                             posDate      = Convert.ToDateTime(rdr["POSDate"]);
                             cashReceived = Convert.ToDouble(rdr["cash_received"]);
                             cashSkimmed  = Convert.ToDouble(rdr["cash_skimmed"]);
+                            posCashManagementId = Convert.ToInt32(rdr["POSCashManagementID"]);
                         }
                     }
 
@@ -138,6 +140,11 @@ WHERE  pos_code = @pos AND shop_id = @sid
 
                     double availableCash = opening + cashReceived + cashSales - cashSkimmed;
 
+                    // Same two fields GetShiftStatus() returns beyond the basic drawer numbers -
+                    // added so ShiftManagement.jsx can read this cached snapshot (IndexedDB
+                    // cash_status) instead of hitting /api/pos/shift-status on every page visit.
+                    object lastClosed = shiftOpen ? null : GetLastClosedShiftSummary(con, shopId, posCode);
+
                     return Request.CreateResponse(HttpStatusCode.OK, new
                     {
                         success        = true,
@@ -149,7 +156,9 @@ WHERE  pos_code = @pos AND shop_id = @sid
                         available_cash = availableCash,
                         shift_since    = shiftOpen ? openingTime.ToString("yyyy-MM-dd HH:mm") : null,
                         pos_code       = posCode,
-                        shop_id        = shopId
+                        shop_id        = shopId,
+                        last_closed    = lastClosed,
+                        pos_cash_management_id = shiftOpen ? (int?)posCashManagementId : null
                     });
                 }
             }
@@ -736,7 +745,8 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
                           notes       = req.Notes ?? string.Empty,
                           pos_code    = posCode,
                           shop_id     = shopId,
-                          received_at = now.ToString("yyyy-MM-dd HH:mm:ss") });
+                          received_at = now.ToString("yyyy-MM-dd HH:mm:ss"),
+                          pos_cash_management_id = model.PosCashManagementID });
             }
             catch (Exception)
             {
