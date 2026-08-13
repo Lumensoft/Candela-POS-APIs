@@ -103,12 +103,22 @@ VALUES
                     // allow_credit is ON and the cashier entered a non-zero balance.
                     if (req.AllowCredit && req.OpeningBalance > 0)
                     {
+                        // member_closing_id is NOT NULL, not an identity column, and part of
+                        // tblMemberClosing's PK — must be generated the same MAX+1-per-shop way
+                        // as member_id/member_no above (mirrors CustomerDAL.vb's GetMaxID call).
+                        var closingIdCmd = new SqlCommand(
+                            "SELECT ISNULL(MAX(member_closing_id),0)+1 FROM tblMemberClosing WHERE shop_id=@sid",
+                            con, trans);
+                        closingIdCmd.Parameters.AddWithValue("@sid", shopId);
+                        int memberClosingId = Convert.ToInt32(closingIdCmd.ExecuteScalar());
+
                         string clsDate = openingDate.ToString("yyyy-MM-dd HH:mm:ss");
                         var clsCmd = new SqlCommand(
                             "INSERT INTO tblMemberClosing " +
-                            "(member_id, shop_id, closing_date, closing_balance, transcation_time) " +
-                            "VALUES (@mid, @sid, @cd, @bal, @cd)",
+                            "(member_closing_id, member_id, shop_id, closing_date, closing_balance, transcation_time) " +
+                            "VALUES (@mcid, @mid, @sid, @cd, @bal, @cd)",
                             con, trans);
+                        clsCmd.Parameters.AddWithValue("@mcid", memberClosingId);
                         clsCmd.Parameters.AddWithValue("@mid", memberId);
                         clsCmd.Parameters.AddWithValue("@sid", shopId);
                         clsCmd.Parameters.AddWithValue("@cd",  clsDate);
