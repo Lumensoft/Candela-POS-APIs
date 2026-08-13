@@ -566,10 +566,14 @@ WHERE e.shop_id = @shopId";
             // desktop app only offers the subset mapped to the current shop via
             // tblDefShopCreditCards (frmSaleAndReturn's card-type dropdown mirrors this).
             // Real columns: credit_card_id, field_name, EnteredDate (no isActive, no editeddate).
+            // sort_order is returned (not just used in ORDER BY) so the frontend's IndexedDB
+            // cache can preserve card-type ordering across incremental (since=) syncs, where
+            // only a subset of rows comes back per call.
             const string sql = @"
 SELECT
     c.credit_card_id,
     isnull(c.field_name, '') AS credit_card_name,
+    isnull(c.sort_order, 0) AS sort_order,
     c.EnteredDate
 FROM tblDefCreditCards c
 INNER JOIN tblDefShopCreditCards sc
