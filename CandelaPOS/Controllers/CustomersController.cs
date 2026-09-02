@@ -196,6 +196,53 @@ VALUES
                     new { error = ex.Message });
             }
         }
+        // PUT api/customers/{id}/comments
+        // Updates the customer's persistent note (tblMemberInfo.comments).
+        // chkAllowCustomerComments — frmCustomerComent.vb / frmSaleAndReturn.vb:17372,39781.
+        // Independent of any sale: saved directly against the customer profile so it carries
+        // forward to future visits, same as the legacy comment popup's Update button.
+        [HttpPut, Route("{id:int}/comments")]
+        public HttpResponseMessage UpdateCustomerComments(int id, [FromBody] UpdateCustomerCommentsRequest req)
+        {
+            CandelaBootstrap.PrepareRequest();
+            int shopId = (int)Request.Properties["shop_id"];
+
+            if (req == null)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "Request body is required" });
+
+            try
+            {
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "UPDATE tblMemberInfo SET comments=@c, EditedDate=@now " +
+                        "WHERE member_id=@mid AND shop_id=@sid", con);
+                    cmd.Parameters.AddWithValue("@c",   (object)req.Comments ?? "");
+                    cmd.Parameters.AddWithValue("@now", DateTime.Now);
+                    cmd.Parameters.AddWithValue("@mid", id);
+                    cmd.Parameters.AddWithValue("@sid", shopId);
+                    int rows = cmd.ExecuteNonQuery();
+
+                    if (rows == 0)
+                        return Request.CreateResponse(HttpStatusCode.NotFound,
+                            new { error = $"Customer {id} not found." });
+
+                    return Request.CreateResponse(HttpStatusCode.OK, new { success = true });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = ex.Message });
+            }
+        }
+    }
+
+    public class UpdateCustomerCommentsRequest
+    {
+        public string Comments { get; set; }
     }
 
     public class CreateCustomerRequest

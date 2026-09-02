@@ -506,6 +506,7 @@ SELECT" + (isSearch ? " TOP 50" : "") + @"
     isnull(m.email,        '')  AS email,
     isnull(m.credit_limit, 0)  AS credit_limit,
     isnull(m.allow_credit, 0)  AS allow_credit,
+    isnull(m.comments,     '')  AS comments,
     isnull(m.member_type_id, 0) AS member_type_id,
     isnull(mt.discount_percentage, 0)  AS discount_pct,
     m.end_date,
