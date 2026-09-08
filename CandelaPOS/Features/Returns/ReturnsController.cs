@@ -13,6 +13,7 @@ using static Utility.Utility;
 using CandelaPOS.Shared.Data;
 using CandelaPOS.Shared.Api;
 using CandelaPOS.Features.Sales;   // SaleRequest / SaleLineItem are owned by the Sales slice
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.Returns
 {
@@ -59,10 +60,9 @@ namespace CandelaPOS.Features.Returns
                     items
                 });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "ReturnsController.Validate");
             }
         }
 
@@ -898,10 +898,9 @@ WHERE li.sale_id = @invoiceNo
 
                 return Request.CreateResponse(HttpStatusCode.OK, new { success = true, items = result });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "ReturnsController.Preview");
             }
         }
 

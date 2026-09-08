@@ -9,6 +9,7 @@ using System.Security.Claims;
 using CandelaPOS.Shared.Data;
 using CandelaPOS.Shared.Auth;
 using CandelaPOS.Shared.Api;
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.Auth
 {
@@ -201,10 +202,9 @@ namespace CandelaPOS.Features.Auth
                         ControlRights        = new List<string>(grantedRights),
                     }));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "AuthController.Login");
             }
         }
 
@@ -232,20 +232,32 @@ namespace CandelaPOS.Features.Auth
             int     groupType       = (int)    Request.Properties["group_type"];
             decimal saleReturnLimit = (decimal) Request.Properties["sale_return_limit"];
 
+            // Rights have to be carried across the refresh. Generate() defaults these
+            // last two parameters to false/"" and this call used to omit them, so every
+            // refresh silently stripped the cashier of BelowCostSales and every other
+            // frmSaleAndReturn control right for the rest of the shift. JwtAuthHandler
+            // has already put both on Request.Properties from the token being refreshed.
+            bool belowCostRight = Request.Properties.ContainsKey("below_cost_right")
+                                  && (bool)Request.Properties["below_cost_right"];
+            var rightsSet = Request.Properties.ContainsKey("scr_rights")
+                ? Request.Properties["scr_rights"] as HashSet<string>
+                : null;
+            string controlRightsStr = rightsSet != null ? string.Join(",", rightsSet) : "";
+
             try
             {
                 // Blocklist the old token so it can't be reused after this refresh
                 BlocklistToken(rawToken);
 
-                string newToken = JwtHelper.Generate(userId, userName, shopId, posCode, deviceId, groupName, groupType, saleReturnLimit);
+                string newToken = JwtHelper.Generate(userId, userName, shopId, posCode, deviceId,
+                    groupName, groupType, saleReturnLimit, belowCostRight, controlRightsStr);
 
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<object>.Ok(new { token = newToken }));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "AuthController.Refresh");
             }
         }
 
@@ -270,10 +282,9 @@ namespace CandelaPOS.Features.Auth
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<object>.Ok(new { logged_out = true }));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "AuthController.Logout");
             }
         }
 
@@ -335,10 +346,9 @@ namespace CandelaPOS.Features.Auth
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "AuthController.SupervisorLogin");
             }
         }
 
@@ -381,10 +391,9 @@ namespace CandelaPOS.Features.Auth
                         is_open    = hasOpenAdj,
                     }));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "AuthController.AdjustmentRights");
             }
         }
 

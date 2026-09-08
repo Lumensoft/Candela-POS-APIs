@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http;
 using System.Web.Http;
 using CandelaPOS.Shared.Data;
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.Masters
 {
@@ -937,7 +938,6 @@ ORDER BY pd.item_name";
                 new { success = true, count = rows.Count, data = rows });
 
         private HttpResponseMessage Err(Exception ex) =>
-            Request.CreateResponse(HttpStatusCode.InternalServerError,
-                new { error = "An internal error occurred." });
+            ApiError.Internal(Request, ex, "MastersController");
     }
 }

@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Web.Http;
 using CandelaPOS.Shared.Data;
 using CandelaPOS.Features.Hardware;   // RawPrinterHelper is owned by the Hardware slice
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.Printing
 {
@@ -89,8 +90,7 @@ namespace CandelaPOS.Features.Printing
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message, detail = ex.ToString() });
+                return ApiError.Internal(Request, ex, "PrintController.Print");
             }
         }
 
@@ -149,8 +149,7 @@ namespace CandelaPOS.Features.Printing
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message, detail = ex.ToString() });
+                return ApiError.Internal(Request, ex, "PrintController.PreviewSale");
             }
         }
 
@@ -224,8 +223,7 @@ namespace CandelaPOS.Features.Printing
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message, detail = ex.ToString() });
+                return ApiError.Internal(Request, ex, "PrintController.PrintSkimReport");
             }
         }
 
@@ -292,8 +290,7 @@ namespace CandelaPOS.Features.Printing
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message, detail = ex.ToString() });
+                return ApiError.Internal(Request, ex, "PrintController.PreviewSkimReport");
             }
         }
 
@@ -373,8 +370,7 @@ namespace CandelaPOS.Features.Printing
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message, detail = ex.ToString() });
+                return ApiError.Internal(Request, ex, "PrintController.PrintPosCashSummary");
             }
         }
 
@@ -444,8 +440,7 @@ namespace CandelaPOS.Features.Printing
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message, detail = ex.ToString() });
+                return ApiError.Internal(Request, ex, "PrintController.PreviewPosCashSummary");
             }
         }
     }

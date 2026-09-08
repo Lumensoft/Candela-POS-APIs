@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Web.Http;
 using CandelaPOS.Shared.Data;
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.Loyalty
 {
@@ -113,8 +114,7 @@ GROUP BY E.Member_Id, R.REDEEMED_POINTS, R.REDEEMED_VAL, P.One_point_equal,
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                return ApiError.Internal(Request, ex, "LoyaltyController.GetLoyaltyPoints");
             }
         }
     }

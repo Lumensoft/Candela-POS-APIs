@@ -11,6 +11,7 @@ using static Utility.Utility;
 using CandelaPOS.Shared.Data;
 using CandelaPOS.Shared.Api;
 using CandelaPOS.Features.Sales;   // SaleRequest / SaleLineItem are owned by the Sales slice
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.Holds
 {
@@ -46,10 +47,9 @@ namespace CandelaPOS.Features.Holds
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<object>.Ok(new { hold_id = sale.HoldingSaleID }));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "HoldsController.ParkSale");
             }
         }
 
@@ -66,10 +66,9 @@ namespace CandelaPOS.Features.Holds
                 return Request.CreateResponse(HttpStatusCode.OK,
                     new { success = true, count = holds.Count, data = holds });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "HoldsController.GetHolds");
             }
         }
 
@@ -115,10 +114,9 @@ namespace CandelaPOS.Features.Holds
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<object>.Ok(new { deleted = true }));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "HoldsController.DeleteHold");
             }
         }
 

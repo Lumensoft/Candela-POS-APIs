@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Web.Http;
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.Hardware
 {
@@ -69,8 +70,7 @@ namespace CandelaPOS.Features.Hardware
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "HardwareController.OpenDrawer");
             }
         }
 

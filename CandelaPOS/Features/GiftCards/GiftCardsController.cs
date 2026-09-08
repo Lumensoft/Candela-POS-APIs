@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Web.Http;
 using Newtonsoft.Json;
 using CandelaPOS.Shared.Data;
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.GiftCards
 {
@@ -97,8 +98,7 @@ GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.card_status, c.MemberName, c.Ph
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                return ApiError.Internal(Request, ex, "GiftCardsController.GetBalance");
             }
         }
 
@@ -156,8 +156,7 @@ ORDER BY tbldefCards.Card_Gen_Date DESC";
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "GiftCardsController.GetUnsold");
             }
         }
 
@@ -305,8 +304,7 @@ ORDER BY tbldefCards.Card_Gen_Date DESC";
                 catch (Exception ex)
                 {
                     trans.Rollback();
-                    return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                        new { error = "An internal error occurred." });
+                    return ApiError.Internal(Request, ex, "GiftCardsController.Topup");
                 }
             }
         }
@@ -391,8 +389,7 @@ WHERE l.cardid = @cid
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "GiftCardsController.Validate");
             }
         }
 
@@ -495,8 +492,7 @@ VALUES
                 catch (Exception ex)
                 {
                     trans.Rollback();
-                    return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                        new { error = "An internal error occurred." });
+                    return ApiError.Internal(Request, ex, "GiftCardsController.Redeem");
                 }
             }
         }

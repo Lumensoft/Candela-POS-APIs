@@ -11,6 +11,7 @@ using Model;
 using static Utility.Utility;
 using CandelaPOS.Shared.Data;
 using CandelaPOS.Shared.Api;
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.Sales
 {
@@ -140,10 +141,9 @@ WHERE s.shop_id = @shopId";
                     });
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "SalesController.GetSales");
             }
         }
 
@@ -237,8 +237,7 @@ ORDER BY sli.sale_line_item_id", con);
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred.", detail = ex.Message });
+                return ApiError.Internal(Request, ex, "SalesController.GetSale");
             }
         }
 
@@ -814,8 +813,7 @@ ORDER BY sli.sale_line_item_id", con);
                         ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
                 }
                 DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message, detail = ex.InnerException?.Message });
+                return ApiError.Internal(Request, ex, "SalesController.PostSale");
             }
         }
 

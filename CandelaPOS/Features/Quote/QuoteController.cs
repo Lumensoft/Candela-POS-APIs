@@ -9,6 +9,7 @@ using System.Web.Http;
 using DAL;
 using CandelaPOS.Shared.Data;
 using CandelaPOS.Shared.Api;
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.Quote
 {
@@ -729,8 +730,7 @@ namespace CandelaPOS.Features.Quote
             catch (Exception ex)
             {
                 System.Diagnostics.Trace.TraceError("QuoteController.Quote error: {0}", ex);
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred.", detail = ex.Message, type = ex.GetType().Name });
+                return ApiError.Internal(Request, ex, "QuoteController.Quote");
             }
         }
 

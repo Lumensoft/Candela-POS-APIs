@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http;
 using System.Web.Http;
 using CandelaPOS.Shared.Data;
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.Customers
 {
@@ -132,11 +133,10 @@ VALUES
                         new { success = true,
                               data = new { member_id = memberId, member_no = memberNo, shop_id = shopId } });
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     trans.Rollback();
-                    return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                        new { error = "An internal error occurred." });
+                    return ApiError.Internal(Request, ex, "CustomersController.CreateCustomer");
                 }
             }
         }
@@ -201,8 +201,7 @@ VALUES
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                return ApiError.Internal(Request, ex, "CustomersController.GetCreditOutstanding");
             }
         }
         // PUT api/customers/{id}/comments
@@ -243,8 +242,7 @@ VALUES
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = ex.Message });
+                return ApiError.Internal(Request, ex, "CustomersController.UpdateCustomerComments");
             }
         }
     }

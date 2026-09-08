@@ -9,6 +9,7 @@ using DAL;
 using Model;
 using Newtonsoft.Json;
 using CandelaPOS.Shared.Data;
+using CandelaPOS.Shared.Errors;
 
 namespace CandelaPOS.Features.Pos
 {
@@ -164,8 +165,7 @@ WHERE  pos_code = @pos AND shop_id = @sid
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "PosController.GetCashStatus");
             }
         }
 
@@ -248,8 +248,7 @@ WHERE  pos_code = @pos AND shop_id = @sid
             }
             catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "PosController.CashSkim");
             }
         }
 
@@ -295,10 +294,9 @@ WHERE  pos_code = @pos AND shop_id = @sid
                     });
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "PosController.GetShiftStatus");
             }
         }
 
@@ -434,10 +432,9 @@ FROM (" + where.ToString() + ") totals_src";
                     });
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "PosController.SearchShifts");
             }
         }
 
@@ -502,10 +499,9 @@ ORDER BY d.DetailDate";
                     skimmed
                 });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "PosController.GetShiftDetail");
             }
         }
 
@@ -587,10 +583,9 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "PosController.DeleteShiftDetail");
             }
         }
 
@@ -671,10 +666,9 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
                     shop_id      = shopId
                 });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "PosController.OpenShift");
             }
         }
 
@@ -748,10 +742,9 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
                           received_at = now.ToString("yyyy-MM-dd HH:mm:ss"),
                           pos_cash_management_id = model.PosCashManagementID });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "PosController.ReceiveCash");
             }
         }
 
@@ -831,10 +824,9 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
                     shop_id         = shopId
                 });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Request.CreateResponse(HttpStatusCode.InternalServerError,
-                    new { error = "An internal error occurred." });
+                return ApiError.Internal(Request, ex, "PosController.CloseShift");
             }
         }
 
