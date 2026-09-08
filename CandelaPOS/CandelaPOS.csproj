@@ -162,7 +162,10 @@
     <Compile Include="Shared\Auth\JwtAuthHandler.cs" />
     <Compile Include="Shared\Auth\JwtHelper.cs" />
     <Compile Include="Shared\Data\CandelaBootstrap.cs" />
+    <Compile Include="Shared\Http\CorrelationIdHandler.cs" />
+    <Compile Include="Shared\Errors\GlobalExceptionLogger.cs" />
     <Compile Include="Shared\Http\CorsHandler.cs" />
+    <Compile Include="Shared\Logging\AppLog.cs" />
     <Compile Include="SqlServerTypes\Loader.cs" />
   </ItemGroup>
   <ItemGroup>
