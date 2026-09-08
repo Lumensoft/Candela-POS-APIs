@@ -144,11 +144,21 @@ VALUES
         // GET api/customers/{id}/credit-outstanding
         // Returns live credit outstanding for a customer: total credit billed minus receipts received.
         // Called when a customer is selected at POS so the checkout screen always shows a fresh balance.
+        // Mirrors SaleAndReturnDAL.GetCustomerCurrentOutStanding(ShopId, CustomerID) — Candela calls
+        // this with the CUSTOMER'S OWN shop (SelectedCustomerShopID), not the viewing shop, and its
+        // CalculateOutstanding sums tblSales.memberShopID / tblMemberReceipts.MemberShop_id — a tag for
+        // which customer a transaction belongs to, stamped regardless of which physical shop it happened
+        // at. So this must look the customer up and filter their transactions by their OWN shop_id, not
+        // the caller's shop — a cross-shop customer must never be filtered out or 404 here; that's the
+        // exact bug this endpoint used to have (m.shop_id = @sid rejected any other shop's customer).
+        // The POS API has direct, real-time access to the one shared central DB (see GiftCardsController
+        // .GetUnsold), so there is no separate "HO" to round-trip to for a fresher figure — this query
+        // already is the live, authoritative source Candela's HOWebService.getCustomerCreditLimit exists
+        // to provide desktop clients running against a local, possibly-stale replicated shop DB.
         [HttpGet, Route("{id:int}/credit-outstanding")]
         public HttpResponseMessage GetCreditOutstanding(int id)
         {
             CandelaBootstrap.PrepareRequest();
-            int shopId = (int)Request.Properties["shop_id"];
 
             try
             {
@@ -161,14 +171,13 @@ VALUES
                         "  isnull(m.credit_limit, 0) AS credit_limit, " +
                         "  isnull(m.allow_credit,  0) AS allow_credit, " +
                         "  isnull((SELECT SUM(s.NT_amount) FROM tblSales s " +
-                        "           WHERE s.member_id = @mid AND s.isCreditSale = 1 AND s.shop_id = @sid), 0) " +
+                        "           WHERE s.member_id = @mid AND s.isCreditSale = 1 AND s.memberShopID = m.shop_id), 0) " +
                         "- isnull((SELECT SUM(r.amount) FROM tblMemberReceipts r " +
-                        "           WHERE r.member_id = @mid AND r.shop_id = @sid), 0) " +
+                        "           WHERE r.member_id = @mid AND r.MemberShop_id = m.shop_id), 0) " +
                         "  AS credit_outstanding " +
                         "FROM tblMemberInfo m " +
-                        "WHERE m.member_id = @mid AND m.shop_id = @sid", con);
+                        "WHERE m.member_id = @mid", con);
                     cmd.Parameters.AddWithValue("@mid", id);
-                    cmd.Parameters.AddWithValue("@sid", shopId);
 
                     using (var rdr = cmd.ExecuteReader())
                     {

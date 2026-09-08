@@ -333,6 +333,7 @@ SELECT
     isnull(pd.vat, 0)                           AS vat,
     isnull(pd.vat_type, '')                     AS vat_type,
     isnull(pd.NotForDiscount, 0)                AS not_for_discount,
+    isnull(pd.Allow_Price_Change, 0)            AS allow_price_change,
     isnull(pd.Tax_At_Retail_Price, 0)           AS tax_at_retail_price,
     isnull(pd.Sale_Tax, 0)                      AS sale_tax,
     isnull(pd.custom_discount, 0)               AS custom_discount,
@@ -438,6 +439,7 @@ SELECT TOP 1
     isnull(pd.vat, 0)                           AS vat,
     isnull(pd.vat_type, '')                     AS vat_type,
     isnull(pd.NotForDiscount, 0)                AS not_for_discount,
+    isnull(pd.Allow_Price_Change, 0)            AS allow_price_change,
     isnull(pd.Tax_At_Retail_Price, 0)           AS tax_at_retail_price,
     isnull(pd.Sale_Tax, 0)                      AS sale_tax,
     isnull(pd.custom_discount, 0)               AS custom_discount,
@@ -490,17 +492,28 @@ ORDER BY
 
         private List<Dictionary<string, object>> QueryCustomers(int shopId, DateTime? since, string q = null)
         {
-            // Returns customers registered at this shop.
+            // Mirrors Candela's CustomerDAL.PopulateCustomerList shop-user branch: a customer
+            // is visible here if their member type is IsVisibleOnAllShops (or that flag is unset,
+            // which defaults to visible-everywhere), or they were registered at this shop.
+            // A member type flagged IsSecurityOn is additionally suppressed from this general
+            // list once it's cross-shop visible — those customers are only meant to be reached by
+            // an explicit card/barcode scan (a separate, unfiltered lookup), never browsed/searched.
             // ?since= for delta sync (IndexedDB initial/incremental load).
             // ?q=     for live search fallback when the app gets a miss in IndexedDB.
             //         Matches member_name, phone_no, or mobile_no — TOP 50 for UX speed.
             // Joins member type for discount_pct and customer_disc_type used in the sale screen.
+            // credit_outstanding mirrors SaleAndReturnDAL.CalculateOutstanding: tblSales.memberShopID /
+            // tblMemberReceipts.MemberShop_id tag which customer a transaction belongs to (their home
+            // shop), independently of which physical shop it happened at — so this must filter on the
+            // customer's own shop_id (m.shop_id), never the viewing shop (@shopId), or a cross-shop
+            // customer's balance comes back as whatever they happened to transact at this shop (often 0).
             bool isSearch = !string.IsNullOrWhiteSpace(q);
 
             string sql = @"
 SELECT" + (isSearch ? " TOP 50" : "") + @"
     m.member_id,
     m.member_name,
+    m.shop_id,
     isnull(m.phone_Res,    '')  AS phone,
     isnull(m.phone_Mobile, '')  AS mobile,
     isnull(m.email,        '')  AS email,
@@ -513,13 +526,14 @@ SELECT" + (isSearch ? " TOP 50" : "") + @"
     m.entereddate,
     m.editeddate,
     isnull((SELECT SUM(s.NT_amount) FROM tblSales s
-            WHERE s.member_id = m.member_id AND s.isCreditSale = 1 AND s.shop_id = @shopId), 0)
+            WHERE s.member_id = m.member_id AND s.isCreditSale = 1 AND s.memberShopID = m.shop_id), 0)
     - isnull((SELECT SUM(r.amount) FROM tblMemberReceipts r
-              WHERE r.member_id = m.member_id AND r.shop_id = @shopId), 0)
+              WHERE r.member_id = m.member_id AND r.MemberShop_id = m.shop_id), 0)
     AS credit_outstanding
 FROM tblMemberInfo m
 LEFT JOIN tblDefMemberTypes mt ON mt.member_type_id = m.member_type_id
-WHERE m.shop_id = @shopId";
+WHERE (isnull(mt.IsVisibleOnAllShops, 0) = 1 OR mt.IsVisibleOnAllShops IS NULL OR m.shop_id = @shopId)
+  AND NOT (isnull(mt.IsSecurityOn, 0) = 1 AND isnull(mt.IsVisibleOnAllShops, 0) = 1)";
 
             if (since.HasValue)
                 sql += " AND (m.entereddate >= @since OR m.editeddate >= @since)";
