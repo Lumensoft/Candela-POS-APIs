@@ -5,13 +5,14 @@ using System.Data.SqlClient;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
-using CandelaPOS.Infrastructure;
-using CandelaPOS.Models;
 using DAL;
 using Model;
 using static Utility.Utility;
+using CandelaPOS.Shared.Data;
+using CandelaPOS.Shared.Api;
+using CandelaPOS.Features.Sales;   // SaleRequest / SaleLineItem are owned by the Sales slice
 
-namespace CandelaPOS.Controllers
+namespace CandelaPOS.Features.Holds
 {
     [RoutePrefix("api/holds")]
     public class HoldsController : ApiController

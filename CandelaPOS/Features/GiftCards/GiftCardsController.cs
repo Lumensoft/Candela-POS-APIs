@@ -5,10 +5,10 @@ using System.Data.SqlClient;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
-using CandelaPOS.Infrastructure;
 using Newtonsoft.Json;
+using CandelaPOS.Shared.Data;
 
-namespace CandelaPOS.Controllers
+namespace CandelaPOS.Features.GiftCards
 {
     [RoutePrefix("api/gift-cards")]
     public class GiftCardsController : ApiController

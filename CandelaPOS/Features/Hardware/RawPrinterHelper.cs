@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace CandelaPOS.Infrastructure
+namespace CandelaPOS.Features.Hardware
 {
     /// <summary>
     /// Sends raw ESC/POS bytes to a Windows-managed printer via winspool.drv,

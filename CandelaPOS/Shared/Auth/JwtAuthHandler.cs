@@ -5,8 +5,9 @@ using System.Net.Http;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using CandelaPOS.Shared.Data;
 
-namespace CandelaPOS.Infrastructure
+namespace CandelaPOS.Shared.Auth
 {
     public class JwtAuthHandler : DelegatingHandler
     {

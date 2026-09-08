@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Newtonsoft.Json;
 
-namespace CandelaPOS.Infrastructure
+namespace CandelaPOS.Shared.Auth
 {
     public static class JwtHelper
     {

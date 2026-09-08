@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace CandelaPOS.Models
+namespace CandelaPOS.Features.Sales
 {
     public class SaleRequest
     {

@@ -3,9 +3,8 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Web.Http;
-using CandelaPOS.Infrastructure;
 
-namespace CandelaPOS.Controllers
+namespace CandelaPOS.Features.Hardware
 {
     [RoutePrefix("api/hardware")]
     public class HardwareController : ApiController

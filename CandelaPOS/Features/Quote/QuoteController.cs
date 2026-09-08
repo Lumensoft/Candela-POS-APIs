@@ -6,11 +6,11 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
-using CandelaPOS.Infrastructure;
-using CandelaPOS.Models;
 using DAL;
+using CandelaPOS.Shared.Data;
+using CandelaPOS.Shared.Api;
 
-namespace CandelaPOS.Controllers
+namespace CandelaPOS.Features.Quote
 {
     [RoutePrefix("api/sales")]
     public class QuoteController : ApiController

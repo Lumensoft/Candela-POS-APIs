@@ -4,9 +4,10 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
-using CandelaPOS.Infrastructure;
+using CandelaPOS.Shared.Data;
+using CandelaPOS.Features.Hardware;   // RawPrinterHelper is owned by the Hardware slice
 
-namespace CandelaPOS.Controllers
+namespace CandelaPOS.Features.Printing
 {
     [RoutePrefix("api/print")]
     public class PrintController : ApiController

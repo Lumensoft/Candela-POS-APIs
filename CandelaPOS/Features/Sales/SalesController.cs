@@ -6,13 +6,13 @@ using System.Data.SqlClient;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
-using CandelaPOS.Infrastructure;
-using CandelaPOS.Models;
 using DAL;
 using Model;
 using static Utility.Utility;
+using CandelaPOS.Shared.Data;
+using CandelaPOS.Shared.Api;
 
-namespace CandelaPOS.Controllers
+namespace CandelaPOS.Features.Sales
 {
     [RoutePrefix("api/sales")]
     public class SalesController : ApiController

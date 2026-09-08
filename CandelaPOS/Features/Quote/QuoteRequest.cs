@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace CandelaPOS.Models
+namespace CandelaPOS.Features.Quote
 {
     public class QuoteRequest
     {

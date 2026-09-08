@@ -1,7 +1,8 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
+using CandelaPOS.Features.Sales;   // SaleRequest / SaleLineItem are owned by the Sales slice
 
-namespace CandelaPOS.Models
+namespace CandelaPOS.Features.Returns
 {
     public class ValidateReturnRequest
     {

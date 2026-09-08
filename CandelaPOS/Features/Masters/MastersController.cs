@@ -5,9 +5,9 @@ using System.Data.SqlClient;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
-using CandelaPOS.Infrastructure;
+using CandelaPOS.Shared.Data;
 
-namespace CandelaPOS.Controllers
+namespace CandelaPOS.Features.Masters
 {
     [RoutePrefix("api/masters")]
     public class MastersController : ApiController

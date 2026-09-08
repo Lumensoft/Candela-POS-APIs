@@ -4,12 +4,13 @@ using System.Data.SqlClient;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
-using CandelaPOS.Infrastructure;
-using CandelaPOS.Models;
 using static Utility.Utility;
 using System.Security.Claims;
+using CandelaPOS.Shared.Data;
+using CandelaPOS.Shared.Auth;
+using CandelaPOS.Shared.Api;
 
-namespace CandelaPOS.Controllers
+namespace CandelaPOS.Features.Auth
 {
     [RoutePrefix("api/auth")]
     public class AuthController : ApiController

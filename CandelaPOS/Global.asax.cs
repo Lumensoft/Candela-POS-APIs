@@ -1,5 +1,5 @@
 using System.Web.Http;
-using CandelaPOS.Infrastructure;
+using CandelaPOS.Shared.Data;
 
 namespace CandelaPOS
 {

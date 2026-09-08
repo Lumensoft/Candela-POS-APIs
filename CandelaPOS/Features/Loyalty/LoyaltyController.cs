@@ -4,9 +4,9 @@ using System.Data.SqlClient;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
-using CandelaPOS.Infrastructure;
+using CandelaPOS.Shared.Data;
 
-namespace CandelaPOS.Controllers
+namespace CandelaPOS.Features.Loyalty
 {
     [RoutePrefix("api/customers")]
     public class LoyaltyController : ApiController

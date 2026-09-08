@@ -9,7 +9,7 @@ using System.IO;
 using System.Xml.Linq;
 using Microsoft.Reporting.WinForms;
 
-namespace CandelaPOS.Infrastructure
+namespace CandelaPOS.Features.Printing
 {
     // Renders Candela RDLC sales invoices and prints via the Windows print spooler,
     // mirroring SQLReportUtils.vb so the output is identical to what Candela produces.

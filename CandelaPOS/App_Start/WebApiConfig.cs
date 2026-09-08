@@ -1,7 +1,8 @@
 using System.Web.Http;
-using CandelaPOS.Infrastructure;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
+using CandelaPOS.Shared.Auth;
+using CandelaPOS.Shared.Http;
 
 namespace CandelaPOS
 {

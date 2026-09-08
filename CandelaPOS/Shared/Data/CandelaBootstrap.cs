@@ -7,7 +7,7 @@ using System.Web;
 using DAL;
 using static Utility.Utility;
 
-namespace CandelaPOS.Infrastructure
+namespace CandelaPOS.Shared.Data
 {
     /// <summary>
     /// Loads Candela globals that DAL methods read at call time.

@@ -4,7 +4,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace CandelaPOS.Infrastructure
+namespace CandelaPOS.Shared.Http
 {
     public class CorsHandler : DelegatingHandler
     {

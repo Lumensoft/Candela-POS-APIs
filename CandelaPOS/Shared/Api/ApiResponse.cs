@@ -1,4 +1,4 @@
-namespace CandelaPOS.Models
+namespace CandelaPOS.Shared.Api
 {
     public class ApiResponse<T>
     {
