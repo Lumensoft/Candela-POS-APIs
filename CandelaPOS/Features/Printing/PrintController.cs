@@ -7,6 +7,8 @@ using System.Web.Http;
 using CandelaPOS.Shared.Data;
 using CandelaPOS.Features.Hardware;   // RawPrinterHelper is owned by the Hardware slice
 using CandelaPOS.Shared.Errors;
+using CandelaPOS.Shared.Logging;
+using CandelaPOS.Shared.Net;
 
 namespace CandelaPOS.Features.Printing
 {
@@ -70,6 +72,9 @@ namespace CandelaPOS.Features.Printing
 
                 // req.PrinterName from the app takes precedence;
                 // fall back to the printer saved in tblComputerList.
+                var unsafePrinter = RejectIfUnsafePrinter(req.PrinterName);
+                if (unsafePrinter != null) return unsafePrinter;
+
                 string printer = !string.IsNullOrWhiteSpace(req.PrinterName)
                                  ? req.PrinterName
                                  : cs.InvoicePrinterName;
@@ -195,6 +200,9 @@ namespace CandelaPOS.Features.Printing
                 var config = CandelaBootstrap.GetRCMSConfig();
                 config.TryGetValue("Invoice_Company_Name", out string companyName);
                 config.TryGetValue("Company_Address",      out string companyAddress);
+
+                var unsafePrinter = RejectIfUnsafePrinter(req.PrinterName);
+                if (unsafePrinter != null) return unsafePrinter;
 
                 string printer = !string.IsNullOrWhiteSpace(req.PrinterName)
                                  ? req.PrinterName
@@ -340,6 +348,9 @@ namespace CandelaPOS.Features.Printing
                 config.TryGetValue("Invoice_Company_Name", out string companyName);
                 config.TryGetValue("Company_Address",      out string companyAddress);
 
+                var unsafePrinter = RejectIfUnsafePrinter(req.PrinterName);
+                if (unsafePrinter != null) return unsafePrinter;
+
                 string printer = !string.IsNullOrWhiteSpace(req.PrinterName)
                                  ? req.PrinterName
                                  : cs.InvoicePrinterName;
@@ -442,6 +453,19 @@ namespace CandelaPOS.Features.Printing
             {
                 return ApiError.Internal(Request, ex, "PrintController.PreviewPosCashSummary");
             }
+        }
+
+        // The printer configured in tblComputerList is trusted; a printer_name that
+        // arrives in the request body is not. A UNC override there would make the
+        // spooler authenticate to whatever host the caller names, handing out an
+        // NTLM handshake from the app-pool identity.
+        private HttpResponseMessage RejectIfUnsafePrinter(string requested)
+        {
+            if (string.IsNullOrWhiteSpace(requested)) return null;
+            var check = PrinterGuard.CheckPrinterName(requested);
+            if (check.Ok) return null;
+            AppLog.Warn("Rejected print target {0}: {1}", requested, check.Reason);
+            return Request.CreateResponse(HttpStatusCode.BadRequest, new { error = check.Reason });
         }
     }
 

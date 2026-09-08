@@ -4,6 +4,8 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Web.Http;
 using CandelaPOS.Shared.Errors;
+using CandelaPOS.Shared.Logging;
+using CandelaPOS.Shared.Net;
 
 namespace CandelaPOS.Features.Hardware
 {
@@ -37,9 +39,18 @@ namespace CandelaPOS.Features.Hardware
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "Either printer_ip or printer_name is required" });
 
-            if (hasIp && req.PrinterIp.Length > 253)
-                return Request.CreateResponse(HttpStatusCode.BadRequest,
-                    new { error = "printer_ip is invalid" });
+            // SSRF guard. Both branches make the server reach out to a target the
+            // caller chose, so validate before connecting — see PrinterGuard.
+            int wantedPort = req.PrinterPort > 0 ? req.PrinterPort : PrinterPort;
+            var check = hasIp
+                ? PrinterGuard.CheckTcp(req.PrinterIp, wantedPort)
+                : PrinterGuard.CheckPrinterName(req.PrinterName);
+            if (!check.Ok)
+            {
+                AppLog.Warn("Rejected drawer target ip={0} port={1} name={2}: {3}",
+                    req.PrinterIp ?? "-", wantedPort, req.PrinterName ?? "-", check.Reason);
+                return Request.CreateResponse(HttpStatusCode.BadRequest, new { error = check.Reason });
+            }
 
             string posCode = Request.Properties.ContainsKey("pos_code")
                 ? Request.Properties["pos_code"] as string : "";
@@ -65,8 +76,13 @@ namespace CandelaPOS.Features.Hardware
             }
             catch (SocketException ex)
             {
+                // Never echo the socket error back. The difference between "connection
+                // refused" and "timed out" is exactly what turns this endpoint into a
+                // port scanner for whoever holds a token.
+                AppLog.Warn("Drawer kick failed for {0}:{1} - {2}",
+                    req.PrinterIp, wantedPort, ex.SocketErrorCode);
                 return Request.CreateResponse(HttpStatusCode.BadGateway,
-                    new { error = $"Could not reach printer at {req.PrinterIp}:{(req.PrinterPort > 0 ? req.PrinterPort : PrinterPort)}: {ex.Message}" });
+                    new { error = "Could not reach the printer." });
             }
             catch (Exception ex)
             {
