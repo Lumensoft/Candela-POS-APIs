@@ -273,6 +273,24 @@ ORDER BY a.ExpiryDate ASC";
             catch (Exception ex) { return Err(ex); }
         }
 
+        // ── /masters/promotion-products ───────────────────────────────────────────
+        // Full-replace sync — tblPromotionProducts is tiny and has no reliable EditedDate,
+        // so always return every currently-or-still-upcoming promotion (ToDate hasn't
+        // passed yet); expired rows are left out rather than synced and filtered client-side.
+        // Global, not shop-scoped — mirrors frmSaleAndReturn.vb:17716 (showAlert), which has
+        // no shop_id filter either.
+        [HttpGet, Route("promotion-products")]
+        public HttpResponseMessage GetPromotionProducts()
+        {
+            CandelaBootstrap.PrepareRequest();
+            try
+            {
+                var rows = QueryPromotionProducts();
+                return Ok(rows);
+            }
+            catch (Exception ex) { return Err(ex); }
+        }
+
         // ── /masters/str/{no}/products ────────────────────────────────────────────
         // Loads products from a Stock Transfer Request by STR number.
         // Wraps SaleAndReturnDAL.funGetStrProducts — mirrors txtSTRNo_GetSTR
@@ -681,6 +699,27 @@ SELECT product_item_id
 FROM   tblBlockPrdctsForSale
 WHERE  shopID = @shopId";
             return Run(sql, p => p.AddWithValue("@shopId", shopId));
+        }
+
+        private List<Dictionary<string, object>> QueryPromotionProducts()
+        {
+            // Mirrors frmSaleAndReturn.vb:17716 (showAlert): PromotedProductItemId is the item
+            // that triggers the alert when added to the cart; ProductItemId is the cross-sell
+            // target whose stock is checked before the toast is shown. Unlike showAlert's SQL
+            // (which only checks ToDate), this also requires Fromdate to have started — only
+            // currently-active promotions sync down; the client re-checks both bounds anyway
+            // at add-to-cart time since a promotion can start/expire between syncs.
+            const string sql = @"
+SELECT
+    PromotionId             AS promotion_id,
+    ProductItemId            AS product_item_id,
+    PromotedProductItemId   AS promoted_product_item_id,
+    Fromdate                AS from_date,
+    ToDate                   AS to_date,
+    isnull(PromotionMessage, '') AS promotion_message
+FROM tblPromotionProducts
+WHERE Fromdate <= GETDATE() AND ToDate >= CAST(GETDATE() AS DATE)";
+            return Run(sql, _ => { });
         }
 
         private List<Dictionary<string, object>> QueryStrProducts(string strNo, int shopId)

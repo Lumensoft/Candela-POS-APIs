@@ -498,6 +498,20 @@ namespace CandelaPOS.Features.Quote
                 double mktDisc = SaleAndReturnDAL.GetMarketingDiscountValue(
                     shopId, now, absoluteTotal - preTotalCustDisc, ref isApplicableOnAll);
 
+                // Kept before the toggle gate below so the client can still show/offer the
+                // toggle (and the amount it would apply) even while it's switched off — the
+                // toggle's own visibility must not depend on whether it's currently applied.
+                double autoMktDiscAvailable = mktDisc;
+
+                // Gap 6: cashier-facing toggle on CheckoutScreen. Only honored when the discount
+                // is actually optional (mkt_applicable_for='Selected', or none active) — when
+                // isApplicableOnAll=True it's mandatory and the client can't opt out of it, no
+                // matter what it sends (server stays authoritative even if the UI toggle were
+                // bypassed or stale). req.ManualMarketingDiscount (the separate receipt-discount
+                // field) is unaffected either way.
+                if (!req.ApplyMarketDiscount && !isApplicableOnAll)
+                    mktDisc = 0;
+
                 // Gap 1: when mkt_applicable_for="Selected", discount applies only to specific SKUs.
                 // Get the matching discount_id and its eligible product_item_ids.
                 // When isApplicableOnAll=True, eligibleMktProducts stays null → all items eligible.
@@ -710,6 +724,8 @@ namespace CandelaPOS.Features.Quote
                         TotalDiscount     = Math.Round(totalDiscount,           amountRound, MidpointRounding.AwayFromZero),
                         CustomerDiscount  = Math.Round(totalCustDisc,           amountRound, MidpointRounding.AwayFromZero),
                         MarketingDiscount = Math.Round(totalMktDisc,            amountRound, MidpointRounding.AwayFromZero),
+                        AutoMarketingDiscount = Math.Round(autoMktDiscAvailable, amountRound, MidpointRounding.AwayFromZero),
+                        IsMktDiscApplicableOnAll = isApplicableOnAll,
                         // Formula-1 (per-item) addl tax is folded into txtVAT by Candela at line 12991.
                         // Formula-2 (on net total) is NOT folded in — reported separately.
                         // Slab VAT overrides txVAT entirely and is independent of addl tax.
