@@ -61,13 +61,24 @@ namespace CandelaPOS.Controllers
                 bool   blockCustDiscOnUnitDisc = string.Equals(discPriority, "Product",  StringComparison.OrdinalIgnoreCase);
                 bool   blockUnitDiscOnCustDisc = string.Equals(discPriority, "Customer", StringComparison.OrdinalIgnoreCase);
 
+                // RetailPriceMethodology=3 ("Customer Type Based Prices") — independent of the Block
+                // config below. Whenever the shop prices this way, every line's base rate is the
+                // customer-type price for that SKU (tblDefProductPriceCustomerBased) when one exists,
+                // falling back to the standard retail price otherwise. Applied unconditionally per
+                // line — not tied to whether that line also has a product discount.
+                // frmSaleAndReturn.vb:26798-26817 (initial add), 23930 (re-applied on customer change).
+                bool isCustTypePriceMethodology =
+                    string.Equals(rcmsCfg.TryGetValue("RetailPriceMethodology", out var rpm) ? rpm : "1", "3");
+
                 // BlockProductDiscount_Under_CustomerPrice (frmSaleAndReturn.vb:25795, 25847)
                 // Only active when RetailPriceMethodology=3. Calls GetCustomerTypeBasedSKUPrice()
                 // per line; if the customer type has a specific price for that SKU, discount is zeroed.
+                // Separate from isCustTypePriceMethodology above — this only controls discount
+                // blocking, not the price substitution, which happens regardless of this flag.
                 bool blockBelowCustPrice =
                     string.Equals(rcmsCfg.TryGetValue("BlockProductDiscount_Under_CustomerPrice", out var bbcp) ? bbcp : "",
                         "true", StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(rcmsCfg.TryGetValue("RetailPriceMethodology", out var rpm) ? rpm : "1", "3");
+                    && isCustTypePriceMethodology;
 
                 bool isSlabVAT = string.Equals(
                     rcmsCfg.TryGetValue("VATType", out var vts) ? vts : "", "SLABS",
@@ -200,6 +211,27 @@ namespace CandelaPOS.Controllers
                     // Mirrors frmSaleAndReturn.vb grid UnitRate column edit — all downstream
                     // calculations (VAT, discounts, net) use this rate instead of the DB price.
                     double unitRate  = item.OverrideUnitRate ?? p.Price;
+
+                    // RetailPriceMethodology=3: Customer-Type Based Price. Independent of
+                    // BlockProductDiscount_Under_CustomerPrice (see isCustTypePriceMethodology above) —
+                    // substitutes the base rate whenever a customer-type price exists for this SKU,
+                    // regardless of any product discount. A cashier's manual OverrideUnitRate still
+                    // wins (skipped here), same as it wins over everything else on the line.
+                    // frmSaleAndReturn.vb:26798-26817.
+                    if (!item.OverrideUnitRate.HasValue && isCustTypePriceMethodology && customerMemberTypeId > 0)
+                    {
+                        double custTypeRate = item.NestedItemId > 0
+                            ? GetCustomerTypeBasedNestedSKUPrice(item.ProductItemId, item.NestedItemId, customerMemberTypeId)
+                            : GetCustomerTypeBasedSKUPrice(customerMemberTypeId, item.ProductItemId);
+                        if (custTypeRate > 0)
+                        {
+                            // frmSaleAndReturn.vb:17413-17417 — a pack line scales the customer-type
+                            // price by the conversion factor, same as the normal retail price would be.
+                            bool isPackLine = item.PackSize > 0 && item.NestedItemId == 0;
+                            unitRate = isPackLine ? custTypeRate * item.ConFactor : custTypeRate;
+                        }
+                    }
+
                     // When card payment with shop-based VAT, Changetax() replaces VatFactor
                     // with the card tax rate (ratio = txtSaleTaxPercentOnCard).
                     // frmSaleAndReturn.vb:25201-25215; card button only visible when isShopBasedVAT.
@@ -369,6 +401,23 @@ namespace CandelaPOS.Controllers
                             unitDisc     = item.OverrideUnitDiscount.Value;
                             discCategory = "";
                             discountId   = 0;
+                        }
+
+                        // BlockProductDiscount_Under_CustomerPrice also blocks a cashier's manually
+                        // typed discount, not just the auto SKU discount above — Candela has a second,
+                        // separate check for this at frmSaleAndReturn.vb:22108-22118 (UnitDiscount grid
+                        // column edit), mirroring the auto-discount check at 22076-22087 exactly.
+                        if (blockBelowCustPrice && customerMemberTypeId > 0 && unitDisc > 0)
+                        {
+                            double custTypeSKUPriceForOverride = item.NestedItemId > 0
+                                ? GetCustomerTypeBasedNestedSKUPrice(item.ProductItemId, item.NestedItemId, customerMemberTypeId)
+                                : GetCustomerTypeBasedSKUPrice(customerMemberTypeId, item.ProductItemId);
+                            if (custTypeSKUPriceForOverride > 0)
+                            {
+                                unitDisc     = 0;
+                                discountId   = 0;
+                                discCategory = "";
+                            }
                         }
                     }
 
