@@ -180,7 +180,6 @@ namespace CandelaPOS.Features.Auth
                 }
 
                 // Step 4 — bootstrap Candela globals then issue JWT
-                CandelaBootstrap.PrepareRequest();
                 string controlRightsStr = string.Join(",", grantedRights);
                 string token = JwtHelper.Generate(userId, userName, shopId, posCode, req.DeviceId, groupName, groupType, saleReturnLimit, hasBelowCostRight, controlRightsStr);
 

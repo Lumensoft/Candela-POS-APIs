@@ -26,7 +26,6 @@ namespace CandelaPOS.Features.Holds
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "items cannot be empty" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    userId   = (int)   Request.Properties["user_id"];
             int    shopId   = (int)   Request.Properties["shop_id"];
@@ -57,7 +56,6 @@ namespace CandelaPOS.Features.Holds
         [HttpGet, Route("")]
         public HttpResponseMessage GetHolds()
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
 
             try
@@ -76,7 +74,6 @@ namespace CandelaPOS.Features.Holds
         [HttpDelete, Route("{id:int}")]
         public HttpResponseMessage DeleteHold(int id)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
 
             try

@@ -19,7 +19,6 @@ namespace CandelaPOS.Features.Masters
         [HttpGet, Route("products")]
         public HttpResponseMessage GetProducts([FromUri] string since = null)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
@@ -37,7 +36,6 @@ namespace CandelaPOS.Features.Masters
         [HttpGet, Route("products/scan")]
         public HttpResponseMessage ScanProduct([FromUri] string q = null)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
@@ -56,7 +54,6 @@ namespace CandelaPOS.Features.Masters
         public HttpResponseMessage SearchProduct([FromUri] string barcode = null,
                                                  [FromUri] string code    = null)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
@@ -77,7 +74,6 @@ namespace CandelaPOS.Features.Masters
         [HttpGet, Route("customers")]
         public HttpResponseMessage GetCustomers([FromUri] string since = null, [FromUri] string q = null)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
@@ -93,7 +89,6 @@ namespace CandelaPOS.Features.Masters
         [HttpGet, Route("employees")]
         public HttpResponseMessage GetEmployees([FromUri] string since = null)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
@@ -109,7 +104,6 @@ namespace CandelaPOS.Features.Masters
         [HttpGet, Route("credit-cards")]
         public HttpResponseMessage GetCreditCards([FromUri] string since = null)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
@@ -125,7 +119,6 @@ namespace CandelaPOS.Features.Masters
         [HttpGet, Route("member-types")]
         public HttpResponseMessage GetMemberTypes([FromUri] string since = null)
         {
-            CandelaBootstrap.PrepareRequest();
             try
             {
                 var rows = QueryMemberTypes(ParseSince(since));
@@ -141,7 +134,6 @@ namespace CandelaPOS.Features.Masters
         [HttpGet, Route("customer-groups")]
         public HttpResponseMessage GetCustomerGroups()
         {
-            CandelaBootstrap.PrepareRequest();
             try
             {
                 var rows = QueryCustomerGroups();
@@ -156,7 +148,6 @@ namespace CandelaPOS.Features.Masters
         [HttpGet, Route("payment-methods")]
         public HttpResponseMessage GetPaymentMethods()
         {
-            CandelaBootstrap.PrepareRequest();
             try
             {
                 var rows = QueryPaymentMethods();
@@ -175,7 +166,6 @@ namespace CandelaPOS.Features.Masters
         [HttpGet, Route("config")]
         public HttpResponseMessage GetConfig([FromUri] string since = null)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
@@ -192,7 +182,6 @@ namespace CandelaPOS.Features.Masters
         [HttpGet, Route("line-items")]
         public HttpResponseMessage GetLineItems([FromUri] string since = null)
         {
-            CandelaBootstrap.PrepareRequest();
             try
             {
                 var rows = QueryLineItems();
@@ -208,7 +197,6 @@ namespace CandelaPOS.Features.Masters
         [HttpGet, Route("batches")]
         public HttpResponseMessage GetBatches([FromUri] int product_item_id = 0)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
 
             if (product_item_id <= 0)
@@ -256,7 +244,6 @@ ORDER BY a.ExpiryDate ASC";
         [HttpGet, Route("assembly-items")]
         public HttpResponseMessage GetAssemblyItems([FromUri] int product_item_id = 0)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
 
             if (product_item_id <= 0)
@@ -277,7 +264,6 @@ ORDER BY a.ExpiryDate ASC";
         [HttpGet, Route("blocked-products")]
         public HttpResponseMessage GetBlockedProducts()
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
@@ -294,7 +280,6 @@ ORDER BY a.ExpiryDate ASC";
         [HttpGet, Route("str/{strNo}/products")]
         public HttpResponseMessage GetStrProducts(string strNo)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
@@ -800,7 +785,6 @@ ORDER BY pd.item_name";
         [HttpGet, Route("shops")]
         public HttpResponseMessage GetShops()
         {
-            CandelaBootstrap.PrepareRequest();
             try
             {
                 var list = new List<Dictionary<string, object>>();
@@ -834,7 +818,6 @@ ORDER BY pd.item_name";
         [HttpGet, Route("departments")]
         public HttpResponseMessage GetDepartments()
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
@@ -906,7 +889,6 @@ ORDER BY pd.item_name";
         [HttpGet, Route("return-reasons")]
         public HttpResponseMessage GetReturnReasons()
         {
-            CandelaBootstrap.PrepareRequest();
             try
             {
                 var list = new List<Dictionary<string, object>>();

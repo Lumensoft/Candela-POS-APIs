@@ -20,7 +20,6 @@ namespace CandelaPOS.Features.Products
         [HttpGet, Route("{id:int}/alternates")]
         public HttpResponseMessage GetAlternates(int id)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
@@ -37,7 +36,6 @@ namespace CandelaPOS.Features.Products
         [HttpGet, Route("{id:int}/batches")]
         public HttpResponseMessage GetBatches(int id)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {

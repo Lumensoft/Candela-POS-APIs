@@ -27,7 +27,6 @@ namespace CandelaPOS.Features.Pos
         [HttpGet, Route("cash-status")]
         public HttpResponseMessage GetCashStatus()
         {
-            CandelaBootstrap.PrepareRequest();
 
             int    shopId  = (int)   Request.Properties["shop_id"];
             string posCode = (string)Request.Properties["pos_code"];
@@ -186,7 +185,6 @@ WHERE  pos_code = @pos AND shop_id = @sid
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "amount is required and must be > 0" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    userId  = (int)   Request.Properties["user_id"];
             int    shopId  = (int)   Request.Properties["shop_id"];
@@ -260,7 +258,6 @@ WHERE  pos_code = @pos AND shop_id = @sid
         [HttpGet, Route("shift-status")]
         public HttpResponseMessage GetShiftStatus()
         {
-            CandelaBootstrap.PrepareRequest();
 
             int    shopId  = (int)   Request.Properties["shop_id"];
             string posCode = (string)Request.Properties["pos_code"];
@@ -313,7 +310,6 @@ WHERE  pos_code = @pos AND shop_id = @sid
             [FromUri] int    page      = 1,
             [FromUri] int    page_size = 20)
         {
-            CandelaBootstrap.PrepareRequest();
 
             int    shopId  = (int)   Request.Properties["shop_id"];
             string posCode = (string)Request.Properties["pos_code"];
@@ -446,7 +442,6 @@ FROM (" + where.ToString() + ") totals_src";
         [HttpGet, Route("shifts/{closingId:int}/detail")]
         public HttpResponseMessage GetShiftDetail(int closingId)
         {
-            CandelaBootstrap.PrepareRequest();
 
             int    shopId  = (int)   Request.Properties["shop_id"];
             string posCode = (string)Request.Properties["pos_code"];
@@ -514,7 +509,6 @@ ORDER BY d.DetailDate";
         [HttpDelete, Route("shifts/{closingId:int}/detail/{detailId:int}")]
         public HttpResponseMessage DeleteShiftDetail(int closingId, int detailId)
         {
-            CandelaBootstrap.PrepareRequest();
 
             int    shopId  = (int)   Request.Properties["shop_id"];
             string posCode = (string)Request.Properties["pos_code"];
@@ -597,7 +591,6 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
         [HttpPost, Route("shift-open")]
         public HttpResponseMessage OpenShift()
         {
-            CandelaBootstrap.PrepareRequest();
 
             int    userId  = (int)   Request.Properties["user_id"];
             int    shopId  = (int)   Request.Properties["shop_id"];
@@ -682,7 +675,6 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "amount is required and must be > 0" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    userId  = (int)   Request.Properties["user_id"];
             int    shopId  = (int)   Request.Properties["shop_id"];
@@ -760,7 +752,6 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "cash_counted is required and must be >= 0" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    userId  = (int)   Request.Properties["user_id"];
             int    shopId  = (int)   Request.Properties["shop_id"];

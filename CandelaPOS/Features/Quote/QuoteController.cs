@@ -26,7 +26,6 @@ namespace CandelaPOS.Features.Quote
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "items cannot be empty" });
 
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
 
             try

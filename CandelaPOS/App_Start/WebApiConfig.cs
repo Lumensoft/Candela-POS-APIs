@@ -42,9 +42,11 @@ namespace CandelaPOS
             // an auth rejection carry an id we can grep for.
             //   1. CorrelationIdHandler — tag the request
             //   2. CorsHandler          — must precede auth so preflight OPTIONS never hits it
-            //   3. JwtAuthHandler       — authenticate everything except /api/auth/login
+            //   3. CandelaContextHandler — set the DAL globals once per request
+            //   4. JwtAuthHandler       — authenticate everything except /api/auth/login
             config.MessageHandlers.Insert(0, new CorrelationIdHandler());
             config.MessageHandlers.Insert(1, new CorsHandler());
+            config.MessageHandlers.Insert(2, new CandelaContextHandler());
             config.MessageHandlers.Add(new JwtAuthHandler());
         }
     }

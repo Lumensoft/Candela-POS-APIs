@@ -29,7 +29,6 @@ namespace CandelaPOS.Features.Printing
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "sale_id is required and must be > 0" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    shopId  = (int)   Request.Properties["shop_id"];
             string posCode = (string)Request.Properties["pos_code"];
@@ -111,7 +110,6 @@ namespace CandelaPOS.Features.Printing
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "sale_id is required and must be > 0" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    shopId  = (int)   Request.Properties["shop_id"];
             string posCode = (string)Request.Properties["pos_code"];
@@ -169,7 +167,6 @@ namespace CandelaPOS.Features.Printing
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "pos_cash_management_id is required and must be > 0" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    shopId   = (int)   Request.Properties["shop_id"];
             string posCode  = (string)Request.Properties["pos_code"];
@@ -245,7 +242,6 @@ namespace CandelaPOS.Features.Printing
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "pos_cash_management_id is required and must be > 0" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    shopId   = (int)   Request.Properties["shop_id"];
             string posCode  = (string)Request.Properties["pos_code"];
@@ -314,7 +310,6 @@ namespace CandelaPOS.Features.Printing
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "pos_cash_management_id is required and must be > 0" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    shopId   = (int)   Request.Properties["shop_id"];
             string posCode  = (string)Request.Properties["pos_code"];
@@ -396,7 +391,6 @@ namespace CandelaPOS.Features.Printing
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "pos_cash_management_id is required and must be > 0" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    shopId   = (int)   Request.Properties["shop_id"];
             string posCode  = (string)Request.Properties["pos_code"];

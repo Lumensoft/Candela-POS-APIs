@@ -31,7 +31,6 @@ namespace CandelaPOS.Features.Customers
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "member_type_id is required" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    userId  = (int)   Request.Properties["user_id"];
             int    shopId  = (int)   Request.Properties["shop_id"];
@@ -158,7 +157,6 @@ VALUES
         [HttpGet, Route("{id:int}/credit-outstanding")]
         public HttpResponseMessage GetCreditOutstanding(int id)
         {
-            CandelaBootstrap.PrepareRequest();
 
             try
             {
@@ -212,7 +210,6 @@ VALUES
         [HttpPut, Route("{id:int}/comments")]
         public HttpResponseMessage UpdateCustomerComments(int id, [FromBody] UpdateCustomerCommentsRequest req)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
 
             if (req == null)

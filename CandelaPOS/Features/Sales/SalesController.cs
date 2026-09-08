@@ -31,7 +31,6 @@ namespace CandelaPOS.Features.Sales
             [FromUri] string to        = null,
             [FromUri] string invoice_no = null)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
 
             if (page      < 1) page      = 1;
@@ -152,7 +151,6 @@ WHERE s.shop_id = @shopId";
         [HttpGet, Route("{id:int}")]
         public HttpResponseMessage GetSale(int id)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
 
             try
@@ -248,7 +246,6 @@ ORDER BY sli.sale_line_item_id", con);
         [HttpDelete, Route("{id:int}")]
         public HttpResponseMessage VoidSale(int id)
         {
-            CandelaBootstrap.PrepareRequest();
 
             int    userId  = (int)   Request.Properties["user_id"];
             int    shopId  = (int)   Request.Properties["shop_id"];
@@ -300,7 +297,6 @@ ORDER BY sli.sale_line_item_id", con);
         [HttpDelete, Route("{id:int}/hard")]
         public HttpResponseMessage HardDeleteSale(int id)
         {
-            CandelaBootstrap.PrepareRequest();
 
             int    userId  = (int)   Request.Properties["user_id"];
             int    shopId  = (int)   Request.Properties["shop_id"];
@@ -345,7 +341,6 @@ ORDER BY sli.sale_line_item_id", con);
             if (req.Items == null || req.Items.Count == 0)
                 return Request.CreateResponse(HttpStatusCode.BadRequest, new { error = "items cannot be empty." });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    userId   = (int)   Request.Properties["user_id"];
             int    shopId   = (int)   Request.Properties["shop_id"];
@@ -480,7 +475,6 @@ ORDER BY sli.sale_line_item_id", con);
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "items cannot be empty" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    userId   = (int)   Request.Properties["user_id"];
             int    shopId   = (int)   Request.Properties["shop_id"];

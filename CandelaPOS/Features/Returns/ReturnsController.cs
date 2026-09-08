@@ -35,7 +35,6 @@ namespace CandelaPOS.Features.Returns
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "invoice_no is required" });
 
-            CandelaBootstrap.PrepareRequest();
             int shopId       = (int)Request.Properties["shop_id"];
             int sourceShopId = req.SourceShopId > 0 ? req.SourceShopId : shopId;
 
@@ -87,7 +86,6 @@ namespace CandelaPOS.Features.Returns
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "items cannot be empty" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    userId       = (int)   Request.Properties["user_id"];
             int    shopId       = (int)   Request.Properties["shop_id"];
@@ -835,7 +833,6 @@ WHERE li.sale_id = @invoiceNo
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "sale_id and items are required" });
 
-            CandelaBootstrap.PrepareRequest();
             int shopId       = (int)Request.Properties["shop_id"];
             int sourceShopId = req.SourceShopId > 0 ? req.SourceShopId : shopId;
 

@@ -22,7 +22,6 @@ namespace CandelaPOS.Features.GiftCards
         [HttpGet, Route("{q}/balance")]
         public HttpResponseMessage GetBalance(string q, string by = "card")
         {
-            CandelaBootstrap.PrepareRequest();
             try
             {
                 string sql;
@@ -110,7 +109,6 @@ GROUP BY c.id, c.Card_no, c.Alternate_card_no, c.card_status, c.MemberName, c.Ph
         [HttpGet, Route("unsold")]
         public HttpResponseMessage GetUnsold()
         {
-            CandelaBootstrap.PrepareRequest();
 
             int shopId = (int)Request.Properties["shop_id"];
 
@@ -181,7 +179,6 @@ ORDER BY tbldefCards.Card_Gen_Date DESC";
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "topup_amount must be > 0" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    userId  = (int)   Request.Properties["user_id"];
             int    shopId  = (int)   Request.Properties["shop_id"];
@@ -321,7 +318,6 @@ ORDER BY tbldefCards.Card_Gen_Date DESC";
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "card_no is required" });
 
-            CandelaBootstrap.PrepareRequest();
             try
             {
                 // Step 1: resolve card (id + isActive flag from tbldefCards)
@@ -411,7 +407,6 @@ WHERE l.cardid = @cid
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "amount must be > 0" });
 
-            CandelaBootstrap.PrepareRequest();
 
             int    userId  = (int)   Request.Properties["user_id"];
             int    shopId  = (int)   Request.Properties["shop_id"];

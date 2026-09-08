@@ -19,7 +19,6 @@ namespace CandelaPOS.Features.Loyalty
         [HttpGet, Route("{memberId:int}/loyalty-points")]
         public HttpResponseMessage GetLoyaltyPoints(int memberId)
         {
-            CandelaBootstrap.PrepareRequest();
             int shopId = (int)Request.Properties["shop_id"];
             try
             {
