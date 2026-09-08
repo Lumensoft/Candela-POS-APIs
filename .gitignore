@@ -8,3 +8,7 @@
 # NuGet — restored locally, never committed
 packages/
 *.nupkg
+
+# Per-server secrets — never committed
+CandelaPOS/App_Data/secrets.config
+CandelaPOS/App_Data/logs/
