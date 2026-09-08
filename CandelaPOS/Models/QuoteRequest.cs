@@ -165,6 +165,21 @@ namespace CandelaPOS.Models
         [JsonProperty("marketing_discount")]
         public double MarketingDiscount { get; set; }
 
+        // The auto-computed marketing discount BEFORE the ApplyMarketDiscount toggle gate —
+        // i.e. what it would be if switched on, whether or not it currently is. The checkout
+        // toggle's visibility must key off this, not MarketingDiscount (which is 0 when off),
+        // or the toggle disappears the moment the cashier switches it off and can never be
+        // switched back on.
+        [JsonProperty("auto_marketing_discount")]
+        public double AutoMarketingDiscount { get; set; }
+
+        // The active marketing discount's mkt_applicable_for (tblDefDiscounts) — True ('All')
+        // means it's mandatory for every sale and the checkout toggle must be locked ON; False
+        // ('Selected', or no discount currently active) means the cashier can opt in/out.
+        // frmSaleAndReturn.vb:3268-3281.
+        [JsonProperty("is_mkt_disc_applicable_on_all")]
+        public bool IsMktDiscApplicableOnAll { get; set; }
+
         [JsonProperty("vat_amount")]
         public double VatAmount { get; set; }
 
