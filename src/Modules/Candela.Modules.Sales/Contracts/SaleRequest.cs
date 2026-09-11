@@ -1,0 +1,320 @@
+#nullable disable
+// Verbatim port of the net48 SaleRequest — only the namespace changed. The
+// [JsonProperty] names are the wire contract the tablet depends on; do not touch them.
+using System;
+using System.Collections.Generic;
+using Newtonsoft.Json;
+
+namespace Candela.Modules.Sales.Contracts
+{
+    public class SaleRequest
+    {
+        /// <summary>Client-generated UUID — idempotency key. Resubmitting the same GUID returns the original sale_id.</summary>
+        [JsonProperty("client_txn_guid")]
+        public string ClientTxnGuid { get; set; }
+
+        [JsonProperty("sale_date")]
+        public DateTime SaleDate { get; set; }
+
+        [JsonProperty("customer_id")]
+        public int CustomerId { get; set; }           // 0 = walk-in
+
+        [JsonProperty("walk_in_name")]
+        public string WalkInName { get; set; }
+
+        [JsonProperty("walk_in_phone")]
+        public string WalkInPhone { get; set; }
+
+        [JsonProperty("payment_type")]
+        public string PaymentType { get; set; }       // "Cash" | "Card" | "Credit" | "Split" | "Mobile" | "GiftCard"
+
+        [JsonProperty("gross_total")]
+        public double GrossTotal { get; set; }
+
+        [JsonProperty("net_total")]
+        public double NetTotal { get; set; }
+
+        [JsonProperty("customer_discount")]
+        public double CustomerDiscount { get; set; }
+
+        [JsonProperty("marketing_discount")]
+        public double MarketingDiscount { get; set; }
+
+        [JsonProperty("vat_amount")]
+        public double VatAmount { get; set; }
+
+        [JsonProperty("additional_tax")]
+        public double AdditionalTax { get; set; }
+
+        [JsonProperty("adjustment_amount")]
+        public double AdjustmentAmount { get; set; }
+
+        [JsonProperty("adjustment_reason_id")]
+        public int? AdjustmentReasonId { get; set; }
+
+        [JsonProperty("cash_amount")]
+        public double CashAmount { get; set; }
+
+        [JsonProperty("card_amount")]
+        public double CardAmount { get; set; }
+
+        [JsonProperty("credit_card_id")]
+        public int CreditCardId { get; set; }
+
+        [JsonProperty("credit_amount")]
+        public double CreditAmount { get; set; }
+
+        [JsonProperty("gift_card_no")]
+        public string GiftCardNo { get; set; }
+
+        [JsonProperty("gift_card_amount")]
+        public double GiftCardAmount { get; set; }
+
+        [JsonProperty("salesperson_id")]
+        public int SalespersonId { get; set; }
+
+        [JsonProperty("comments")]
+        public string Comments { get; set; }
+
+        // F1: ShowAdditionalComments — frmSaleAndReturn.vb:3497, 8885
+        // Mapped to tblSales.Additional_Comments. Only populated when the config is True,
+        // but the DAL always writes it so sending an empty string when the config is off is safe.
+        [JsonProperty("additional_comments")]
+        public string AdditionalComments { get; set; }
+
+        // Set this when finalizing a previously parked hold — DAL will delete the hold row
+        [JsonProperty("holding_sale_id")]
+        public int HoldingSaleId { get; set; }
+
+        // ── Mobile payment fields ──────────────────────────────────────────────────
+        // FonePay: transaction_id required; vendor = "FonePay"; is_manual = true (cashier-entered)
+        // Mirrors frmSaleAndReturn.vb:37086-37097 (AddMobiePayments → frmMobilePayment)
+        [JsonProperty("transaction_id")]
+        public string TransactionId { get; set; }
+
+        [JsonProperty("vendor")]
+        public string Vendor { get; set; }          // "FonePay"
+
+        [JsonProperty("is_manual")]
+        public bool IsManual { get; set; }          // true = cashier manually entered txn id
+
+        // 543Pay: payment_id, resp_code, reference_num, mobile_num required
+        // Mirrors frmSaleAndReturn.vb:37100-37116
+        [JsonProperty("payment_id")]
+        public string PaymentId { get; set; }
+
+        [JsonProperty("resp_code")]
+        public string RespCode { get; set; }
+
+        [JsonProperty("resp_message")]
+        public string RespMessage { get; set; }
+
+        [JsonProperty("reference_num")]
+        public string ReferenceNum { get; set; }
+
+        [JsonProperty("mobile_num")]
+        public string MobileNum { get; set; }       // stored in tblSales.Comments (issue #1502)
+
+        // Coupon code applied to this sale. /sales calls CheckCouponStatus() to mark it Used.
+        [JsonProperty("coupon_no")]
+        public string CouponNo { get; set; }
+
+        [JsonProperty("items")]
+        public List<SaleLineItem> Items { get; set; }
+
+        // ── Loyalty Points Redemption ─────────────────────────────────────────────
+        // Points redeemed on this sale (F10 equivalent in Candela).
+        // redeemed_value is already included in marketing_discount above (server-computed via /quote).
+        // These extra fields drive tblMemberPointsRedeemed insertion via PointsRedemptionDAL.Add().
+        [JsonProperty("redeemed_points")]
+        public int RedeemedPoints { get; set; }
+
+        [JsonProperty("redeemed_value")]
+        public double RedeemedValue { get; set; }
+
+        [JsonProperty("birthday_points")]
+        public int BirthdayPoints { get; set; }
+
+        [JsonProperty("one_point_value")]
+        public double OnePointValue { get; set; }
+
+        // Points the customer earns from this sale (rounded integer from /quote earned_points).
+        // Drives MemberEarnedPointsDAL.Add() → tblMemberPointsEarnings INSERT via SaleAndReturnDAL.Add().
+        [JsonProperty("earned_points")]
+        public int EarnedPoints { get; set; }
+
+        // Pharmacy — mirrors Ctrl+Q / frmCustomerEmployee (CR#6563).
+        // All fields written via sale.CustomerEmployee to tblSales.
+        [JsonProperty("dmno")]
+        public string Dmno { get; set; }
+
+        [JsonProperty("dno")]
+        public string Dno { get; set; }
+
+        [JsonProperty("registration_no")]
+        public string RegistrationNo { get; set; }
+
+        [JsonProperty("employee_name")]
+        public string EmployeeName { get; set; }
+
+        [JsonProperty("department_name")]
+        public string DepartmentName { get; set; }
+
+        [JsonProperty("is_scanned")]
+        public bool IsScanned { get; set; }
+
+        // Set to true on re-submission after the cashier confirmed a below-cost warning.
+        // API skips the below-cost gate but still backfills AvgCost for inventory recording.
+        [JsonProperty("bypass_below_cost_warning")]
+        public bool BypassBelowCostWarning { get; set; }
+    }
+
+    public class SaleLineItem
+    {
+        [JsonProperty("product_item_id")]
+        public int ProductItemId { get; set; }
+
+        [JsonProperty("quantity")]
+        public double Quantity { get; set; }
+
+        [JsonProperty("unit_rate")]
+        public double UnitRate { get; set; }
+
+        [JsonProperty("tagged_price")]
+        public double TaggedPrice { get; set; }
+
+        [JsonProperty("unit_discount")]
+        public double UnitDiscount { get; set; }
+
+        [JsonProperty("customer_discount_per_unit")]
+        public double CustomerDiscountPerUnit { get; set; }
+
+        [JsonProperty("marketing_discount")]
+        public double MarketingDiscount { get; set; }
+
+        [JsonProperty("loyalty_cash_discount")]
+        public double LoyaltyCashDiscount { get; set; }
+
+        [JsonProperty("vat_value")]
+        public double VatValue { get; set; }
+
+        [JsonProperty("vat_factor")]
+        public double VatFactor { get; set; }
+
+        [JsonProperty("vat_type")]
+        public string VatType { get; set; }
+
+        [JsonProperty("price_include_vat")]
+        public bool PriceIncludeVat { get; set; }
+
+        [JsonProperty("additional_tax_percent")]
+        public double AdditionalTaxPercent { get; set; }
+
+        [JsonProperty("additional_tax")]
+        public double AdditionalTax { get; set; }
+
+        [JsonProperty("gross_amount")]
+        public double GrossAmount { get; set; }
+
+        [JsonProperty("net_amount")]
+        public double NetAmount { get; set; }
+
+        [JsonProperty("discount_id")]
+        public int DiscountId { get; set; }
+
+        [JsonProperty("disc_category")]
+        public string DiscCategory { get; set; }
+
+        // Batch tracking — written to tblSalesLineItems.ProductBatchNo (CR #8125)
+        [JsonProperty("batch_no")]
+        public string BatchNo { get; set; }
+
+        // Multi-batch allocation list.  When present, one dtBatchDetails row is built per entry
+        // so SaleAndReturnDAL.Add() calls CommonDAL.InsertBatch() for each batch segment.
+        // batch_no on this line item carries the first allocation for invoice display.
+        [JsonProperty("batch_allocations")]
+        public List<BatchAllocationDto> BatchAllocations { get; set; }
+
+        // Pack selling — Con_Factor=pack size multiplier, PackSize=units per pack
+        // Affects discount calc (SaleAndReturnDAL.vb:901) and inventory movement
+        [JsonProperty("con_factor")]
+        public double ConFactor { get; set; }
+
+        [JsonProperty("pack_size")]
+        public double PackSize { get; set; }
+
+        // Nested/assembly item — composite product that explodes into sub-items on sale
+        [JsonProperty("nested_item_id")]
+        public int NestedItemId { get; set; }
+
+        // True when isShowTagPrice=True and a unit discount was applied to the tag (VAT-inclusive) price.
+        // DAL uses this to reverse the discount correctly during inventory cost calculation.
+        // Echo back the value returned by /quote — do not compute independently.
+        [JsonProperty("discount_from_tag_price")]
+        public bool DiscountFromTagPrice { get; set; }
+
+        // Exchange item inside a return/exchange transaction (Show_popup_on_return = FALSE).
+        // When true: qty is NOT negated — the item is treated as a positive sale line (inventory out).
+        // When false (default): qty is negated server-side (standard return behaviour).
+        [JsonProperty("is_exchange_item")]
+        public bool IsExchangeItem { get; set; }
+
+        // Assembly/bundle component substitutions for this line item.
+        // Non-null only when the cashier opened the Assembly tab and modified child items.
+        // Mirrors SaleAndReturn.ListOfAssemblyItems (Model.SalesProductAssembly).
+        // Each entry is one child component with the cashier-chosen qty and retail price.
+        [JsonProperty("assembly_items")]
+        public List<AssemblyItemDto> AssemblyItems { get; set; }
+
+        // Per-line salesperson — only populated when ItemWiseSalesPersonOnSales=TRUE.
+        // 0 means "use the header-level salesperson_id from the sale request."
+        // Mirrors the per-row SalesPersonId written to EnumGridSaleItems in Candela.
+        [JsonProperty("salesperson_id")]
+        public int SalespersonId { get; set; }
+
+        // Return reason — written to tblSalesLineItems.ReasonID / ReturnReason.
+        // Required for all non-exchange return lines when EnforceSaleReturnReason=True.
+        // frmSaleAndReturn.vb:6522, SaleAndReturnItems.ReasonID / ReasonDescription (Model.vb:1796/1804)
+        [JsonProperty("return_reason_id")]
+        public int? ReturnReasonId { get; set; }
+
+        [JsonProperty("return_reason_description")]
+        public string ReturnReasonDescription { get; set; }
+
+        // Cost price for this line — used for profit/margin recording in tblSalesLineItems.avg_cost.
+        // For is_user_define products with UserCostPrice=True: app sends (Average_cost/100 × unit_rate).
+        // For all other products: app sends the product's avg_cost (absolute cost).
+        // Mirrors frmSaleAndReturn.vb:31484-31492 (CR#7270) applied before SaleAndReturnDAL.Add().
+        [JsonProperty("avg_cost")]
+        public double AvgCost { get; set; }
+
+        // "Single" or "Pack" — mirrors tblSalesLineItems.Con_Unit (frmSaleAndReturn.vb:9297).
+        // When "Pack": quantity is effective units (display_qty × con_factor), rate is per single unit.
+        // DAL uses Con_Unit for reporting; inventory deduction uses the raw Qty value directly.
+        [JsonProperty("con_unit")]
+        public string ConUnit { get; set; }
+    }
+
+    // One allocation row for multi-batch splitting.
+    // batch_no + qty together tell InsertBatch how much to deduct from each batch segment.
+    public class BatchAllocationDto
+    {
+        [JsonProperty("batch_no")]    public string BatchNo    { get; set; }
+        [JsonProperty("qty")]         public double Qty        { get; set; }
+        [JsonProperty("expiry_date")] public string ExpiryDate { get; set; }
+    }
+
+    // One component row inside a bundle/assembly line item.
+    // Maps to Model.SalesProductAssembly — fields mirror tblSalesAssembly columns.
+    public class AssemblyItemDto
+    {
+        [JsonProperty("product_item_id")]
+        public int ProductItemId { get; set; }    // child product (ProductIDPart)
+
+        [JsonProperty("quantity")]
+        public double Quantity { get; set; }
+
+        [JsonProperty("retail_price")]
+        public double RetailPrice { get; set; }   // stored as Product_Price in tblSalesAssembly
+    }
+}

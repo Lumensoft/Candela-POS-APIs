@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Everything every module needs: data access, the middleware pipeline, the
+         controller base, and the only client that may reach the .NET Framework host.
+
+         It is a project rather than a folder because it now has many consumers - each
+         module project references it, and none of them can reference Candela.Api (the
+         host references them, not the other way round). -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- A class library cannot use middleware, ControllerBase or IActionResult without
+         this. It does NOT make the project a web app - it just makes the ASP.NET Core
+         types available to reference. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Web SDK adds these implicitly; a class library does not, and without them
+         RequestDelegate, HttpContext and IServiceCollection are not in scope. Declaring
+         them here keeps every file free of the same repeated using block. -->
+    <Using Include="Microsoft.AspNetCore.Builder" />
+    <Using Include="Microsoft.AspNetCore.Http" />
+    <Using Include="Microsoft.AspNetCore.Routing" />
+    <Using Include="Microsoft.Extensions.Configuration" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.79" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Candela.Shared\Candela.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The ONLY Candela binary this process references, and the one exception to
+         "no .NET Framework assemblies on .NET 10".
+
+         It is a CLR 2.0 library that touches nothing but mscorlib and System.Security
+         (RijndaelManaged, MD5, SHA1, TripleDES — all present on .NET 10), so it loads
+         here cleanly. DAL.dll, Model.dll and Utility.dll do NOT, which is why DAL work
+         still goes through Candela.LegacyHost.
+
+         Pointed at the legacy host's lib folder deliberately: one copy of the binary, so
+         the two processes can never end up decrypting with different builds of it.
+         See Security/SymmetricEncryption.cs for what is and is not reused from it. -->
+    <Reference Include="EncryptionClassLibrary">
+      <HintPath>..\Candela.LegacyHost\lib\EncryptionClassLibrary.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

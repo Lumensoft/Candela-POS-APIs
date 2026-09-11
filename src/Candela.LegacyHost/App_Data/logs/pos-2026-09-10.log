@@ -1,0 +1,14 @@
+﻿2026-09-10 11:38:31.941 [ERROR] [-] CONFIG: Jwt:Secret is still the value committed to source control. Anyone with the repository can mint a token for any user or shop. Generate a new 32+ character key and put it in App_Data/secrets.config.
+2026-09-10 11:38:31.947 [WARN ] [-] CONFIG: the POS API is connecting to SQL Server as 'sa'. Use a dedicated least-privilege login instead — a SQL injection or a stolen config becomes total server compromise with sa.
+2026-09-10 11:38:31.947 [WARN ] [-] CONFIG: <compilation debug="true"> is set. This leaks stack traces, disables request timeouts and slows every page. Turn it off in production.
+2026-09-10 11:38:31.947 [INFO ] [-] CandelaPOS API started.
+2026-09-10 12:01:28.437 [ERROR] [-] CONFIG: Jwt:Secret is still the value committed to source control. Anyone with the repository can mint a token for any user or shop. Generate a new 32+ character key and put it in App_Data/secrets.config.
+2026-09-10 12:01:28.441 [WARN ] [-] CONFIG: the POS API is connecting to SQL Server as 'sa'. Use a dedicated least-privilege login instead — a SQL injection or a stolen config becomes total server compromise with sa.
+2026-09-10 12:01:28.441 [WARN ] [-] CONFIG: <compilation debug="true"> is set. This leaks stack traces, disables request timeouts and slows every page. Turn it off in production.
+2026-09-10 12:01:28.441 [INFO ] [-] CandelaPOS API started.
+2026-09-10 12:01:28.874 [WARN ] [f116cae1e2ab] Group 3 has no rows in tblSecurityGroupShops and IsSelectedShop=0, so user 2 was allowed at shop 1 on the assumption the mapping was never configured. Fill in Group Shop Rights, then set Security:StrictShopRights=true to enforce.
+2026-09-10 12:02:45.744 [WARN ] [74320e481989] Group 3 has no rows in tblSecurityGroupShops and IsSelectedShop=0, so user 2 was allowed at shop 1 on the assumption the mapping was never configured. Fill in Group Shop Rights, then set Security:StrictShopRights=true to enforce.
+2026-09-10 12:06:45.984 [ERROR] [-] CONFIG: Jwt:Secret is still the value committed to source control. Anyone with the repository can mint a token for any user or shop. Generate a new 32+ character key and put it in App_Data/secrets.config.
+2026-09-10 12:06:45.986 [WARN ] [-] CONFIG: the POS API is connecting to SQL Server as 'sa'. Use a dedicated least-privilege login instead — a SQL injection or a stolen config becomes total server compromise with sa.
+2026-09-10 12:06:45.986 [WARN ] [-] CONFIG: <compilation debug="true"> is set. This leaks stack traces, disables request timeouts and slows every page. Turn it off in production.
+2026-09-10 12:06:45.987 [INFO ] [-] CandelaPOS API started.
