@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- netstandard2.0 is the only target BOTH hosts can reference: the .NET 10 API and
+         the .NET Framework 4.8 legacy host. Anything shared between the two processes
+         lives here so the two cannot drift apart while both are serving traffic.
+
+         It also means no ASP.NET Core types are allowed in this project - middleware,
+         IActionResult and ControllerBase stay in Candela.Api/Shared/. -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+
+    <!-- netstandard2.0 defaults to C# 7.3, which has no nullable annotations and no
+         file-scoped namespaces. Opt in explicitly. -->
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+  </ItemGroup>
+
+</Project>

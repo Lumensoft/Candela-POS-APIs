@@ -133,36 +133,43 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App_Start\WebApiConfig.cs" />
-    <Compile Include="Controllers\AuthController.cs" />
-    <Compile Include="Controllers\CustomersController.cs" />
-    <Compile Include="Controllers\GiftCardsController.cs" />
-    <Compile Include="Controllers\LoyaltyController.cs" />
-    <Compile Include="Controllers\HardwareController.cs" />
-    <Compile Include="Controllers\HoldsController.cs" />
-    <Compile Include="Controllers\MastersController.cs" />
-    <Compile Include="Controllers\PosController.cs" />
-    <Compile Include="Controllers\PrintController.cs" />
-    <Compile Include="Controllers\ProductsController.cs" />
-    <Compile Include="Controllers\QuoteController.cs" />
-    <Compile Include="Controllers\ReturnsController.cs" />
-    <Compile Include="Controllers\SalesController.cs" />
+    <Compile Include="Features\Auth\AuthController.cs" />
+    <Compile Include="Features\Auth\LoginRequest.cs" />
+    <Compile Include="Features\Auth\LoginResponse.cs" />
+    <Compile Include="Features\Auth\SupervisorRequest.cs" />
+    <Compile Include="Features\Customers\CustomersController.cs" />
+    <Compile Include="Features\GiftCards\GiftCardsController.cs" />
+    <Compile Include="Features\Hardware\HardwareController.cs" />
+    <Compile Include="Features\Hardware\RawPrinterHelper.cs" />
+    <Compile Include="Features\Holds\HoldsController.cs" />
+    <Compile Include="Features\Loyalty\LoyaltyController.cs" />
+    <Compile Include="Features\Masters\MastersController.cs" />
+    <Compile Include="Features\Pos\PosController.cs" />
+    <Compile Include="Features\Printing\PrintController.cs" />
+    <Compile Include="Features\Printing\RdlcInvoicePrinter.cs" />
+    <Compile Include="Features\Products\ProductsController.cs" />
+    <Compile Include="Features\Quote\QuoteController.cs" />
+    <Compile Include="Features\Quote\QuoteRequest.cs" />
+    <Compile Include="Features\Returns\ReturnsController.cs" />
+    <Compile Include="Features\Returns\ReturnRequest.cs" />
+    <Compile Include="Features\Sales\SalesController.cs" />
+    <Compile Include="Features\Sales\SaleRequest.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
-    <Compile Include="Infrastructure\CandelaBootstrap.cs" />
-    <Compile Include="Infrastructure\CorsHandler.cs" />
-    <Compile Include="Infrastructure\JwtHelper.cs" />
-    <Compile Include="Infrastructure\JwtAuthHandler.cs" />
-    <Compile Include="Infrastructure\RawPrinterHelper.cs" />
-    <Compile Include="Infrastructure\RdlcInvoicePrinter.cs" />
-    <Compile Include="Models\ApiResponse.cs" />
-    <Compile Include="Models\QuoteRequest.cs" />
-    <Compile Include="Models\ReturnRequest.cs" />
-    <Compile Include="Models\LoginRequest.cs" />
-    <Compile Include="Models\LoginResponse.cs" />
-    <Compile Include="Models\SupervisorRequest.cs" />
-    <Compile Include="Models\SaleRequest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Shared\Api\ApiResponse.cs" />
+    <Compile Include="Shared\Auth\JwtAuthHandler.cs" />
+    <Compile Include="Shared\Auth\JwtHelper.cs" />
+    <Compile Include="Shared\Config\ConfigChecks.cs" />
+    <Compile Include="Shared\Data\CandelaBootstrap.cs" />
+    <Compile Include="Shared\Http\CandelaContextHandler.cs" />
+    <Compile Include="Shared\Http\CorrelationIdHandler.cs" />
+    <Compile Include="Shared\Errors\ApiError.cs" />
+    <Compile Include="Shared\Errors\GlobalExceptionLogger.cs" />
+    <Compile Include="Shared\Http\CorsHandler.cs" />
+    <Compile Include="Shared\Net\PrinterGuard.cs" />
+    <Compile Include="Shared\Logging\AppLog.cs" />
     <Compile Include="SqlServerTypes\Loader.cs" />
   </ItemGroup>
   <ItemGroup>

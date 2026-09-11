@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- The host, and nothing else. No controllers, no business code - it only wires the
+         modules together and configures the pipeline. Each module owns its own endpoints
+         so a team never has to edit this project to ship a screen. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Newtonsoft rather than System.Text.Json is a deliberate contract decision - see
+         the comment in Program.cs. -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Candela.Platform\Candela.Platform.csproj" />
+    <ProjectReference Include="..\Modules\Candela.Modules.Configuration\Candela.Modules.Configuration.csproj" />
+    <ProjectReference Include="..\Modules\Candela.Modules.Security\Candela.Modules.Security.csproj" />
+    <ProjectReference Include="..\Modules\Candela.Modules.Inventory\Candela.Modules.Inventory.csproj" />
+    <ProjectReference Include="..\Modules\Candela.Modules.Purchase\Candela.Modules.Purchase.csproj" />
+    <ProjectReference Include="..\Modules\Candela.Modules.CustomerClub\Candela.Modules.CustomerClub.csproj" />
+    <ProjectReference Include="..\Modules\Candela.Modules.Production\Candela.Modules.Production.csproj" />
+    <ProjectReference Include="..\Modules\Candela.Modules.Sales\Candela.Modules.Sales.csproj" />
+    <ProjectReference Include="..\Modules\Candela.Modules.Accounting\Candela.Modules.Accounting.csproj" />
+    <ProjectReference Include="..\Modules\Candela.Modules.Utilities\Candela.Modules.Utilities.csproj" />
+  </ItemGroup>
+
+</Project>
