@@ -3,3 +3,19 @@
 2026-09-11 10:41:42.402 [WARN ] [-] CONFIG: <compilation debug="true"> is set. This leaks stack traces, disables request timeouts and slows every page. Turn it off in production.
 2026-09-11 10:41:42.402 [INFO ] [-] CandelaPOS API started.
 2026-09-11 10:42:04.709 [INFO ] [31924dfe021b] City 7 created by user 2
+2026-09-11 11:49:35.083 [ERROR] [-] CONFIG: Jwt:Secret is still the value committed to source control. Anyone with the repository can mint a token for any user or shop. Generate a new 32+ character key and put it in App_Data/secrets.config.
+2026-09-11 11:49:35.086 [WARN ] [-] CONFIG: the POS API is connecting to SQL Server as 'sa'. Use a dedicated least-privilege login instead — a SQL injection or a stolen config becomes total server compromise with sa.
+2026-09-11 11:49:35.086 [WARN ] [-] CONFIG: <compilation debug="true"> is set. This leaks stack traces, disables request timeouts and slows every page. Turn it off in production.
+2026-09-11 11:49:35.087 [INFO ] [-] CandelaPOS API started.
+2026-09-11 11:52:33.147 [ERROR] [-] CONFIG: Jwt:Secret is still the value committed to source control. Anyone with the repository can mint a token for any user or shop. Generate a new 32+ character key and put it in App_Data/secrets.config.
+2026-09-11 11:52:33.150 [WARN ] [-] CONFIG: the POS API is connecting to SQL Server as 'sa'. Use a dedicated least-privilege login instead — a SQL injection or a stolen config becomes total server compromise with sa.
+2026-09-11 11:52:33.150 [WARN ] [-] CONFIG: <compilation debug="true"> is set. This leaks stack traces, disables request timeouts and slows every page. Turn it off in production.
+2026-09-11 11:52:33.150 [INFO ] [-] CandelaPOS API started.
+2026-09-11 15:53:33.418 [ERROR] [-] CONFIG: Jwt:Secret is still the value committed to source control. Anyone with the repository can mint a token for any user or shop. Generate a new 32+ character key and put it in App_Data/secrets.config.
+2026-09-11 15:53:33.442 [WARN ] [-] CONFIG: the POS API is connecting to SQL Server as 'sa'. Use a dedicated least-privilege login instead — a SQL injection or a stolen config becomes total server compromise with sa.
+2026-09-11 15:53:33.443 [WARN ] [-] CONFIG: <compilation debug="true"> is set. This leaks stack traces, disables request timeouts and slows every page. Turn it off in production.
+2026-09-11 15:53:33.443 [INFO ] [-] CandelaPOS API started.
+2026-09-11 17:14:21.377 [ERROR] [-] CONFIG: Jwt:Secret is still the value committed to source control. Anyone with the repository can mint a token for any user or shop. Generate a new 32+ character key and put it in App_Data/secrets.config.
+2026-09-11 17:14:21.392 [WARN ] [-] CONFIG: the POS API is connecting to SQL Server as 'sa'. Use a dedicated least-privilege login instead — a SQL injection or a stolen config becomes total server compromise with sa.
+2026-09-11 17:14:21.393 [WARN ] [-] CONFIG: <compilation debug="true"> is set. This leaks stack traces, disables request timeouts and slows every page. Turn it off in production.
+2026-09-11 17:14:21.393 [INFO ] [-] CandelaPOS API started.

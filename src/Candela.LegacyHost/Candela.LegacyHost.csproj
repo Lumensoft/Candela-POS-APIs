@@ -152,6 +152,7 @@
     <Compile Include="Features\Printing\PrintController.cs" />
     <Compile Include="Features\Printing\RdlcInvoicePrinter.cs" />
     <Compile Include="Features\Products\ProductsController.cs" />
+    <Compile Include="Features\Products\ProductsLegacyController.cs" />
     <Compile Include="Features\Quote\QuoteController.cs" />
     <Compile Include="Features\Quote\QuoteRequest.cs" />
     <Compile Include="Features\Returns\ReturnsController.cs" />
