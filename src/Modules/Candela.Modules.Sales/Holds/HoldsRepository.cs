@@ -30,7 +30,7 @@ SELECT
     isnull(h.CreditAmount, 0)        AS credit_amount,
     isnull(h.vat, 0)                 AS vat_amount
 FROM tblSalesHolding h
-WHERE h.shop_id = @shopId
+WHERE h.shop_id = @shopId AND h.pos_Code = @posCode
 ORDER BY h.sale_date DESC";
 
     private const string LinesSql = @"
@@ -55,9 +55,9 @@ SELECT
 FROM tblSalesLineItemsHolding l
 WHERE l.shop_id = @shopId";
 
-    public async Task<IReadOnlyList<Dictionary<string, object?>>> GetHoldsAsync(int shopId, CancellationToken ct)
+    public async Task<IReadOnlyList<Dictionary<string, object?>>> GetHoldsAsync(int shopId, string posCode, CancellationToken ct)
     {
-        var headers = await db.QueryRowsAsync(HeaderSql, new { shopId }, ct);
+        var headers = await db.QueryRowsAsync(HeaderSql, new { shopId, posCode }, ct);
         var lines   = await db.QueryRowsAsync(LinesSql,  new { shopId }, ct);
 
         // Bucket line rows by their sale_id, mirroring the original's lineMap.

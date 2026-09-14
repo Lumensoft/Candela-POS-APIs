@@ -52,15 +52,16 @@ namespace CandelaPOS.Features.Holds
             }
         }
 
-        // GET api/holds — list all parked carts for this shop
+        // GET api/holds — list all parked carts for this shop AND this POS terminal
         [HttpGet, Route("")]
         public HttpResponseMessage GetHolds()
         {
-            int shopId = (int)Request.Properties["shop_id"];
+            int    shopId  = (int)   Request.Properties["shop_id"];
+            string posCode = (string)Request.Properties["pos_code"];
 
             try
             {
-                var holds = QueryHolds(shopId);
+                var holds = QueryHolds(shopId, posCode);
                 return Request.CreateResponse(HttpStatusCode.OK,
                     new { success = true, count = holds.Count, data = holds });
             }
@@ -117,7 +118,7 @@ namespace CandelaPOS.Features.Holds
             }
         }
 
-        private List<object> QueryHolds(int shopId)
+        private List<object> QueryHolds(int shopId, string posCode)
         {
             const string headerSql = @"
 SELECT
@@ -137,7 +138,7 @@ SELECT
     isnull(h.CreditAmount, 0)        AS credit_amount,
     isnull(h.vat, 0)                 AS vat_amount
 FROM tblSalesHolding h
-WHERE h.shop_id = @shopId
+WHERE h.shop_id = @shopId AND h.pos_Code = @posCode
 ORDER BY h.sale_date DESC";
 
             const string linesSql = @"
@@ -169,6 +170,7 @@ WHERE l.shop_id = @shopId";
                 var headers = new List<Dictionary<string, object>>();
                 var hCmd = new SqlCommand(headerSql, con);
                 hCmd.Parameters.AddWithValue("@shopId", shopId);
+                hCmd.Parameters.AddWithValue("@posCode", (object)posCode ?? DBNull.Value);
                 using (var dt = new DataTable())
                 {
                     new SqlDataAdapter(hCmd).Fill(dt);
