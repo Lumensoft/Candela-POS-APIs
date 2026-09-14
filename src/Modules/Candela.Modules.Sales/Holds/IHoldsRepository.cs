@@ -13,10 +13,11 @@ namespace Candela.Modules.Sales.Holds;
 public interface IHoldsRepository
 {
     /// <summary>
-    /// Every parked cart for the shop, newest first, each with its line items attached
-    /// under an "items" key — the exact shape the net48 endpoint produced.
+    /// Every parked cart for this shop AND this POS terminal, newest first, each with its
+    /// line items attached under an "items" key. Scoped to posCode so a till only sees
+    /// carts parked on itself, not every terminal's holds shop-wide.
     /// </summary>
-    Task<IReadOnlyList<Dictionary<string, object?>>> GetHoldsAsync(int shopId, CancellationToken ct);
+    Task<IReadOnlyList<Dictionary<string, object?>>> GetHoldsAsync(int shopId, string posCode, CancellationToken ct);
 
     /// <summary>
     /// Discards a parked cart: its lines, then its header, in one transaction.

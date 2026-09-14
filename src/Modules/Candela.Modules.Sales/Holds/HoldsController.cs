@@ -39,11 +39,11 @@ public sealed class HoldsController(IHoldsRepository holds, ILegacyHostClient le
         return new JsonResult(ApiResponse<object>.Ok(new { hold_id = result.HoldId }));
     }
 
-    /// <summary>GET /api/holds — every parked cart for this shop, newest first.</summary>
+    /// <summary>GET /api/holds — every parked cart for this shop AND this POS terminal, newest first.</summary>
     [HttpGet("")]
     public async Task<IActionResult> List(CancellationToken ct)
     {
-        var rows = await holds.GetHoldsAsync(ShopId, ct);
+        var rows = await holds.GetHoldsAsync(ShopId, PosCode, ct);
         return new JsonResult(new { success = true, count = rows.Count, data = rows });
     }
 
