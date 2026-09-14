@@ -139,9 +139,22 @@ builder.Services.AddSingleton(new AuthOptions
 // Same rules as the .NET Framework host: origins come from configuration, with the dev
 // ports as the fallback. In production the tablet is served from the same IIS site as
 // the API, so this normally never fires.
+//
+// Cors:AllowedOrigins accepts either shape, since a deployment may have more than one
+// site to allow (the tablet, Candela_WebInterface, …) and both are easy to get wrong by
+// hand:
+//   "AllowedOrigins": [ "https://site1.com", "https://site2.com" ]   <- JSON array
+//   "AllowedOrigins": "https://site1.com,https://site2.com"          <- comma-separated
+// GetSection(...).Get<string[]>() only understands the array shape — .NET's config
+// binder throws for a bare string there — so the array is tried first and the plain
+// string is the fallback, rather than picking one and leaving the other to fail silently
+// the way a bare `builder.Configuration["Cors:AllowedOrigins"]` read used to for an array.
 const string CorsPolicy = "pos";
-var allowedOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? "")
-    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+var corsOriginsSection = builder.Configuration.GetSection("Cors:AllowedOrigins");
+var allowedOrigins = (corsOriginsSection.GetChildren().Any()
+        ? corsOriginsSection.Get<string[]>() ?? Array.Empty<string>()
+        : (corsOriginsSection.Value ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
     .Select(o => o.TrimEnd('/'))
     .ToArray();
 

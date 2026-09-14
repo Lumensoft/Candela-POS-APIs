@@ -1,5 +1,6 @@
 using Candela.Modules.Configuration.Cities;
 using Candela.Modules.Configuration.Masters;
+using Candela.Modules.Configuration.Products;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Candela.Modules.Configuration;
@@ -22,6 +23,7 @@ public static class ConfigurationModule
     {
         services.AddCities();
         services.AddMasters();
+        services.AddProducts();
         return services;
     }
 }
