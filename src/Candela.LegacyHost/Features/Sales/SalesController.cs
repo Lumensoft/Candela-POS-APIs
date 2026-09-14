@@ -602,19 +602,17 @@ ORDER BY sli.sale_line_item_id", con);
                 {
                     var bCfg = CandelaBootstrap.GetRCMSConfig();
 
-                    // B1/B2: RestrictBelowCostSales / BelowCostSales group right / EnablePrdWiseBelowCost
-                    // Candela two-tier logic — frmSaleAndReturn.vb:4996-5006 (group right load), 6046-6196
-                    // config=T + right → hard block; config=T + no right → warning (409); config=F + right → hard block; config=F + no right → skip
+                    // B1/B2: BelowCostSales group right / EnablePrdWiseBelowCost / product Allow_Below_Cost.
+                    // No BelowCostSales right -> no check at all, no popup, sale always allowed.
+                    // Has the right -> EnablePrdWiseBelowCost=False blocks any below-cost item outright;
+                    // =True allows a specific item through only when its own Allow_Below_Cost is set.
+                    // Always a hard block (422) when the right is present — no bypassable warning tier.
                     {
-                        bool configRestrict = CfgIs(bCfg, "RestrictBelowCostSales", "True");
-
                         // BelowCostSales right — resolved at login and carried in the JWT
                         bool hasBelowCostRight = Request.Properties.ContainsKey("below_cost_right")
                             && (bool)Request.Properties["below_cost_right"];
 
-                        bool shouldCheck = configRestrict || hasBelowCostRight;
-
-                        if (shouldCheck && req.Items != null && req.Items.Count > 0)
+                        if (hasBelowCostRight && req.Items != null && req.Items.Count > 0)
                         {
                             bool prdWise   = CfgIs(bCfg, "EnablePrdWiseBelowCost", "True");
                             var itemIds    = req.Items.Select(i => i.ProductItemId).Distinct().ToList();
@@ -645,7 +643,8 @@ ORDER BY sli.sale_line_item_id", con);
                                 }
                             }
 
-                            // Backfill AvgCost before the gate — needed for inventory recording even on bypass
+                            // Backfill AvgCost before the gate — needed for inventory recording regardless
+                            // of whether this line ends up blocking the sale below.
                             if (sale?.ListOfSaleItems != null)
                             {
                                 foreach (var ln in sale.ListOfSaleItems)
@@ -656,29 +655,23 @@ ORDER BY sli.sale_line_item_id", con);
                                 }
                             }
 
-                            if (!req.BypassBelowCostWarning)
+                            // No bypass field honored here — the right present means a hard block,
+                            // full stop, not a warning a client flag can wave through.
+                            bool belowCostFound = false;
+                            foreach (var item in req.Items)
                             {
-                                bool belowCostFound = false;
-                                foreach (var item in req.Items)
-                                {
-                                    double avg;
-                                    if (!avgCosts.TryGetValue(item.ProductItemId, out avg) || avg <= 0) continue;
-                                    if (prdWise && allowBelow.TryGetValue(item.ProductItemId, out bool ab) && ab) continue;
-                                    double unitPrice = item.UnitRate;
-                                    if (unitPrice >= avg) continue;
-                                    belowCostFound = true;
-                                    break;
-                                }
-
-                                if (belowCostFound)
-                                {
-                                    if (hasBelowCostRight)
-                                        return Request.CreateResponse((HttpStatusCode)422,
-                                            new { error = "One or more items are priced below cost. Selling below average cost is not allowed." });
-                                    return Request.CreateResponse((HttpStatusCode)409,
-                                        new { warn_below_cost = true, error = "One or more items are priced below cost. Do you want to proceed?" });
-                                }
+                                double avg;
+                                if (!avgCosts.TryGetValue(item.ProductItemId, out avg) || avg <= 0) continue;
+                                if (prdWise && allowBelow.TryGetValue(item.ProductItemId, out bool ab) && ab) continue;
+                                double unitPrice = item.UnitRate;
+                                if (unitPrice >= avg) continue;
+                                belowCostFound = true;
+                                break;
                             }
+
+                            if (belowCostFound)
+                                return Request.CreateResponse((HttpStatusCode)422,
+                                    new { error = "One or more items are priced below cost. Selling below average cost is not allowed." });
                         }
                     }
 
