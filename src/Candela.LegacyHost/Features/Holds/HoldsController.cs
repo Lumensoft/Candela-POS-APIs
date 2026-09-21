@@ -265,6 +265,7 @@ WHERE l.shop_id = @shopId";
             {
                 var line = new SaleAndReturnItems(0, item.ProductItemId, item.Quantity,
                                                   item.UnitRate, item.TaggedPrice);
+                line.ProductCode                = item.ProductCode ?? "";
                 line.ProductBatchNo             = "";
                 line.VATValue                   = item.VatValue;
                 line.VatFactor                  = item.VatFactor;
