@@ -171,6 +171,12 @@ namespace CandelaPOS.Features.Sales
         [JsonProperty("product_item_id")]
         public int ProductItemId { get; set; }
 
+        // tblSalesLineItems/tblSalesLineItemsHolding store Product_Code as its own denormalized
+        // column (not resolved via join) — the desktop app's grids read it straight from that
+        // column, so it must be sent through on every line, not just the id.
+        [JsonProperty("product_code")]
+        public string ProductCode { get; set; }
+
         [JsonProperty("quantity")]
         public double Quantity { get; set; }
 

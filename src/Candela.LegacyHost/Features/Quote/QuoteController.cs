@@ -561,12 +561,18 @@ namespace CandelaPOS.Features.Quote
                         : 0;
 
                     // VAT base — IsSubtract* flags decide whether discounts reduce it.
-                    // Only divide when isShowTagPrice=True (tag price already includes VAT that
-                    // must be stripped before multiplying by the rate again).
+                    // Whenever PriceIncludesVAT=True, the stored rate has VAT embedded and must
+                    // be divided down to its ex-VAT value — regardless of isShowTagPrice.
                     // frmSaleAndReturn.vb:14529-14578, 14802-14806
-                    double exVatRate = priceIncludesVAT && isShowTagPrice
+                    double exVatRate = priceIncludesVAT
                         ? unitRate / (1.0 + vatFactor / 100.0)
                         : unitRate;
+
+                    // The effective per-unit price used for gross/net calculation and reported as
+                    // TaggedPrice: when isShowTagPrice=True the tag IS the full VAT-inclusive rate
+                    // (VAT is shown but stays embedded, not added again); otherwise the tag is the
+                    // ex-VAT rate and VAT gets added back on to reach the same net total.
+                    double taggedPrice = isShowTagPrice ? unitRate : exVatRate;
 
                     // ESD integration: FBR mandate — VAT base must be >= RRP.
                     // frmSaleAndReturn.vb:14599-14613: iif([Rate]>[RRP],[Rate],[RRP])-[Vat]
@@ -610,7 +616,7 @@ namespace CandelaPOS.Features.Quote
                     // Column expression: ([Addtional_Vat_Percent]/100)*(([Qty]*[Rate])+[VatValue])
                     // Per unit = (pct/100) * (Rate + VatChargedPerUnit), NOT discounted price.
                     // frmSaleAndReturn.vb:14786
-                    double priceAfterDisc = Math.Max(unitRate - unitDisc - custDiscUnit, 0);
+                    double priceAfterDisc = Math.Max(taggedPrice - unitDisc - custDiscUnit, 0);
                     double addSaleTax = addlSaleTaxPct > 0 && !addlTaxOnNetTotal
                         ? (unitRate + vatValue) * addlSaleTaxPct / 100.0
                         : 0;
@@ -630,7 +636,7 @@ namespace CandelaPOS.Features.Quote
                         ItemName                   = p.ItemName,
                         Quantity                   = item.Quantity,
                         UnitRate                   = unitRate,
-                        TaggedPrice                = unitRate,
+                        TaggedPrice                = taggedPrice,
                         UnitDiscount               = unitDisc,
                         CustomerDiscountPerUnit    = custDiscUnit,
                         LoyaltyCashDiscountPerUnit = s.LoyaltyCashDisc,
@@ -651,7 +657,7 @@ namespace CandelaPOS.Features.Quote
                         DiscountFromTagPrice       = isShowTagPrice && unitDisc > 0
                     });
 
-                    grossTotal        += unitRate      * item.Quantity;
+                    grossTotal        += taggedPrice   * item.Quantity;
                     totalDiscount     += unitDisc      * item.Quantity;
                     totalCustDisc     += custDiscUnit  * item.Quantity;
                     totalVat          += vatValue      * item.Quantity;
@@ -1070,9 +1076,16 @@ WHERE m.member_id = @customerId";
             return double.TryParse(val.ToString(), out double d) ? d : 0;
         }
 
+        // tblShopConfiguration bit-backed flags aren't consistently 'True'/'False' text — e.g.
+        // PriceIncludesVAT is stored as '1' for some shops while IsShowTagPrice on the same
+        // table is 'False' text. When checking a boolean flag (val="True"), accept '1' too.
         private static bool Eq(Dictionary<string, string> cfg, string key, string val)
-            => cfg.TryGetValue(key, out var v)
-               && string.Equals(v, val, StringComparison.OrdinalIgnoreCase);
+        {
+            if (!cfg.TryGetValue(key, out var v)) return false;
+            if (string.Equals(val, "True", StringComparison.OrdinalIgnoreCase))
+                return string.Equals(v, "True", StringComparison.OrdinalIgnoreCase) || v?.Trim() == "1";
+            return string.Equals(v, val, StringComparison.OrdinalIgnoreCase);
+        }
 
         private static double Dbl(Dictionary<string, string> cfg, string key)
             => cfg.TryGetValue(key, out var v) && double.TryParse(v, out double d) ? d : 0;
