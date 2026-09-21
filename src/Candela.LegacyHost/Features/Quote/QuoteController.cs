@@ -642,7 +642,15 @@ namespace CandelaPOS.Features.Quote
                         LoyaltyCashDiscountPerUnit = s.LoyaltyCashDisc,
                         VatValue                   = vatValue,
                         VatFactor                  = vatFactor,
-                        VatType                    = p.VatType,
+                        // tblDefProducts.vat_type is a raw code ("0"=Percentage, "1"=Value —
+                        // frmDefProduct.vb:4317: .VATType = IIf(optVATValue.Checked, 1, 0)).
+                        // Every place Candela reads VatType back (grid recompute expressions,
+                        // e.g. frmSaleAndReturn.vb:41080 IIf([VatType]='Percentage', ...))
+                        // compares against the literal word, translated once at add-to-cart
+                        // time before being saved — never the raw "0"/"1" code. Echoing the
+                        // raw code here means Candela's own recompute silently falls to the
+                        // fixed-value branch for every web-app-created receipt.
+                        VatType                    = s.VatIsPercent ? "Percentage" : "Value",
                         PriceIncludeVat            = priceIncludesVAT,
                         AdditionalTax              = addSaleTax,
                         // Gap 3: echo the percent so /sales can store it in tblSalesLineItems.
