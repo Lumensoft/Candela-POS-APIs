@@ -238,7 +238,7 @@ namespace CandelaPOS.Features.Quote
                         && couponLines.TryGetValue(p.LineItemId, out discPer)
                         && discPer > 0)
                     {
-                        double couponDiscUnit = unitRate * discPer / 100.0;
+                        double couponDiscUnit = discountBase * discPer / 100.0;
                         double couponLineTotal = couponDiscUnit * item.Quantity;
 
                         if (runningCouponTotal >= coupon.DiscAmtLimit)
@@ -325,13 +325,15 @@ namespace CandelaPOS.Features.Quote
                             bool isPack = item.PackSize > 0;
                             double productTotalQty = productQtyMap.TryGetValue(item.ProductItemId, out double pq)
                                 ? pq : item.Quantity;
+                            // Percent-based promos are taken off discountBase (the charged price);
+                            // unitRate is passed as the gross rate for threshold / price-replacement types.
                             unitDisc = GetSKUDiscountValue(
                                 shopId, item.ProductItemId, now,
-                                unitRate, item.Quantity, ref discountId,
+                                discountBase, item.Quantity, ref discountId,
                                 req.CutPiece, isLoyaltyOn, customerMemberTypeId,
                                 ref qtyOfX, ref isBuyXGetY,
                                 isPack, item.PackSize, ref discType,
-                                productTotalQty, false, false);
+                                productTotalQty, false, false, unitRate);
                             // Candela rounds SKU discount to pvtUnitDiscountRounding=6 places.
                             // frmSaleAndReturn.vb:25748
                             unitDisc = Math.Round(unitDisc, 6, MidpointRounding.AwayFromZero);
@@ -416,7 +418,7 @@ namespace CandelaPOS.Features.Quote
                         // frmSaleAndReturn.vb:25933–25934
                         if (cashDiscPct > 0 && !(blockCustDiscOnUnitDisc && unitDisc > 0)
                             && p.NotForDiscount == 0)
-                            loyaltyCashDisc = Math.Round((unitRate - unitDisc) * (cashDiscPct / 100.0),
+                            loyaltyCashDisc = Math.Round((discountBase - unitDisc) * (cashDiscPct / 100.0),
                                 amountRound, MidpointRounding.AwayFromZero);
                         custDiscUnit = loyaltyCashDisc;
                     }
@@ -425,7 +427,7 @@ namespace CandelaPOS.Features.Quote
                     {
                         // Employee / qty-limited discount. frmSaleAndReturn.vb:37350-37368.
                         if (!blockCustDiscOnUnitDisc || unitDisc == 0)
-                            custDiscUnit = Math.Round((unitRate - unitDisc) * (empDiscPct / 100.0), amountRound,
+                            custDiscUnit = Math.Round((discountBase - unitDisc) * (empDiscPct / 100.0), amountRound,
                                 MidpointRounding.AwayFromZero);
                     }
                     else if (p.NotForDiscount == 0
@@ -435,7 +437,7 @@ namespace CandelaPOS.Features.Quote
                         // Per-item customer discount (Multiple_Customer_Disc=True).
                         // Rounding: hardcoded 4 places. frmSaleAndReturn.vb:13491.
                         if (!blockCustDiscOnUnitDisc || unitDisc == 0)
-                            custDiscUnit = Math.Round((unitRate - unitDisc) * (itemDiscPct / 100.0), 4,
+                            custDiscUnit = Math.Round((discountBase - unitDisc) * (itemDiscPct / 100.0), 4,
                                 MidpointRounding.AwayFromZero);
                     }
                     else if (!isMultipleCustDisc && custDiscPct > 0 && p.NotForDiscount == 0)
@@ -443,7 +445,7 @@ namespace CandelaPOS.Features.Quote
                         // Flat customer type discount (Multiple_Customer_Disc=False).
                         // Rounding: hardcoded 4. frmSaleAndReturn.vb:13491.
                         if (!blockCustDiscOnUnitDisc || unitDisc == 0)
-                            custDiscUnit = Math.Round((unitRate - unitDisc) * (custDiscPct / 100.0), 4,
+                            custDiscUnit = Math.Round((discountBase - unitDisc) * (custDiscPct / 100.0), 4,
                                 MidpointRounding.AwayFromZero);
                     }
 
@@ -452,6 +454,7 @@ namespace CandelaPOS.Features.Quote
                         Item            = item,
                         Product         = p,
                         UnitRate        = unitRate,
+                        DiscountBase    = discountBase,
                         VatFactor       = vatFactor,
                         VatIsPercent    = vatIsPercent,
                         UnitDisc        = unitDisc,
@@ -503,7 +506,7 @@ namespace CandelaPOS.Features.Quote
                     preTotalGross    += s.UnitRate     * s.Item.Quantity;
                     preTotalDiscount += s.UnitDisc     * s.Item.Quantity;
                     preTotalCustDisc += s.CustDiscUnit * s.Item.Quantity;
-                    absoluteTotal    += (s.UnitRate - s.UnitDisc) * s.Item.Quantity;
+                    absoluteTotal    += (s.DiscountBase - s.UnitDisc) * s.Item.Quantity;
                 }
 
                 // Marketing discount — base = absoluteTotal - customer discount.
@@ -542,7 +545,7 @@ namespace CandelaPOS.Features.Quote
                         eligibleMktBase = 0;
                         foreach (var s in states)
                             if (eligibleMktProducts.Contains(s.Item.ProductItemId))
-                                eligibleMktBase += (s.UnitRate - s.UnitDisc) * s.Item.Quantity;
+                                eligibleMktBase += (s.DiscountBase - s.UnitDisc) * s.Item.Quantity;
                     }
                 }
 
@@ -572,7 +575,7 @@ namespace CandelaPOS.Features.Quote
                     bool   itemEligibleForMkt = eligibleMktProducts == null
                                                 || eligibleMktProducts.Contains(item.ProductItemId);
                     double marketDiscUnit = (itemEligibleForMkt && eligibleMktBase > 0)
-                        ? (unitRate - unitDisc) * mktDisc / eligibleMktBase
+                        ? (s.DiscountBase - unitDisc) * mktDisc / eligibleMktBase
                         : 0;
 
                     // VAT base — IsSubtract* flags decide whether discounts reduce it.
@@ -691,7 +694,7 @@ namespace CandelaPOS.Features.Quote
                     // s.LoyaltyPct = points% from ReadLoyalityPointsPercentage (DAL:12749).
                     // s.LoyaltyCashDisc = cash disc already deducted from (Rate-UnitDisc) per unit.
                     double loyaltyPointsPerUnit = s.LoyaltyPct > 0
-                        ? Math.Round((unitRate - unitDisc - s.LoyaltyCashDisc) * s.LoyaltyPct / 100.0,
+                        ? Math.Round((s.DiscountBase - unitDisc - s.LoyaltyCashDisc) * s.LoyaltyPct / 100.0,
                               amountRound, MidpointRounding.AwayFromZero)
                         : 0;
                     totalEarnedPoints += loyaltyPointsPerUnit * item.Quantity;
@@ -816,14 +819,14 @@ namespace CandelaPOS.Features.Quote
 
                     if (qty <= qtyForDiscount - counter)
                     {
-                        y.UnitDisc     = perOfY * y.UnitRate / 100.0;
+                        y.UnitDisc     = perOfY * y.DiscountBase / 100.0;
                         y.IsCouponLine = false;
                         counter       += qty;
                     }
                     else
                     {
                         double eligibleQty = qtyForDiscount - counter;
-                        y.UnitDisc     = (perOfY * y.UnitRate * eligibleQty) / 100.0 / qty;
+                        y.UnitDisc     = (perOfY * y.DiscountBase * eligibleQty) / 100.0 / qty;
                         y.IsCouponLine = false;
                         counter       += eligibleQty;
                     }
@@ -853,7 +856,7 @@ namespace CandelaPOS.Features.Quote
                 if (freeQty <= 0) continue;
 
                 foreach (var s in items)
-                    s.UnitDisc = (freeQty * s.UnitRate) / totalQty;
+                    s.UnitDisc = (freeQty * s.DiscountBase) / totalQty;
             }
         }
 
@@ -1199,6 +1202,9 @@ WHERE m.member_id = @customerId";
 
         private class ItemState
         {
+            // Price the line is charged at (ex-VAT when VAT is stripped from the rate); every
+            // percent-based discount is taken off this, not off UnitRate.
+            public double       DiscountBase    { get; set; }
             public QuoteItem    Item            { get; set; }
             public ProductInfo  Product         { get; set; }
             public double       UnitRate        { get; set; }
@@ -1226,13 +1232,20 @@ WHERE m.member_id = @customerId";
             bool _ApplyCutPieceDiscount, bool IsLoyalityClub, int CustomerTypeId,
             ref int QtyofX, ref bool IsBuyXGetYFreeDisc,
             bool IsPack, double PackSize, ref int DiscountType,
-            double _TotalQty, bool IsNonPaymentTill, bool LoyalityClub_ForNPTill)
+            double _TotalQty, bool IsNonPaymentTill, bool LoyalityClub_ForNPTill,
+            double _dblGrossRate = 0)
         {
+            // _dblItemPrice = price the percent discounts are taken off (ex-VAT when VAT is stripped).
+            // _dblGrossRate = the stored rate; used where a discount is defined against the stored price
+            // (fixed-price and tier types, price thresholds). 0 → same as _dblItemPrice.
+            if (_dblGrossRate <= 0) _dblGrossRate = _dblItemPrice;
+
             // Cut piece path has no DB calls in the VB.NET version — delegate directly, no leak.
             // SaleAndReturnDAL.vb:809-820
+            // Unchanged: the DAL owns this path, so it keeps working off the stored rate.
             if (_ApplyCutPieceDiscount)
                 return SaleAndReturnDAL.GetSKUDiscountValue(
-                    _shopID, _ProductItemID, _SaleDateTime, _dblItemPrice, _dblQty,
+                    _shopID, _ProductItemID, _SaleDateTime, _dblGrossRate, _dblQty,
                     ref _DiscountID, true, IsLoyalityClub, CustomerTypeId,
                     ref QtyofX, ref IsBuyXGetYFreeDisc, IsPack, PackSize, ref DiscountType,
                     _TotalQty, IsNonPaymentTill, LoyalityClub_ForNPTill);
@@ -1292,7 +1305,7 @@ WHERE m.member_id = @customerId";
                                         objDiscountDR["discount_type"].ToString(),
                                         Safe(objDiscountDR["discount"]),
                                         _dblItemPrice, _dblQty,
-                                        Safe(objDiscountDR["discount_duration"]));
+                                        Safe(objDiscountDR["discount_duration"]), _dblGrossRate);
                                     blnIsProductFound = true;
 
                                     if (objDiscountDR["discount_type"].ToString() == "2" && IsPack && PackSize != 0)
@@ -1406,7 +1419,7 @@ WHERE m.member_id = @customerId";
                                                             objSelectedDiscountDR["discount_type"].ToString(),
                                                             Safe(objSelectedDiscountDR["discount"]),
                                                             _dblItemPrice, _dblQty,
-                                                            Safe(objDiscountDR["discount_duration"]));
+                                                            Safe(objDiscountDR["discount_duration"]), _dblGrossRate);
                                                         DiscountType = 3;
                                                     }
                                                     else
@@ -1415,12 +1428,15 @@ WHERE m.member_id = @customerId";
                                                             objSelectedDiscountDR["discount_type"].ToString(),
                                                             Safe(objDiscountDR["discount"]),
                                                             _dblItemPrice, _dblQty,
-                                                            Safe(objSelectedDiscountDR["discount"]));
+                                                            Safe(objSelectedDiscountDR["discount"]), _dblGrossRate);
                                                     }
                                                 }
                                                 else
                                                 {
-                                                    _DiscountAmount = _dblItemPrice - Safe(objSelectedDiscountDR["discount"]);
+                                                    // Fixed selling price is defined against the stored rate; rescale the
+                                                    // resulting discount onto the charged price.
+                                                    _DiscountAmount = (_dblGrossRate - Safe(objSelectedDiscountDR["discount"]))
+                                                                      * _dblItemPrice / _dblGrossRate;
                                                 }
                                                 blnIsProductFound = true;
 
@@ -1462,7 +1478,7 @@ WHERE m.member_id = @customerId";
                                                 // Discount = original price − tier price. SaleAndReturnDAL.vb:1033-1060.
                                                 double tierPrice = Safe(objSelectedDiscountDR["discount"]);
                                                 if (tierPrice > 0)
-                                                    _DiscountAmount = _dblItemPrice - tierPrice;
+                                                    _DiscountAmount = (_dblGrossRate - tierPrice) * _dblItemPrice / _dblGrossRate;
                                                 DiscountType       = 10;
                                                 _DiscountID        = Convert.ToInt32(objDiscountDR["discount_id"]);
                                                 IsBuyXGetYFreeDisc = true;
@@ -1579,13 +1595,16 @@ WHERE m.member_id = @customerId";
 
         // SaleAndReturnDAL.vb:1577 — Private Shared, cannot be called from C#; inlined here.
         // Exact same 7-type formula logic, translated directly.
-        private static double CalculateDiscountValue(string DiscountType, double DiscountFigure, double ProductPrice, double Qty, double DiscountUnit)
+        // ProductPrice = price percent discounts are taken off; GrossRate = stored rate (0 → ProductPrice),
+        // used for the fixed-price type and the type-5 price threshold. Flat types (2, 7) are unchanged.
+        private static double CalculateDiscountValue(string DiscountType, double DiscountFigure, double ProductPrice, double Qty, double DiscountUnit, double GrossRate = 0)
         {
-            if (DiscountType == "1") return ProductPrice - DiscountFigure;
+            if (GrossRate <= 0) GrossRate = ProductPrice;
+            if (DiscountType == "1") return (GrossRate - DiscountFigure) * ProductPrice / GrossRate;
             if (DiscountType == "2") return DiscountUnit;
             if (DiscountType == "3") return ProductPrice * (DiscountFigure / 100.0);
             if (DiscountType == "4" && Qty >= DiscountFigure) return ProductPrice * (DiscountUnit / 100.0);
-            if (DiscountType == "5" && ProductPrice > DiscountUnit) return ProductPrice * (DiscountFigure / 100.0);
+            if (DiscountType == "5" && GrossRate > DiscountUnit) return ProductPrice * (DiscountFigure / 100.0);
             if (DiscountType == "6")
             {
                 if (Math.Floor(Qty / DiscountFigure + 1) > 0)
