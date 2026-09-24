@@ -210,6 +210,13 @@ namespace CandelaPOS.Features.Quote
                         || string.IsNullOrEmpty(p.VatType) || p.VatType == "0"
                         || string.Equals(p.VatType, "Percentage", StringComparison.OrdinalIgnoreCase);
 
+                    // Price the line is actually charged at (mirrors taggedPrice in Pass 3). Percent
+                    // discounts must be taken off THIS price, not the raw stored rate, otherwise with
+                    // PriceIncludesVAT=True and isShowTagPrice=False the % lands on the VAT-inclusive rate.
+                    double discountBase = (priceIncludesVAT && !isShowTagPrice)
+                        ? unitRate / (1.0 + vatFactor / 100.0)
+                        : unitRate;
+
                     int    discountId   = 0;
                     int    qtyOfX       = 0;
                     bool   isBuyXGetY   = false;
@@ -308,7 +315,7 @@ namespace CandelaPOS.Features.Quote
                             // Not suppressed by DiscountPriority — only the system lookup is blocked.
                             string dtype = (item.DiscountType ?? "flat").ToLower();
                             unitDisc = dtype == "percent"
-                                ? unitRate * (item.UnitDiscount / 100.0)
+                                ? discountBase * (item.UnitDiscount / 100.0)
                                 : item.UnitDiscount;
                         }
                         else if (!skipSkuLookup && p.NotForDiscount == 0)
@@ -364,7 +371,15 @@ namespace CandelaPOS.Features.Quote
                         // and the customer disc base (unitRate - unitDisc) uses the overridden value.
                         // This mirrors Candela's UpdateItemCalculations where the cashier-entered U.Dist
                         // is set on the grid line before GetCustomerDiscountValue is called.
-                        if (item.OverrideUnitDiscount.HasValue)
+                        // OverrideUnitDiscountPercent (Percent mode) takes precedence: the cashier's % is
+                        // applied to the price the line is charged at (ex-VAT when VAT is stripped).
+                        if (item.OverrideUnitDiscountPercent.HasValue)
+                        {
+                            unitDisc     = discountBase * item.OverrideUnitDiscountPercent.Value / 100.0;
+                            discCategory = "";
+                            discountId   = 0;
+                        }
+                        else if (item.OverrideUnitDiscount.HasValue)
                         {
                             unitDisc     = item.OverrideUnitDiscount.Value;
                             discCategory = "";

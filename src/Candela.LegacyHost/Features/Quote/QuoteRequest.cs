@@ -71,6 +71,13 @@ namespace CandelaPOS.Features.Quote
         [JsonProperty("override_unit_discount")]
         public double? OverrideUnitDiscount { get; set; }
 
+        // Cashier-entered percent discount (Percent mode). Resolved server-side against the price
+        // the line is charged at (ex-VAT when VAT is stripped from the rate), so the client must
+        // not pre-compute an amount from the VAT-inclusive display price. Wins over
+        // override_unit_discount when both are sent.
+        [JsonProperty("override_unit_discount_percent")]
+        public double? OverrideUnitDiscountPercent { get; set; }
+
         // Nested/assembly item — when non-zero the block-below-customer-price check uses
         // tblDefNestedProductPriceCustomerBased instead of tblDefProductPriceCustomerBased.
         // Mirrors frmSaleAndReturn.vb:25795-25807 branch on NestedItemId == 0.
