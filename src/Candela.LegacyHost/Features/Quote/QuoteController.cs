@@ -64,6 +64,8 @@ namespace CandelaPOS.Features.Quote
                 // BlockProductDiscount_Under_CustomerPrice (frmSaleAndReturn.vb:25795, 25847)
                 // Only active when RetailPriceMethodology=3. Calls GetCustomerTypeBasedSKUPrice()
                 // per line; if the customer type has a specific price for that SKU, discount is zeroed.
+                bool isCustPriceMethodology = string.Equals(
+                    rcmsCfg.TryGetValue("RetailPriceMethodology", out var rpmCfg) ? rpmCfg : "1", "3");
                 bool blockBelowCustPrice =
                     string.Equals(rcmsCfg.TryGetValue("BlockProductDiscount_Under_CustomerPrice", out var bbcp) ? bbcp : "",
                         "true", StringComparison.OrdinalIgnoreCase)
@@ -199,7 +201,17 @@ namespace CandelaPOS.Features.Quote
                     // OverrideUnitRate: cashier price-override from ItemDetailModal (Price Override tab).
                     // Mirrors frmSaleAndReturn.vb grid UnitRate column edit — all downstream
                     // calculations (VAT, discounts, net) use this rate instead of the DB price.
-                    double unitRate  = item.OverrideUnitRate ?? p.Price;
+                    // RetailPriceMethodology=3: customer-type-based price replaces the standard rate when the
+                    // customer's type has one for this SKU (0 → standard price). frmSaleAndReturn.vb:26546-26565.
+                    // Nested barcodes only feed the discount block, not the rate (their pack-qty scaling
+                    // isn't available here).
+                    double custTypeSKUPrice = 0;
+                    if (isCustPriceMethodology && customerMemberTypeId > 0)
+                        custTypeSKUPrice = item.NestedItemId > 0
+                            ? GetCustomerTypeBasedNestedSKUPrice(item.ProductItemId, item.NestedItemId, customerMemberTypeId)
+                            : GetCustomerTypeBasedSKUPrice(customerMemberTypeId, item.ProductItemId);
+                    double unitRate  = item.OverrideUnitRate
+                                       ?? (custTypeSKUPrice > 0 && item.NestedItemId == 0 ? custTypeSKUPrice : p.Price);
                     // When card payment with shop-based VAT, Changetax() replaces VatFactor
                     // with the card tax rate (ratio = txtSaleTaxPercentOnCard).
                     // frmSaleAndReturn.vb:25201-25215; card button only visible when isShopBasedVAT.
@@ -213,7 +225,14 @@ namespace CandelaPOS.Features.Quote
                     // Price the line is actually charged at (mirrors taggedPrice in Pass 3). Percent
                     // discounts must be taken off THIS price, not the raw stored rate, otherwise with
                     // PriceIncludesVAT=True and isShowTagPrice=False the % lands on the VAT-inclusive rate.
-                    double discountBase = (priceIncludesVAT && !isShowTagPrice)
+                    // A rate taken from the customer-type price list is a pure ex-VAT price: no VAT
+                    // division, no tag-price handling — VAT is simply added on top of it.
+                    bool customerPriceApplied = custTypeSKUPrice > 0 && item.NestedItemId == 0
+                                                && !item.OverrideUnitRate.HasValue;
+                    bool lineIncludesVAT = priceIncludesVAT && !customerPriceApplied;
+                    bool lineShowTagPrice = isShowTagPrice && !customerPriceApplied;
+
+                    double discountBase = (lineIncludesVAT && !lineShowTagPrice)
                         ? unitRate / (1.0 + vatFactor / 100.0)
                         : unitRate;
 
@@ -349,24 +368,6 @@ namespace CandelaPOS.Features.Quote
                         }
                         // When skipSkuLookup=true: unitDisc stays 0 and discountId stays 0 — customer disc wins.
 
-                        // BlockProductDiscount_Under_CustomerPrice (frmSaleAndReturn.vb:25795-25807, 25847-25857)
-                        // Zero discount when RetailPriceMethodology=3 AND the customer type has a specific
-                        // price defined for this SKU in tblDefProductPriceCustomerBased.
-                        // Applies to both auto SKU discount and cashier-entered manual overrides.
-                        // Not applied to coupon lines — this block is inside the else/non-coupon branch.
-                        if (blockBelowCustPrice && customerMemberTypeId > 0 && unitDisc > 0)
-                        {
-                            double custTypeSKUPrice = item.NestedItemId > 0
-                                ? GetCustomerTypeBasedNestedSKUPrice(item.ProductItemId, item.NestedItemId, customerMemberTypeId)
-                                : GetCustomerTypeBasedSKUPrice(customerMemberTypeId, item.ProductItemId);
-                            if (custTypeSKUPrice > 0)
-                            {
-                                unitDisc     = 0;
-                                discountId   = 0;
-                                discCategory = "";
-                            }
-                        }
-
                         // OverrideUnitDiscount: cashier manual discount from ItemDetailModal (Discount tab).
                         // Applied HERE — before customer/loyalty disc computation — so unitDisc reflects
                         // the effective discount when the blocking check (blockCustDiscOnUnitDisc) runs,
@@ -386,6 +387,18 @@ namespace CandelaPOS.Features.Quote
                             unitDisc     = item.OverrideUnitDiscount.Value;
                             discCategory = "";
                             discountId   = 0;
+                        }
+
+                        // BlockProductDiscount_Under_CustomerPrice (frmSaleAndReturn.vb:25795-25807, 25847-25857)
+                        // Zero discount when RetailPriceMethodology=3 AND the customer type has a specific
+                        // price defined for this SKU in tblDefProductPriceCustomerBased.
+                        // Runs AFTER the cashier override so a manual discount can't bypass the block.
+                        // Not applied to coupon lines — this block is inside the else/non-coupon branch.
+                        if (blockBelowCustPrice && custTypeSKUPrice > 0 && unitDisc > 0)
+                        {
+                            unitDisc     = 0;
+                            discountId   = 0;
+                            discCategory = "";
                         }
                     }
 
@@ -455,6 +468,8 @@ namespace CandelaPOS.Features.Quote
                         Product         = p,
                         UnitRate        = unitRate,
                         DiscountBase    = discountBase,
+                        LineIncludesVAT  = lineIncludesVAT,
+                        LineShowTagPrice = lineShowTagPrice,
                         VatFactor       = vatFactor,
                         VatIsPercent    = vatIsPercent,
                         UnitDisc        = unitDisc,
@@ -555,6 +570,7 @@ namespace CandelaPOS.Features.Quote
                 double totalDiscount   = 0;
                 double totalCustDisc   = 0;
                 double totalVat        = 0;
+                double totalAddOnVat   = 0;  // VAT that is added on top of the price (excludes lines with VAT embedded in the tag price)
                 double totalAddSaleTax = 0;
                 double totalCouponDisc = 0;
                 double totalEarnedPoints = 0;  // SUM(Qty × loyaltyPct) — mirrors LoyaltyPointPercentageNet expression at frmSaleAndReturn.vb:2617
@@ -582,7 +598,10 @@ namespace CandelaPOS.Features.Quote
                     // Whenever PriceIncludesVAT=True, the stored rate has VAT embedded and must
                     // be divided down to its ex-VAT value — regardless of isShowTagPrice.
                     // frmSaleAndReturn.vb:14529-14578, 14802-14806
-                    double exVatRate = priceIncludesVAT
+                    // Per-line flags (s.Line*) turn both off for customer-type-price lines.
+                    bool lineIncludesVAT  = s.LineIncludesVAT;
+                    bool lineShowTagPrice = s.LineShowTagPrice;
+                    double exVatRate = lineIncludesVAT
                         ? unitRate / (1.0 + vatFactor / 100.0)
                         : unitRate;
 
@@ -590,14 +609,15 @@ namespace CandelaPOS.Features.Quote
                     // TaggedPrice: when isShowTagPrice=True the tag IS the full VAT-inclusive rate
                     // (VAT is shown but stays embedded, not added again); otherwise the tag is the
                     // ex-VAT rate and VAT gets added back on to reach the same net total.
-                    double taggedPrice = isShowTagPrice ? unitRate : exVatRate;
+                    double taggedPrice = lineShowTagPrice ? unitRate : exVatRate;
 
                     // ESD integration: FBR mandate — VAT base must be >= RRP.
                     // frmSaleAndReturn.vb:14599-14613: iif([Rate]>[RRP],[Rate],[RRP])-[Vat]
                     // RRP is the ex-VAT reference retail price; divide if tag price includes VAT.
-                    if (isESDEnabled && p.Rrp > 0)
+                    // Skipped for customer-type-price lines: RRP is a tag price, not comparable to a pure ex-VAT rate.
+                    if (isESDEnabled && p.Rrp > 0 && (lineIncludesVAT || !priceIncludesVAT))
                     {
-                        double rrpBase = priceIncludesVAT && isShowTagPrice && vatFactor > 0
+                        double rrpBase = lineIncludesVAT && lineShowTagPrice && vatFactor > 0
                             ? p.Rrp / (1.0 + vatFactor / 100.0)
                             : p.Rrp;
                         exVatRate = Math.Max(exVatRate, rrpBase);
@@ -606,7 +626,7 @@ namespace CandelaPOS.Features.Quote
                     // When isShowTagPrice=True, discount amounts inside the tag price must also
                     // be divided by (1+vat%) before subtracting from exVatRate.
                     // frmSaleAndReturn.vb:14532-14534, 14544-14548, 14573-14576
-                    double divFactor = (priceIncludesVAT && isShowTagPrice && vatFactor > 0)
+                    double divFactor = (lineIncludesVAT && lineShowTagPrice && vatFactor > 0)
                         ? (1.0 + vatFactor / 100.0)
                         : 1.0;
 
@@ -644,7 +664,7 @@ namespace CandelaPOS.Features.Quote
                     // In all other cases (PIV=False or PIV+!showTag), VAT is an add-on.
                     // Card tax flows through vatValue (vatFactor replaced above) — no separate term.
                     // frmSaleAndReturn.vb:13046, 13073-13077
-                    bool vatEmbedded  = priceIncludesVAT && isShowTagPrice;
+                    bool vatEmbedded  = lineIncludesVAT && lineShowTagPrice;
                     double addlForNet = vatEmbedded ? addSaleTax : vatValue + addSaleTax;
                     double netAmount  = (priceAfterDisc + addlForNet) * item.Quantity;
 
@@ -669,7 +689,7 @@ namespace CandelaPOS.Features.Quote
                         // raw code here means Candela's own recompute silently falls to the
                         // fixed-value branch for every web-app-created receipt.
                         VatType                    = s.VatIsPercent ? "Percentage" : "Value",
-                        PriceIncludeVat            = priceIncludesVAT,
+                        PriceIncludeVat            = lineIncludesVAT,
                         AdditionalTax              = addSaleTax,
                         // Gap 3: echo the percent so /sales can store it in tblSalesLineItems.
                         // Formula 2 tax applies at invoice level, not per line.
@@ -680,13 +700,14 @@ namespace CandelaPOS.Features.Quote
                         MarketingDiscPerUnit       = marketDiscUnit,
                         // Gap 4: DAL uses this to reverse discounts against tag price correctly.
                         // frmSaleAndReturn.vb:14802-14806
-                        DiscountFromTagPrice       = isShowTagPrice && unitDisc > 0
+                        DiscountFromTagPrice       = lineShowTagPrice && unitDisc > 0
                     });
 
                     grossTotal        += taggedPrice   * item.Quantity;
                     totalDiscount     += unitDisc      * item.Quantity;
                     totalCustDisc     += custDiscUnit  * item.Quantity;
                     totalVat          += vatValue      * item.Quantity;
+                    if (!vatEmbedded) totalAddOnVat += vatValue * item.Quantity;
                     totalAddSaleTax   += addSaleTax    * item.Quantity;
                     // Bug E fix: earned points formula mirrors frmSaleAndReturn.vb:25993.
                     // LoyaltyPointPercentage (per unit) = Round(((Rate-UnitDisc) - LoyaltyCashDisc) * PointsPct/100, N)
@@ -721,8 +742,8 @@ namespace CandelaPOS.Features.Quote
                     netTotal += totalVat + totalAddSaleTax;
                 else if (!priceIncludesVAT)
                     netTotal += totalVat + totalAddSaleTax;
-                else if (!isShowTagPrice)          // PIV=True but !showTag — VAT still added, formula1 not
-                    netTotal += totalVat;
+                else                               // PIV=True: VAT added only for lines where it isn't embedded
+                    netTotal += totalAddOnVat;     // (all lines when !showTag; only customer-price lines when showTag)
 
                 // Gap 3: Additional Sale Tax formula 2 — on net total
                 // frmSaleAndReturn.vb:13103-13115
@@ -1205,6 +1226,10 @@ WHERE m.member_id = @customerId";
             // Price the line is charged at (ex-VAT when VAT is stripped from the rate); every
             // percent-based discount is taken off this, not off UnitRate.
             public double       DiscountBase    { get; set; }
+            // Per-line VAT mode: false when the rate came from the customer-type price list
+            // (treated as pure ex-VAT), otherwise the shop-level flags.
+            public bool         LineIncludesVAT  { get; set; }
+            public bool         LineShowTagPrice { get; set; }
             public QuoteItem    Item            { get; set; }
             public ProductInfo  Product         { get; set; }
             public double       UnitRate        { get; set; }
