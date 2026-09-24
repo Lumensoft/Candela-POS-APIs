@@ -1001,10 +1001,15 @@ ORDER BY sli.sale_line_item_id", con);
             return null;
         }
 
+        // tblShopConfiguration bit-backed flags aren't consistently 'True'/'False' text — some
+        // are stored as '1'/'0'. When checking a boolean flag (expectedValue="True"), accept
+        // '1' too, so a real shop config value doesn't silently read as false.
         private static bool CfgIs(Dictionary<string, string> cfg, string key, string expectedValue)
         {
-            return cfg.TryGetValue(key, out var v) &&
-                   string.Equals(v, expectedValue, StringComparison.OrdinalIgnoreCase);
+            if (!cfg.TryGetValue(key, out var v)) return false;
+            if (string.Equals(expectedValue, "True", StringComparison.OrdinalIgnoreCase))
+                return string.Equals(v, "True", StringComparison.OrdinalIgnoreCase) || v?.Trim() == "1";
+            return string.Equals(v, expectedValue, StringComparison.OrdinalIgnoreCase);
         }
 
         private SaleAndReturn BuildModel(SaleRequest req, int userId, int shopId, string posCode, string userName)
@@ -1200,6 +1205,7 @@ ORDER BY sli.sale_line_item_id", con);
             {
                 var line = new SaleAndReturnItems(0, item.ProductItemId, item.Quantity,
                                                   item.UnitRate, item.TaggedPrice);
+                line.ProductCode                 = item.ProductCode ?? "";
                 line.ProductBatchNo              = item.BatchNo ?? "";  // FIFO/FEFO batch tracking (CR #8125)
                 line.VATValue                    = item.VatValue;
                 line.VatFactor                   = item.VatFactor;

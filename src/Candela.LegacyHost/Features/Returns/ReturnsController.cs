@@ -531,6 +531,7 @@ namespace CandelaPOS.Features.Returns
 
                 var line = new SaleAndReturnItems(0, item.ProductItemId, qty,
                                                   item.UnitRate, item.TaggedPrice);
+                line.ProductCode                = item.ProductCode ?? "";
                 line.ProductBatchNo             = item.BatchNo ?? "";
                 // Written to tblSalesLineItems.ReasonID / ReturnReason (SaleAndReturnDAL.vb:4885-4886)
                 line.ReasonID                   = item.ReturnReasonId         ?? 0;
@@ -812,12 +813,16 @@ WHERE li.sale_id = @invoiceNo
             }
         }
 
-        // Mirrors SalesController.CfgIs — case-insensitive config value check.
+        // Mirrors SalesController.CfgIs — case-insensitive config value check. tblShopConfiguration
+        // bit-backed flags aren't consistently 'True'/'False' text — some are stored as '1'/'0'.
+        // When checking a boolean flag (expected="True"), accept '1' too.
         private static bool CfgIs(Dictionary<string, string> cfg, string key, string expected)
         {
             string val;
-            return cfg.TryGetValue(key, out val)
-                && string.Equals(val?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
+            if (!cfg.TryGetValue(key, out val)) return false;
+            if (string.Equals(expected, "True", StringComparison.OrdinalIgnoreCase))
+                return string.Equals(val?.Trim(), "True", StringComparison.OrdinalIgnoreCase) || val?.Trim() == "1";
+            return string.Equals(val?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
         }
 
         // POST api/returns/preview
