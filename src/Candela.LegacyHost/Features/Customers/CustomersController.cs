@@ -31,6 +31,11 @@ namespace CandelaPOS.Features.Customers
                 return Request.CreateResponse(HttpStatusCode.BadRequest,
                     new { error = "member_type_id is required" });
 
+            // Customer N.I.C: 5 digits - 7 digits - 1 digit, digits only.
+            if (!string.IsNullOrWhiteSpace(req.Cnic)
+                && !System.Text.RegularExpressions.Regex.IsMatch(req.Cnic.Trim(), @"^\d{5}-\d{7}-\d$"))
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "Customer N.I.C must be in the format xxxxx-xxxxxxx-x (digits only)." });
 
             int    userId  = (int)   Request.Properties["user_id"];
             int    shopId  = (int)   Request.Properties["shop_id"];
@@ -68,13 +73,13 @@ namespace CandelaPOS.Features.Customers
                     var ins = new SqlCommand(@"
 INSERT INTO tblMemberInfo
     (member_id, shop_id, member_no, member_name, member_type_id,
-     phone_mobile, phone_Res, email, cust_Address,
+     phone_mobile, phone_Res, email, cust_Address, nic_no, InvoiceNo,
      allow_credit, credit_limit, card_duplicate_no,
      group_id, start_date, expiry_date,
      status, EnteredDate, EditedDate, enteredby)
 VALUES
     (@mid, @sid, @mno, @nm, @mtid,
-     @pm, @pr, @em, @addr,
+     @pm, @pr, @em, @addr, @nic, @ntn,
      @ac, @cl, 0,
      @gid, @sd, @ed,
      'Activate', @now, @now, @uid)",
@@ -89,6 +94,8 @@ VALUES
                     ins.Parameters.AddWithValue("@pr",   (object)req.PhoneRes    ?? DBNull.Value);
                     ins.Parameters.AddWithValue("@em",   (object)req.Email       ?? DBNull.Value);
                     ins.Parameters.AddWithValue("@addr", (object)req.Address     ?? DBNull.Value);
+                    ins.Parameters.AddWithValue("@nic",  string.IsNullOrWhiteSpace(req.Cnic) ? (object)DBNull.Value : req.Cnic.Trim());
+                    ins.Parameters.AddWithValue("@ntn",  string.IsNullOrWhiteSpace(req.Ntn)  ? (object)DBNull.Value : req.Ntn.Trim());
                     ins.Parameters.AddWithValue("@ac",   req.AllowCredit ? 1 : 0);
                     ins.Parameters.AddWithValue("@cl",   req.CreditLimit);
                     ins.Parameters.AddWithValue("@gid",  req.GroupId.HasValue ? (object)req.GroupId.Value : DBNull.Value);
@@ -257,6 +264,8 @@ VALUES
         public string  PhoneRes        { get; set; }
         public string  Email           { get; set; }
         public string  Address         { get; set; }
+        public string  Ntn             { get; set; }   // tblMemberInfo.InvoiceNo
+        public string  Cnic            { get; set; }   // tblMemberInfo.nic_no — xxxxx-xxxxxxx-x
         public bool    AllowCredit     { get; set; }
         public decimal CreditLimit     { get; set; }
         public int?    GroupId         { get; set; }

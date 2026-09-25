@@ -21,6 +21,10 @@ public sealed class CreateCustomerRequest
     public string? PhoneRes { get; set; }
     public string? Email { get; set; }
     public string? Address { get; set; }
+    /// <summary>tblMemberInfo.InvoiceNo (the desktop's NTN field).</summary>
+    public string? Ntn { get; set; }
+    /// <summary>tblMemberInfo.nic_no — optional, but when present must be xxxxx-xxxxxxx-x.</summary>
+    public string? Cnic { get; set; }
     public bool AllowCredit { get; set; }
     public decimal CreditLimit { get; set; }
     public int? GroupId { get; set; }

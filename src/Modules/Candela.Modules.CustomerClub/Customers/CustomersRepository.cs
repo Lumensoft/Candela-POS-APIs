@@ -44,13 +44,13 @@ public sealed class CustomersRepository(IDb db) : ICustomersRepository
             const string insertSql = @"
 INSERT INTO tblMemberInfo
     (member_id, shop_id, member_no, member_name, member_type_id,
-     phone_mobile, phone_Res, email, cust_Address,
+     phone_mobile, phone_Res, email, cust_Address, nic_no, InvoiceNo,
      allow_credit, credit_limit, card_duplicate_no,
      group_id, start_date, expiry_date,
      status, EnteredDate, EditedDate, enteredby)
 VALUES
     (@mid, @sid, @mno, @nm, @mtid,
-     @pm, @pr, @em, @addr,
+     @pm, @pr, @em, @addr, @nic, @ntn,
      @ac, @cl, 0,
      @gid, @sd, @ed,
      'Activate', @now, @now, @uid)";
@@ -71,7 +71,9 @@ VALUES
                 pr = req.PhoneRes,
                 em = req.Email,
                 addr = req.Address,
-                ac = req.AllowCredit ? 1 : 0,
+                nic = string.IsNullOrWhiteSpace(req.Cnic) ? null : req.Cnic.Trim(),
+                ntn = string.IsNullOrWhiteSpace(req.Ntn) ? null : req.Ntn.Trim(),
+                ac =req.AllowCredit ? 1 : 0,
                 cl = req.CreditLimit,
                 gid = req.GroupId,
                 sd = startDate.ToString("yyyy-MM-dd"),

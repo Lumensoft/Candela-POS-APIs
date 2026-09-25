@@ -45,6 +45,12 @@ public sealed class CustomersController(ICustomersRepository customers) : Candel
         if (req.MemberTypeId <= 0)
             return Fail(StatusCodes.Status400BadRequest, "member_type_id is required");
 
+        // Customer N.I.C: 5 digits - 7 digits - 1 digit, digits only.
+        if (!string.IsNullOrWhiteSpace(req.Cnic)
+            && !System.Text.RegularExpressions.Regex.IsMatch(req.Cnic.Trim(), @"^\d{5}-\d{7}-\d$"))
+            return Fail(StatusCodes.Status400BadRequest,
+                "Customer N.I.C must be in the format xxxxx-xxxxxxx-x (digits only).");
+
         var data = await customers.CreateAsync(req, ShopId, UserId, ct);
 
         return new JsonResult(ApiResponse<CreateCustomerResponse>.Ok(data));
