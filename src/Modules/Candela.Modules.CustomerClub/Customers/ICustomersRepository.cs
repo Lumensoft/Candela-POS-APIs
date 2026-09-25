@@ -19,6 +19,9 @@ public interface ICustomersRepository
     Task<CreateCustomerResponse> CreateAsync(CreateCustomerRequest req, int shopId, int userId,
         CancellationToken ct);
 
+    /// <summary>Updates the profile fields the till can edit. False when no row matched id+shop.</summary>
+    Task<bool> UpdateAsync(int memberId, int shopId, UpdateCustomerRequest req, CancellationToken ct);
+
     /// <summary>
     /// Live credit position for a customer, or null when no member row matches the id.
     /// Deliberately not filtered by the caller's shop — see the SQL for why.

@@ -45,9 +45,41 @@ public sealed class CustomersController(ICustomersRepository customers) : Candel
         if (req.MemberTypeId <= 0)
             return Fail(StatusCodes.Status400BadRequest, "member_type_id is required");
 
+        // Customer N.I.C: 5 digits - 7 digits - 1 digit, digits only.
+        if (!string.IsNullOrWhiteSpace(req.Cnic)
+            && !System.Text.RegularExpressions.Regex.IsMatch(req.Cnic.Trim(), @"^\d{5}-\d{7}-\d$"))
+            return Fail(StatusCodes.Status400BadRequest,
+                "Customer N.I.C must be in the format xxxxx-xxxxxxx-x (digits only).");
+
         var data = await customers.CreateAsync(req, ShopId, UserId, ct);
 
         return new JsonResult(ApiResponse<CreateCustomerResponse>.Ok(data));
+    }
+
+    /// <summary>
+    /// PUT /api/customers/EditCustomer/{id}?shop_id= — edit a customer's profile from the till's
+    /// Customer dialog. shop_id is the customer's home shop (defaults to the caller's shop).
+    /// </summary>
+    [HttpPut("EditCustomer/{id:int}")]
+    public async Task<IActionResult> UpdateCustomer(int id, [FromBody] UpdateCustomerRequest? req,
+        [FromQuery] int? shop_id, CancellationToken ct)
+    {
+        if (req == null)
+            return Fail(StatusCodes.Status400BadRequest, "Request body is required");
+
+        if (string.IsNullOrWhiteSpace(req.MemberName))
+            return Fail(StatusCodes.Status400BadRequest, "member_name is required");
+
+        if (!string.IsNullOrWhiteSpace(req.Cnic)
+            && !System.Text.RegularExpressions.Regex.IsMatch(req.Cnic.Trim(), @"^\d{5}-\d{7}-\d$"))
+            return Fail(StatusCodes.Status400BadRequest,
+                "Customer N.I.C must be in the format xxxxx-xxxxxxx-x (digits only).");
+
+        var updated = await customers.UpdateAsync(id, shop_id ?? ShopId, req, ct);
+        if (!updated)
+            throw new NotFoundException($"Customer {id} not found.");
+
+        return new JsonResult(new { success = true });
     }
 
     /// <summary>

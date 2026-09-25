@@ -44,13 +44,13 @@ public sealed class CustomersRepository(IDb db) : ICustomersRepository
             const string insertSql = @"
 INSERT INTO tblMemberInfo
     (member_id, shop_id, member_no, member_name, member_type_id,
-     phone_mobile, phone_Res, email, cust_Address,
+     phone_mobile, phone_Res, email, cust_Address, nic_no, InvoiceNo,
      allow_credit, credit_limit, card_duplicate_no,
      group_id, start_date, expiry_date,
      status, EnteredDate, EditedDate, enteredby)
 VALUES
     (@mid, @sid, @mno, @nm, @mtid,
-     @pm, @pr, @em, @addr,
+     @pm, @pr, @em, @addr, @nic, @ntn,
      @ac, @cl, 0,
      @gid, @sd, @ed,
      'Activate', @now, @now, @uid)";
@@ -71,7 +71,9 @@ VALUES
                 pr = req.PhoneRes,
                 em = req.Email,
                 addr = req.Address,
-                ac = req.AllowCredit ? 1 : 0,
+                nic = string.IsNullOrWhiteSpace(req.Cnic) ? null : req.Cnic.Trim(),
+                ntn = string.IsNullOrWhiteSpace(req.Ntn) ? null : req.Ntn.Trim(),
+                ac =req.AllowCredit ? 1 : 0,
                 cl = req.CreditLimit,
                 gid = req.GroupId,
                 sd = startDate.ToString("yyyy-MM-dd"),
@@ -115,6 +117,48 @@ VALUES
                 ShopId = shopId
             };
         }, ct);
+    }
+
+    public async Task<bool> UpdateAsync(int memberId, int shopId, UpdateCustomerRequest req,
+        CancellationToken ct)
+    {
+        // Dates use the same "yyyy-MM-dd" strings as the insert; an unparsable / missing date
+        // leaves the stored value alone (ISNULL) rather than blanking it.
+        string? sd = DateTime.TryParse(req.StartDate, out DateTime s)  ? s.ToString("yyyy-MM-dd") : null;
+        string? ed = DateTime.TryParse(req.ExpiryDate, out DateTime e) ? e.ToString("yyyy-MM-dd") : null;
+
+        // EditedDate is bumped so the tablets' delta sync (?since=) picks the change up.
+        const string sql = @"
+UPDATE tblMemberInfo SET
+    member_name  = @nm,
+    phone_mobile = @pm,
+    email        = @em,
+    cust_Address = @addr,
+    nic_no       = @nic,
+    InvoiceNo    = @ntn,
+    group_id     = @gid,
+    start_date   = ISNULL(@sd, start_date),
+    expiry_date  = ISNULL(@ed, expiry_date),
+    EditedDate   = @now
+WHERE member_id = @mid AND shop_id = @sid";
+
+        int rows = await db.ExecuteAsync(sql, new
+        {
+            nm = req.MemberName!.Trim(),
+            pm = string.IsNullOrWhiteSpace(req.PhoneMobile) ? null : req.PhoneMobile.Trim(),
+            em = string.IsNullOrWhiteSpace(req.Email) ? null : req.Email.Trim(),
+            addr = string.IsNullOrWhiteSpace(req.Address) ? null : req.Address.Trim(),
+            nic = string.IsNullOrWhiteSpace(req.Cnic) ? null : req.Cnic.Trim(),
+            ntn = string.IsNullOrWhiteSpace(req.Ntn) ? null : req.Ntn.Trim(),
+            gid = req.GroupId,
+            sd,
+            ed,
+            now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            mid = memberId,
+            sid = shopId
+        }, ct);
+
+        return rows > 0;
     }
 
     public async Task<CreditOutstandingResponse?> GetCreditOutstandingAsync(int memberId,
