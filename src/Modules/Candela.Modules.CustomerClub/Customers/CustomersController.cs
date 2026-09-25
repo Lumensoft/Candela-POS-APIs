@@ -57,6 +57,32 @@ public sealed class CustomersController(ICustomersRepository customers) : Candel
     }
 
     /// <summary>
+    /// PUT /api/customers/EditCustomer/{id}?shop_id= — edit a customer's profile from the till's
+    /// Customer dialog. shop_id is the customer's home shop (defaults to the caller's shop).
+    /// </summary>
+    [HttpPut("EditCustomer/{id:int}")]
+    public async Task<IActionResult> UpdateCustomer(int id, [FromBody] UpdateCustomerRequest? req,
+        [FromQuery] int? shop_id, CancellationToken ct)
+    {
+        if (req == null)
+            return Fail(StatusCodes.Status400BadRequest, "Request body is required");
+
+        if (string.IsNullOrWhiteSpace(req.MemberName))
+            return Fail(StatusCodes.Status400BadRequest, "member_name is required");
+
+        if (!string.IsNullOrWhiteSpace(req.Cnic)
+            && !System.Text.RegularExpressions.Regex.IsMatch(req.Cnic.Trim(), @"^\d{5}-\d{7}-\d$"))
+            return Fail(StatusCodes.Status400BadRequest,
+                "Customer N.I.C must be in the format xxxxx-xxxxxxx-x (digits only).");
+
+        var updated = await customers.UpdateAsync(id, shop_id ?? ShopId, req, ct);
+        if (!updated)
+            throw new NotFoundException($"Customer {id} not found.");
+
+        return new JsonResult(new { success = true });
+    }
+
+    /// <summary>
     /// GET /api/customers/{id}/credit-outstanding — total credit billed minus receipts
     /// received, refreshed every time a customer is selected at the till.
     ///
