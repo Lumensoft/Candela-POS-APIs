@@ -128,10 +128,7 @@ public sealed class AuthService(IAuthRepository repo, AuthOptions options) : IAu
     public async Task<WebLoginResponse> WebLoginAsync(WebLoginRequest req, CancellationToken ct)
     {
         // Same credential check as the tablet: same table, same cipher, same generic
-        // message on any failure. What is deliberately absent is everything about a
-        // tablet seat — FindDeviceAsync / ClaimFreeSlotAsync — and the shop-entitlement
-        // gate that follows it, because neither concept applies to a browser tab signing
-        // in to Configuration/Security/etc.
+        // message on any failure.
         var user = await repo.FindUserAsync(req.Username!, ct);
         if (user is null)
             throw new UnauthorizedException(BadCredentials);
@@ -143,16 +140,62 @@ public sealed class AuthService(IAuthRepository repo, AuthOptions options) : IAu
         if (!req.Password!.Equals(decrypted, StringComparison.Ordinal))
             throw new UnauthorizedException(BadCredentials);
 
-        // shop_id 0, pos_code "" and device_id "WEB" — the same JwtHelper every POS token
-        // goes through, so this token validates on Candela.Api exactly like a tablet's
-        // does. The POS-only claims (scr_rights, below_cost_right) are left at their
-        // defaults; back-office rights are looked up per screen, not baked into the token
-        // — see GetFormRightsAsync.
-        var token = JwtHelper.Generate(user.user_id, user.User_name ?? "", 0, "",
-            "WEB", user.GROUP_NAME, user.GROUP_TYPE, user.SaleReturnLimit);
+        var grantedRights = new HashSet<string>(
+            await repo.GetControlRightsAsync(user.GROUP_ID, ct), StringComparer.OrdinalIgnoreCase);
 
-        AppLog.Info("Web login: user {0} ({1}) signed in to Candela_WebInterface.",
-            user.user_id, user.User_name);
+        bool hasBelowCostRight = grantedRights.Contains("BelowCostSales");
+
+        // Same device-seat binding as the tablet: is this browser's device_id already
+        // registered, and if not, claim a free pre-allocated slot for it.
+        int shopId = 0;
+        string posCode = "";
+
+        var device = await repo.FindDeviceAsync(req.DeviceId!, ct);
+        if (device is not null)
+        {
+            if (!device.isTabActive)
+                throw new ForbiddenException("This tablet has been deactivated by administrator");
+
+            shopId = device.shop_id;
+            posCode = device.POS_code ?? "";
+        }
+
+        if (shopId == 0)
+        {
+            var claimed = await repo.ClaimFreeSlotAsync(req.DeviceId!, ct)
+                ?? throw new ForbiddenException("No tablet slots available. Please contact HO to add a tablet.");
+
+            shopId = claimed.shop_id;
+            posCode = claimed.POS_code ?? "";
+        }
+
+        var shopName = await repo.GetShopNameAsync(shopId, ct);
+
+        // Same shop-entitlement gate as the tablet: a user's group must have rights to the
+        // shop this device's seat belongs to.
+        var access = await CheckShopAccessAsync(user.GROUP_ID, shopId, ct);
+        if (!access.Allowed)
+        {
+            AppLog.Warn("Web login refused: user {0} (group {1}) at shop {2} - {3}",
+                user.user_id, user.GROUP_ID, shopId, access.Reason);
+            throw new ForbiddenException(access.Reason!);
+        }
+        if (access.UnconfiguredGroup)
+        {
+            AppLog.Warn(
+                "Group {0} has no rows in tblSecurityGroupShops and IsSelectedShop=0, so user {1} " +
+                "was allowed at shop {2} on the assumption the mapping was never configured. " +
+                "Fill in Group Shop Rights, then set Security:StrictShopRights=true to enforce.",
+                user.GROUP_ID, user.user_id, shopId);
+        }
+
+        var controlRightsStr = string.Join(",", grantedRights);
+        var token = JwtHelper.Generate(user.user_id, user.User_name ?? "", shopId, posCode,
+            req.DeviceId!, user.GROUP_NAME, user.GROUP_TYPE, user.SaleReturnLimit,
+            hasBelowCostRight, controlRightsStr);
+
+        AppLog.Info("Web login: user {0} ({1}) signed in to Candela_WebInterface from device {2} at shop {3}.",
+            user.user_id, user.User_name, req.DeviceId, shopId);
 
         return new WebLoginResponse
         {
@@ -161,6 +204,9 @@ public sealed class AuthService(IAuthRepository repo, AuthOptions options) : IAu
             UserName = user.User_name ?? "",
             GroupName = user.GROUP_NAME,
             GroupType = user.GROUP_TYPE,
+            ShopId = shopId,
+            ShopName = shopName,
+            PosCode = posCode,
         };
     }
 

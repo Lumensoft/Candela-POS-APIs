@@ -14,6 +14,10 @@ namespace Candela.Modules.Security.Auth.Dtos;
 /// mean re-issuing a token every time a new screen's rights are needed. Instead the web app
 /// asks GET /api/auth/form-rights/{formName} once per screen it opens, and TanStack Query
 /// caches the answer. See AuthService.GetFormRightsAsync.
+///
+/// ShopId/ShopName/PosCode reflect the tblComputerList seat the request's device_id claimed
+/// or already held — the same seat AuthService.LoginAsync claims for a tablet, since
+/// WebLoginAsync now runs through the same device-binding path.
 /// </summary>
 public sealed class WebLoginResponse
 {
@@ -22,4 +26,7 @@ public sealed class WebLoginResponse
     public string UserName { get; set; } = "";
     public string GroupName { get; set; } = "";
     public int GroupType { get; set; }
+    public int ShopId { get; set; }
+    public string ShopName { get; set; } = "";
+    public string PosCode { get; set; } = "";
 }

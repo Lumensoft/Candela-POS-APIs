@@ -14,7 +14,7 @@ namespace Candela.Modules.Security.Auth;
 ///   POST /api/auth/logout            revoke the current token
 ///   POST /api/auth/supervisor        a second user authorises an over-limit action
 ///   GET  /api/auth/adjustment-rights may this user apply a manual adjustment
-///   POST /api/auth/web-login         Candela_WebInterface sign-in (no tablet involved)
+///   POST /api/auth/web-login         Candela_WebInterface sign-in (claims a device seat too)
 ///   GET  /api/auth/form-rights/{f}   what this user's group may do on screen {f}
 ///
 /// Nothing is forwarded to the legacy host: Auth never called the Candela DAL. The only
@@ -127,6 +127,9 @@ public sealed class AuthController(IAuthService auth, IAuthRepository repo) : Ca
     {
         if (req == null || string.IsNullOrEmpty(req.Username) || string.IsNullOrEmpty(req.Password))
             return Fail(StatusCodes.Status400BadRequest, "username and password are required");
+
+        if (string.IsNullOrEmpty(req.DeviceId))
+            return Fail(StatusCodes.Status400BadRequest, "device_id is required");
 
         var data = await auth.WebLoginAsync(req, ct);
 
