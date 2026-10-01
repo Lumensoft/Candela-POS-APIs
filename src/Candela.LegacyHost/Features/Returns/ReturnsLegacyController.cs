@@ -451,6 +451,8 @@ namespace CandelaPOS.Features.Returns
             sale.MarketingDiscount = req.MarketingDiscount;
             sale.VATAmount         = req.VatAmount;
             sale.AdjustmentAmount  = req.AdjustmentAmount;
+            sale.AdjustmentReasonId = req.AdjustmentReasonId;
+            sale.AdditionalComments = req.AdditionalComments ?? "";
             sale.CashAmount        = req.CashAmount;
             sale.CreditCardAmount  = req.CardAmount;
             sale.CreditAmount      = (decimal)req.CreditAmount;
