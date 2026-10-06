@@ -86,7 +86,15 @@ SELECT
     isnull(li.DiscountCategory,'')  AS disc_category,
     isnull(li.discount_ID, 0)       AS discount_id,
     isnull(li.Loyality_CashDiscount,0) AS loyalty_cash_discount,
-    isnull(li.CustomerDiscount, 0)  AS customer_discount
+    isnull(li.CustomerDiscount, 0)  AS customer_discount,
+    -- Raw columns SaleLineConvention needs to read Candela-convention rows (pack lines priced per pack,
+    -- PriceAfterDiscount without tax, adjustment kept as a line total).
+    isnull(li.PriceForDiscount, 0)  AS price_for_discount,
+    isnull(li.VatChargedPerUnit, 0) AS vat_charged_per_unit,
+    isnull(li.product_adj_Discount, 0) AS adjustment_on_line,
+    isnull(li.product_mkt_Discount, 0) AS marketing_on_line,
+    isnull(li.PackSize, 0)          AS pack_size,
+    isnull(li.Con_Unit, '')         AS con_unit
 FROM tblSalesLineItems li
 JOIN tblProductItem pi   ON pi.Product_Item_ID = li.Product_Item_ID
 JOIN tblDefProducts pd   ON pd.product_id = pi.product_id
@@ -122,7 +130,14 @@ SELECT
     isnull(li.PriceAfterDiscount,0)      AS price_after_discount,
     isnull(li.DiscountCategory,'')       AS disc_category,
     isnull(li.discount_ID,0)             AS discount_id,
-    isnull(li.Loyality_CashDiscount,0)   AS loyalty_cash_discount
+    isnull(li.Loyality_CashDiscount,0)   AS loyalty_cash_discount,
+    li.qty                               AS quantity,
+    isnull(li.PriceForDiscount, 0)       AS price_for_discount,
+    isnull(li.VatChargedPerUnit, 0)      AS vat_charged_per_unit,
+    isnull(li.product_adj_Discount, 0)   AS adjustment_on_line,
+    isnull(li.product_mkt_Discount, 0)   AS marketing_on_line,
+    isnull(li.PackSize, 0)               AS pack_size,
+    isnull(li.Con_Unit, '')              AS con_unit
 FROM tblSalesLineItems li
 WHERE li.sale_id  = @saleId
   AND li.shop_id  = @shopId

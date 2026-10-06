@@ -296,6 +296,16 @@ namespace CandelaPOS.Features.Sales
         // DAL uses Con_Unit for reporting; inventory deduction uses the raw Qty value directly.
         [JsonProperty("con_unit")]
         public string ConUnit { get; set; }
+
+        // Echoed from the /quote line: Candela's PriceAfterDiscount per single unit, without tax
+        // (and with the adjustment share when IsSubtractAdjustmentDiscount). Null = not supplied / not mapped
+        // (price-includes-VAT lines, older clients), in which case the previous net_amount-based value is kept.
+        [JsonProperty("price_after_discount")]
+        public double? PriceAfterDiscount { get; set; }
+
+        // Echoed from the /quote line: VAT% of the single retail price (tblSalesLineItems.VatOnRetailPrice).
+        [JsonProperty("vat_on_retail_price")]
+        public double? VatOnRetailPrice { get; set; }
     }
 
     // One allocation row for multi-batch splitting.

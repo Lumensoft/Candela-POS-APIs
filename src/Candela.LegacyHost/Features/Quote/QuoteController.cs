@@ -49,6 +49,8 @@ namespace CandelaPOS.Features.Quote
                 bool subtractUnitDisc = Eq(cfg, "IsSubtractUnitDiscount",     "True");
                 bool subtractCustDisc = Eq(cfg, "IsSubtractCustomerDiscount",  "True");
                 bool subtractMktDisc  = Eq(cfg, "IsSubtractMarketingDiscount", "True");
+                // Same for the invoice adjustment: frmSaleAndReturn.vb:2677-2688 (VatIncludingAdjustmentDiscount).
+                bool subtractAdj      = Eq(cfg, "IsSubtractAdjustmentDiscount",    "True");
 
                 // When PriceIncludesVAT=True AND isShowTagPrice=True, Candela divides Rate
                 // by (1+vatFactor/100) to extract the ex-VAT base before computing VAT.
@@ -352,7 +354,9 @@ namespace CandelaPOS.Features.Quote
                                 req.CutPiece, isLoyaltyOn, customerMemberTypeId,
                                 ref qtyOfX, ref isBuyXGetY,
                                 isPack, item.PackSize, ref discType,
-                                productTotalQty, false, false, unitRate);
+                                productTotalQty, false, false, unitRate,
+                                string.Equals(item.ConUnit, "Pack", StringComparison.OrdinalIgnoreCase) && item.ConFactor > 0
+                                    ? item.ConFactor : 0);
                             // Candela rounds SKU discount to pvtUnitDiscountRounding=6 places.
                             // frmSaleAndReturn.vb:25748
                             unitDisc = Math.Round(unitDisc, 6, MidpointRounding.AwayFromZero);
@@ -573,6 +577,10 @@ namespace CandelaPOS.Features.Quote
                 double totalAddOnVat   = 0;  // VAT that is added on top of the price (excludes lines with VAT embedded in the tag price)
                 double totalAddSaleTax = 0;
                 double totalCouponDisc = 0;
+                // Same three VAT totals computed with NO adjustment, to derive net_total_before_adjustment.
+                double totalVat0        = 0;
+                double totalAddOnVat0   = 0;
+                double totalAddSaleTax0 = 0;
                 double totalEarnedPoints = 0;  // SUM(Qty × loyaltyPct) — mirrors LoyaltyPointPercentageNet expression at frmSaleAndReturn.vb:2617
 
                 foreach (var s in states)
@@ -636,19 +644,28 @@ namespace CandelaPOS.Features.Quote
                     if (subtractMktDisc)  vatBase -= marketDiscUnit / divFactor;  // Gap 8
                     vatBase = Math.Max(vatBase, 0);
 
+                    // Invoice adjustment (Candela AdjValue = line total ÷ absoluteTotal × adjustment ÷ qty,
+                    // frmSaleAndReturn.vb:22556): this line's per-unit share. It only reaches the VAT base
+                    // when IsSubtractAdjustmentDiscount is on (vb:12511, 12610); otherwise it is applied after tax.
+                    double lineTotalForAdj = (s.DiscountBase - unitDisc) * item.Quantity;
+                    double adjUnit = (absoluteTotal != 0 && item.Quantity != 0)
+                        ? req.AdjustmentAmount * lineTotalForAdj / absoluteTotal / item.Quantity
+                        : 0;
+                    double vatBaseNoAdj = vatBase;
+                    if (subtractAdj) vatBase = Math.Max(vatBase + adjUnit / divFactor, 0);
+
                     // Per-unit VAT
                     // Gap 1: "Value" type → p.Vat is a fixed amount, not a percentage
                     // frmSaleAndReturn.vb:14639
-                    double vatValue = 0;
-                    if (!isSlabVAT && vatFactor > 0)
+                    Func<double, double> vatOf = b =>
                     {
-                        if (p.TaxAtRetailPrice)
-                            vatValue = unitRate * vatFactor / 100.0;
-                        else if (!s.VatIsPercent && !isShopBasedVAT)
-                            vatValue = p.Vat;
-                        else
-                            vatValue = vatBase * vatFactor / 100.0;
-                    }
+                        if (isSlabVAT || vatFactor <= 0) return 0;
+                        if (p.TaxAtRetailPrice) return unitRate * vatFactor / 100.0;
+                        if (!s.VatIsPercent && !isShopBasedVAT) return p.Vat;
+                        return b * vatFactor / 100.0;
+                    };
+                    double vatValue  = vatOf(vatBase);
+                    double vatValue0 = vatOf(vatBaseNoAdj);
 
                     // Gap 3: Additional Sale Tax formula 1 — per-item
                     // Column expression: ([Addtional_Vat_Percent]/100)*(([Qty]*[Rate])+[VatValue])
@@ -657,6 +674,9 @@ namespace CandelaPOS.Features.Quote
                     double priceAfterDisc = Math.Max(taggedPrice - unitDisc - custDiscUnit, 0);
                     double addSaleTax = addlSaleTaxPct > 0 && !addlTaxOnNetTotal
                         ? (unitRate + vatValue) * addlSaleTaxPct / 100.0
+                        : 0;
+                    double addSaleTax0 = addlSaleTaxPct > 0 && !addlTaxOnNetTotal
+                        ? (unitRate + vatValue0) * addlSaleTaxPct / 100.0
                         : 0;
 
                     // Net amount per line.
@@ -700,7 +720,17 @@ namespace CandelaPOS.Features.Quote
                         MarketingDiscPerUnit       = marketDiscUnit,
                         // Gap 4: DAL uses this to reverse discounts against tag price correctly.
                         // frmSaleAndReturn.vb:14802-14806
-                        DiscountFromTagPrice       = lineShowTagPrice && unitDisc > 0
+                        DiscountFromTagPrice       = lineShowTagPrice && unitDisc > 0,
+                        // Candela's line columns (verified against rows written by the desktop app):
+                        // PriceAfterDiscount IS the VAT base — rate minus whichever of unit / customer / marketing
+                        // discount the IsSubtract* flags say reduce it, plus the adjustment share when
+                        // IsSubtractAdjustmentDiscount (frmSaleAndReturn.vb:12483-12518, 12732-12738) — without tax,
+                        // which sits separately in vat_value. VatOnRetailPrice = VAT% × retail price.
+                        // Price-includes-VAT lines use a different expression in Candela — left unmapped (null).
+                        PriceAfterDiscount         = lineIncludesVAT ? (double?)null : vatBase,
+                        VatOnRetailPrice           = (lineIncludesVAT || !s.VatIsPercent)
+                            ? (double?)null
+                            : unitRate * vatFactor / 100.0
                     });
 
                     grossTotal        += taggedPrice   * item.Quantity;
@@ -709,6 +739,9 @@ namespace CandelaPOS.Features.Quote
                     totalVat          += vatValue      * item.Quantity;
                     if (!vatEmbedded) totalAddOnVat += vatValue * item.Quantity;
                     totalAddSaleTax   += addSaleTax    * item.Quantity;
+                    totalVat0         += vatValue0     * item.Quantity;
+                    if (!vatEmbedded) totalAddOnVat0 += vatValue0 * item.Quantity;
+                    totalAddSaleTax0  += addSaleTax0   * item.Quantity;
                     // Bug E fix: earned points formula mirrors frmSaleAndReturn.vb:25993.
                     // LoyaltyPointPercentage (per unit) = Round(((Rate-UnitDisc) - LoyaltyCashDisc) * PointsPct/100, N)
                     // LoyaltyPointPercentageNet (per line) = LoyaltyPointPercentage * Qty
@@ -767,6 +800,22 @@ namespace CandelaPOS.Features.Quote
                 if (!string.IsNullOrEmpty(autoRoundAlgo))
                     suggestedAdj = ComputeAutoRounding(autoRoundAlgo, autoRoundNet, amountRound);
 
+                // net_total as it would be with no adjustment (same arithmetic as above, with the VAT totals
+                // taken before the adjustment moved the VAT base). Equal to autoRoundNet unless an adjustment
+                // was sent and IsSubtractAdjustmentDiscount is on; slab VAT does not depend on it.
+                double netBeforeAdj = autoRoundNet;
+                if (subtractAdj && req.AdjustmentAmount != 0 && !isSlabVAT)
+                {
+                    double n0 = grossTotal - totalDiscount - totalCustDisc - totalMktDisc;
+                    n0 += !priceIncludesVAT ? totalVat0 + totalAddSaleTax0 : totalAddOnVat0;
+                    if (addlSaleTaxPct > 0 && addlTaxOnNetTotal)
+                    {
+                        double r0 = Math.Round(n0, amountRound, MidpointRounding.AwayFromZero);
+                        n0 = r0 + r0 * addlSaleTaxPct / 100.0;
+                    }
+                    netBeforeAdj = Math.Round(n0, amountRound, MidpointRounding.AwayFromZero);
+                }
+
                 return Request.CreateResponse(HttpStatusCode.OK,
                     ApiResponse<QuoteResult>.Ok(new QuoteResult
                     {
@@ -788,7 +837,8 @@ namespace CandelaPOS.Features.Quote
                         AdditionalTax     = Math.Round(addlTaxOnNetTotal ? addlTaxF2 : 0.0,
                                                                                 amountRound, MidpointRounding.AwayFromZero),
                         NetTotal          = autoRoundNet,
-                        IsLoyaltyOn       = isLoyaltyOn && req.CustomerId > 0,
+                        NetTotalBeforeAdjustment = netBeforeAdj,
+                        IsLoyaltyOn      = isLoyaltyOn && req.CustomerId > 0,
                         CouponNo          = appliedCouponNo,
                         CouponDiscount    = Math.Round(totalCouponDisc,         amountRound, MidpointRounding.AwayFromZero),
                         EarnedPoints      = Math.Round(totalEarnedPoints,       amountRound, MidpointRounding.AwayFromZero),
@@ -1258,8 +1308,11 @@ WHERE m.member_id = @customerId";
             ref int QtyofX, ref bool IsBuyXGetYFreeDisc,
             bool IsPack, double PackSize, ref int DiscountType,
             double _TotalQty, bool IsNonPaymentTill, bool LoyalityClub_ForNPTill,
-            double _dblGrossRate = 0)
+            double _dblGrossRate = 0, double packModeConFactor = 0)
         {
+            // packModeConFactor > 0 only when the line is sold in Pack mode. Type 7 (qty-threshold flat
+            // discount) is defined per selling unit — per pack in pack mode — whereas this quote works in
+            // single units, so it is divided back down by con_factor (every other type is per single already).
             // _dblItemPrice = price the percent discounts are taken off (ex-VAT when VAT is stripped).
             // _dblGrossRate = the stored rate; used where a discount is defined against the stored price
             // (fixed-price and tier types, price thresholds). 0 → same as _dblItemPrice.
@@ -1335,6 +1388,8 @@ WHERE m.member_id = @customerId";
 
                                     if (objDiscountDR["discount_type"].ToString() == "2" && IsPack && PackSize != 0)
                                         _DiscountAmount *= PackSize;
+                                    if (objDiscountDR["discount_type"].ToString() == "7" && packModeConFactor > 0)
+                                        _DiscountAmount /= packModeConFactor;
                                     if (objDiscountDR["discount_type"].ToString() == "3")
                                         DiscountType = 3;
                                 }
@@ -1468,6 +1523,8 @@ WHERE m.member_id = @customerId";
                                                 // CR#5755 — SaleAndReturnDAL.vb:1021-1024
                                                 if (objSelectedDiscountDR["discount_type"].ToString() == "2" && IsPack && PackSize != 0)
                                                     _DiscountAmount *= PackSize;
+                                                if (objSelectedDiscountDR["discount_type"].ToString() == "7" && packModeConFactor > 0)
+                                                    _DiscountAmount /= packModeConFactor;
                                             }
                                             else
                                             {

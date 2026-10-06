@@ -988,36 +988,72 @@ namespace CandelaPOS.Features.Sales
             sale.ListOfSaleItems    = new List<SaleAndReturnItems>();
             sale.ListOfAssemblyItems = new List<SalesProductAssembly>();
 
+            // Invoice adjustment spread over the lines the way Candela does it (frmSaleAndReturn.vb:7759, 7929):
+            // each line takes |line total| ÷ Σ|line totals| of it, stored as a LINE TOTAL in product_adj_Discount.
+            // RestrictAdjDistribution switches that off, leaving the column 0.
+            bool   restrictAdj = CfgIs(CandelaBootstrap.GetRCMSConfig(), "RestrictAdjDistribution", "True");
+            double adjBase     = req.Items.Sum(i => Math.Abs((i.UnitRate - i.UnitDiscount) * i.Quantity));
+
             foreach (var item in req.Items)
             {
                 var line = new SaleAndReturnItems(0, item.ProductItemId, item.Quantity,
                                                   item.UnitRate, item.TaggedPrice);
                 line.ProductCode                 = item.ProductCode ?? "";
                 line.ProductBatchNo              = item.BatchNo ?? "";  // FIFO/FEFO batch tracking (CR #8125)
-                line.VATValue                    = item.VatValue;
+                // ── Candela's line-column convention (verified against rows the desktop app writes) ──────────
+                // The request is in SINGLE units (quantity = pack qty × con_factor, rates per single). Candela
+                // prices a Pack line per PACK, so every per-unit money column is scaled by f; qty, unit_price,
+                // taged_price, product_discount_amount and avg_cost stay per single.
+                bool   isPackLine = string.Equals(item.ConUnit, "Pack", StringComparison.OrdinalIgnoreCase)
+                                    && item.ConFactor > 0;
+                // Scaling applies only to lines the quote described in Candela's convention (price_after_discount
+                // supplied); price-includes-VAT lines and older clients keep per-single values throughout.
+                double f          = (isPackLine && item.PriceAfterDiscount.HasValue) ? item.ConFactor : 1.0;
+                double lineTotal  = Math.Abs((item.UnitRate - item.UnitDiscount) * item.Quantity);
+
+                line.VATValue                    = item.VatValue * f;             // pro_vat: tax per selling unit
                 line.VatFactor                   = item.VatFactor;
                 line.VatType                     = item.VatType ?? "";
                 line.PriceIncludeVat             = item.PriceIncludeVat;
-                line.ProductUnitDiscount         = item.UnitDiscount;
+                line.ProductUnitDiscount         = item.UnitDiscount;             // per single (vb:7951)
                 line.ProductDiscountID           = item.DiscountId;
-                line.CustomerDiscountPerUnit      = item.CustomerDiscountPerUnit;
-                line.MarketingDiscountOnProduct   = item.MarketingDiscount;
-                line.LoyalityCashDiscount        = item.LoyaltyCashDiscount;
+                line.CustomerDiscountPerUnit     = item.CustomerDiscountPerUnit * f;  // mem_discount_amount: per selling unit
+                line.CustomerDiscount            = item.CustomerDiscountPerUnit;      // CustomerDiscount: per single (vb:7890-7897)
+                // product_mkt_Discount is a LINE TOTAL in Candela (weight × invoice discount, vb:7926); the quote
+                // gives it per single.
+                line.MarketingDiscountOnProduct  = item.MarketingDiscount * item.Quantity;
+                line.AdjustmentOnProduct         = (restrictAdj || adjBase == 0)
+                    ? 0.0
+                    : Math.Round(req.AdjustmentAmount * lineTotal / adjBase, 4, MidpointRounding.AwayFromZero);
+                line.LoyalityCashDiscount        = item.LoyaltyCashDiscount * f;
                 line.AdditionalTaxpercent        = item.AdditionalTaxPercent;
-                line.AdditionalTax               = item.AdditionalTax;
+                line.AdditionalTax               = item.AdditionalTax * f;
                 line.DiscCategory                = item.DiscCategory ?? "";
                 line.DiscountFromTagPrice        = item.DiscountFromTagPrice;
                 line.LoyalityEarnedPoints        = 0;
                 line.NestedItemId                = item.NestedItemId;
-                line.PackSize                    = item.PackSize;
-                // Con_Factor=0 means unit sale; keep 1.0 so DAL inventory math is correct
-                line.Con_Factor                  = item.ConFactor > 0 ? item.ConFactor : 1.0;
+                // Candela writes the product's conversion factor on every line (vb:7936), Single or Pack.
+                line.PackSize                    = item.ConFactor > 0 ? item.ConFactor : 0.0;
+                // pro_weight: the pack factor on Pack lines, 0 on Single lines (vb:7939-7947). Candela's own
+                // reads and reports key off it (Unit = Pack when pro_weight <> 0).
+                line.Con_Factor                  = isPackLine ? item.ConFactor : 0.0;
                 line.Con_Unit                    = item.ConUnit ?? "Single";
                 line.AvgCost                     = item.AvgCost;
-                line.VatChargedPerUnit           = 0.0;
-                line.VatOnRetailPrice            = 0.0;
-                line.PriceForDiscount            = item.UnitRate;
-                line.PriceAfterDiscount          = item.NetAmount / (item.Quantity == 0 ? 1 : item.Quantity);
+                line.PriceForDiscount            = item.UnitRate * f;
+                if (item.PriceAfterDiscount.HasValue)
+                {
+                    // PriceAfterDiscount is without tax; the tax sits in pro_vat / VatChargedPerUnit (vb:12732-12738).
+                    line.PriceAfterDiscount      = item.PriceAfterDiscount.Value * f;
+                    line.VatChargedPerUnit       = item.VatValue * f;
+                    line.VatOnRetailPrice        = item.VatOnRetailPrice ?? 0.0;
+                }
+                else
+                {
+                    // Price-includes-VAT lines (and older clients) keep the previous mapping.
+                    line.PriceAfterDiscount      = item.NetAmount / (item.Quantity == 0 ? 1 : item.Quantity);
+                    line.VatChargedPerUnit       = 0.0;
+                    line.VatOnRetailPrice        = 0.0;
+                }
                 line.Employee.Shop.ShopID        = shopId;
                 // frmSaleAndReturn.vb:9432-9435 — per-line SP when ItemWiseSalesPersonOnSales=TRUE;
                 // falls back to header salesperson when the item carries no override.
