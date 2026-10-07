@@ -464,7 +464,10 @@ namespace CandelaPOS.Features.Returns
             sale.SaleReturningShopId  = req.ReturningInvoiceNo > 0 ? srcShop : 0;
 
             if (req.CustomerId > 0)
+            {
                 sale.Customer.MemberID = req.CustomerId;
+                sale.CustomerShopID    = req.CustomerShopId;   // tblSales.MemberShopID
+            }
             sale.Customer.MemberName = "";
 
             sale.CreditCard.CreditCardID = req.CreditCardId;

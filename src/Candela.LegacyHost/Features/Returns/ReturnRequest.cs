@@ -72,6 +72,11 @@ namespace CandelaPOS.Features.Returns
         [JsonProperty("additional_comments")]
         public string AdditionalComments { get; set; }
 
+        // The shop the customer is registered at → tblSales.MemberShopID, so a credit return reduces the
+        // customer's balance (their outstanding is summed per their own shop).
+        [JsonProperty("customer_shop_id")]
+        public int CustomerShopId { get; set; }
+
         [JsonProperty("cash_amount")]
         public double CashAmount { get; set; }
 

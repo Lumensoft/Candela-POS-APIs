@@ -47,6 +47,9 @@ public sealed class ReturnsRepository(IDb db) : IReturnsRepository
 SELECT
     s.sale_id, s.shop_id, s.sale_date,
     isnull(s.member_id, 0)    AS customer_id,
+    isnull(s.memberShopID, 0) AS customer_shop_id,
+    isnull((SELECT TOP 1 m.member_name FROM tblMemberInfo m
+            WHERE m.member_id = s.member_id AND m.shop_id = s.memberShopID), isnull(s.Cust_name, '')) AS customer_name,
     isnull(s.GT_amount, 0)    AS gross_total,
     isnull(s.NT_amount, 0)    AS net_total,
     isnull(s.Mark_discount,0) AS marketing_discount,
