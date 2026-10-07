@@ -837,7 +837,10 @@ namespace CandelaPOS.Features.Sales
 
             // Customer
             if (req.CustomerId > 0)
+            {
                 sale.Customer.MemberID = req.CustomerId;
+                sale.CustomerShopID    = req.CustomerShopId;   // tblSales.MemberShopID: the shop the customer is registered at
+            }
             // MemberName stored in tblSales.Cust_name (DAL line 3846); null-fix: INSERT calls .Replace()
             sale.Customer.MemberName = req.WalkInName ?? "";
 

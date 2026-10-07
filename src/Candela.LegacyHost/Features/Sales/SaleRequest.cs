@@ -16,6 +16,12 @@ namespace CandelaPOS.Features.Sales
         [JsonProperty("customer_id")]
         public int CustomerId { get; set; }           // 0 = walk-in
 
+        // The shop the customer is registered at (tblMemberInfo.shop_id). A customer can be sold to at any shop,
+        // but their credit balance is tracked against their own shop (tblSales.MemberShopID). 0 = not sent;
+        // the backend then looks it up from the member id.
+        [JsonProperty("customer_shop_id")]
+        public int CustomerShopId { get; set; }
+
         [JsonProperty("walk_in_name")]
         public string WalkInName { get; set; }
 
