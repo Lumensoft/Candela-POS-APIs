@@ -187,7 +187,11 @@ namespace CandelaPOS.Features.Quote
                 var productQtyMap = new Dictionary<int, double>();
                 foreach (var itm in req.Items)
                 {
-                    double effQty = itm.ConFactor > 1 ? itm.Quantity * itm.ConFactor : itm.Quantity;
+                    // double effQty = itm.ConFactor > 1 ? itm.Quantity * itm.ConFactor : itm.Quantity;
+                    // The client already sends Quantity in single units (pack qty × con_factor) and sends the
+                    // product's con_factor on every line, Single or Pack — multiplying again inflated the total of
+                    // every product with con_factor > 1 and pushed it past its tier's From_Qty..To_Qty.
+                    double effQty = itm.Quantity;
                     if (!productQtyMap.ContainsKey(itm.ProductItemId))
                         productQtyMap[itm.ProductItemId] = 0;
                     productQtyMap[itm.ProductItemId] += effQty;
