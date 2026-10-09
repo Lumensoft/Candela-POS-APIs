@@ -172,6 +172,7 @@ public sealed class LegacyHostClient : ILegacyHostClient
         AddContextHeader(request, "X-Ctx-Device-Id", JwtHelper.GetDeviceId);
         AddContextHeader(request, "X-Ctx-Group-Name", JwtHelper.GetGroupName);
         AddContextHeader(request, "X-Ctx-Group-Type", JwtHelper.GetGroupType);
+        AddContextHeader(request, "X-Ctx-Below-Cost-Right", JwtHelper.GetBelowCostRight);
 
         return request;
     }

@@ -44,6 +44,8 @@ namespace CandelaPOS.Shared.Http
             request.Properties["device_id"]  = ReadString(request, "X-Ctx-Device-Id");
             request.Properties["group_name"] = ReadString(request, "X-Ctx-Group-Name");
             request.Properties["group_type"] = ReadInt(request, "X-Ctx-Group-Type");
+            request.Properties["below_cost_right"] =
+                string.Equals(ReadString(request, "X-Ctx-Below-Cost-Right"), "True", StringComparison.OrdinalIgnoreCase);
 
             return base.SendAsync(request, cancellationToken);
         }
