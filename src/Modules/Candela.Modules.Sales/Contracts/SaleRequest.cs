@@ -174,6 +174,12 @@ namespace Candela.Modules.Sales.Contracts
         [JsonProperty("product_item_id")]
         public int ProductItemId { get; set; }
 
+        // Denormalized Product_Code column on tblSalesLineItems/tblSalesLineItemsHolding.
+        // Must be declared here too: this contract is re-serialized when forwarding to the
+        // legacy host, so an undeclared field is dropped on the way.
+        [JsonProperty("product_code")]
+        public string ProductCode { get; set; }
+
         [JsonProperty("quantity")]
         public double Quantity { get; set; }
 

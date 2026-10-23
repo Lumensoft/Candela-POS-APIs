@@ -22,6 +22,11 @@ public sealed class ReturnsService(IReturnsRepository repo, ILegacyHostClient le
         var sale = await repo.QuerySaleHeaderAsync(sourceShopId, invoiceNo, ct);
         var items = await repo.QuerySaleItemsAsync(sourceShopId, invoiceNo, ct);
 
+        // Saved rows may be in Candela's convention (pack lines per pack, tax kept apart); hand the web
+        // return screen per-single values, tax included.
+        foreach (var item in items)
+            SaleLineConvention.ToPerSingle(item);
+
         return new ValidateReturnResponse
         {
             CustomerCode = customerCode ?? "",
@@ -37,6 +42,8 @@ public sealed class ReturnsService(IReturnsRepository repo, ILegacyHostClient le
             .Select(i => i.ProductItemId).Where(id => id > 0).Distinct().ToList();
 
         var origLines = await repo.QuerySaleItemsForPreviewAsync(sourceShopId, req.SaleId, productIds, ct);
+        foreach (var line in origLines.Values)
+            SaleLineConvention.ToPerSingle(line);   // same per-single, tax-included shape as /validate
         var result = new List<Dictionary<string, object?>>();
 
         // Pre-compute total return qty per discount_id across ALL items in this request

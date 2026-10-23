@@ -16,6 +16,12 @@ namespace CandelaPOS.Features.Sales
         [JsonProperty("customer_id")]
         public int CustomerId { get; set; }           // 0 = walk-in
 
+        // The shop the customer is registered at (tblMemberInfo.shop_id). A customer can be sold to at any shop,
+        // but their credit balance is tracked against their own shop (tblSales.MemberShopID). 0 = not sent;
+        // the backend then looks it up from the member id.
+        [JsonProperty("customer_shop_id")]
+        public int CustomerShopId { get; set; }
+
         [JsonProperty("walk_in_name")]
         public string WalkInName { get; set; }
 
@@ -296,6 +302,16 @@ namespace CandelaPOS.Features.Sales
         // DAL uses Con_Unit for reporting; inventory deduction uses the raw Qty value directly.
         [JsonProperty("con_unit")]
         public string ConUnit { get; set; }
+
+        // Echoed from the /quote line: Candela's PriceAfterDiscount per single unit, without tax
+        // (and with the adjustment share when IsSubtractAdjustmentDiscount). Null = not supplied / not mapped
+        // (price-includes-VAT lines, older clients), in which case the previous net_amount-based value is kept.
+        [JsonProperty("price_after_discount")]
+        public double? PriceAfterDiscount { get; set; }
+
+        // Echoed from the /quote line: VAT% of the single retail price (tblSalesLineItems.VatOnRetailPrice).
+        [JsonProperty("vat_on_retail_price")]
+        public double? VatOnRetailPrice { get; set; }
     }
 
     // One allocation row for multi-batch splitting.

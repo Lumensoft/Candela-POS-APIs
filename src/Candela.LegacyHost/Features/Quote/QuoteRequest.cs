@@ -34,6 +34,13 @@ namespace CandelaPOS.Features.Quote
         // Defaults to true so existing calls (no field sent) preserve current behaviour.
         [JsonProperty("apply_market_discount")]
         public bool ApplyMarketDiscount { get; set; } = true;
+
+        // Cashier-entered invoice adjustment (signed; negative = discount), as typed on the checkout screen.
+        // Candela spreads it over the lines (AdjValue) and, when IsSubtractAdjustmentDiscount is on, takes it
+        // off the VAT base — so VAT depends on it and the quote needs it. net_total still EXCLUDES the
+        // adjustment itself (the client adds it), but includes the VAT computed on the adjusted base.
+        [JsonProperty("adjustment_amount")]
+        public double AdjustmentAmount { get; set; }
     }
 
     public class QuoteItem
@@ -58,6 +65,11 @@ namespace CandelaPOS.Features.Quote
 
         [JsonProperty("con_factor")]
         public double ConFactor { get; set; }
+
+        // "Pack" / "Single" — the unit this line is being sold in. Quantity is always sent in single units
+        // (pack qty × con_factor); this tells mode-based discounts (type 7) which price they apply to.
+        [JsonProperty("con_unit")]
+        public string ConUnit { get; set; }
 
         // Cashier-entered price override (ItemDetailModal → Price Override tab).
         // When set, the quote uses this rate instead of the product's standard price.
@@ -153,6 +165,16 @@ namespace CandelaPOS.Features.Quote
         // Echo back to /sales — DAL uses this to reverse discounts against the tag price.
         [JsonProperty("discount_from_tag_price")]
         public bool DiscountFromTagPrice { get; set; }
+
+        // Candela's tblSalesLineItems.PriceAfterDiscount, per single unit: rate − unit discount − customer/
+        // loyalty discount (+ the line's adjustment share when IsSubtractAdjustmentDiscount), WITHOUT tax —
+        // the tax is carried separately in vat_value. Null for price-includes-VAT lines (not mapped yet).
+        [JsonProperty("price_after_discount")]
+        public double? PriceAfterDiscount { get; set; }
+
+        // Candela's tblSalesLineItems.VatOnRetailPrice: VAT% of the single retail price. Null when unmapped.
+        [JsonProperty("vat_on_retail_price")]
+        public double? VatOnRetailPrice { get; set; }
     }
 
     public class QuoteResult
@@ -195,6 +217,12 @@ namespace CandelaPOS.Features.Quote
 
         [JsonProperty("net_total")]
         public double NetTotal { get; set; }
+
+        // What net_total would be with no adjustment. Differs from net_total only when an adjustment was sent
+        // and IsSubtractAdjustmentDiscount is on (VAT then depends on the adjustment). The checkout needs a
+        // stable base to turn a percentage adjustment into an amount without it chasing its own tail.
+        [JsonProperty("net_total_before_adjustment")]
+        public double NetTotalBeforeAdjustment { get; set; }
 
         // True when loyalty club is active and this customer has a member ID.
         [JsonProperty("is_loyalty_on")]

@@ -451,6 +451,8 @@ namespace CandelaPOS.Features.Returns
             sale.MarketingDiscount = req.MarketingDiscount;
             sale.VATAmount         = req.VatAmount;
             sale.AdjustmentAmount  = req.AdjustmentAmount;
+            sale.AdjustmentReasonId = req.AdjustmentReasonId;
+            sale.AdditionalComments = req.AdditionalComments ?? "";
             sale.CashAmount        = req.CashAmount;
             sale.CreditCardAmount  = req.CardAmount;
             sale.CreditAmount      = (decimal)req.CreditAmount;
@@ -462,7 +464,10 @@ namespace CandelaPOS.Features.Returns
             sale.SaleReturningShopId  = req.ReturningInvoiceNo > 0 ? srcShop : 0;
 
             if (req.CustomerId > 0)
+            {
                 sale.Customer.MemberID = req.CustomerId;
+                sale.CustomerShopID    = req.CustomerShopId;   // tblSales.MemberShopID
+            }
             sale.Customer.MemberName = "";
 
             sale.CreditCard.CreditCardID = req.CreditCardId;

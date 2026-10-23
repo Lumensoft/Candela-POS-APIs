@@ -65,6 +65,18 @@ namespace CandelaPOS.Features.Returns
         [JsonProperty("adjustment_amount")]
         public double AdjustmentAmount { get; set; }
 
+        [JsonProperty("adjustment_reason_id")]
+        public int? AdjustmentReasonId { get; set; }
+
+        // F1: ShowAdditionalComments — mapped to tblSales.Additional_Comments.
+        [JsonProperty("additional_comments")]
+        public string AdditionalComments { get; set; }
+
+        // The shop the customer is registered at → tblSales.MemberShopID, so a credit return reduces the
+        // customer's balance (their outstanding is summed per their own shop).
+        [JsonProperty("customer_shop_id")]
+        public int CustomerShopId { get; set; }
+
         [JsonProperty("cash_amount")]
         public double CashAmount { get; set; }
 
