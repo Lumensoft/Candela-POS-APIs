@@ -11,8 +11,11 @@ namespace Candela.Modules.Sales.Invoices;
 /// </summary>
 public interface ISalesRepository
 {
-    /// <summary>One page of invoice summary rows for this shop, plus the filtered total.</summary>
-    Task<SaleSearchResponse> SearchAsync(int shopId, int page, int pageSize,
+    /// <summary>
+    /// One page of invoice summary rows for this shop, plus the filtered total. <paramref name="posCode"/>
+    /// limits it to that POS's invoices; blank means every POS of the shop (the desktop's "All POS" box).
+    /// </summary>
+    Task<SaleSearchResponse> SearchAsync(int shopId, string? posCode, int page, int pageSize,
         string? q, string? from, string? to, string? invoiceNo, CancellationToken ct);
 
     /// <summary>

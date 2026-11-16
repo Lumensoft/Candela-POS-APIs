@@ -48,11 +48,38 @@ internal static class SaleLineConvention
 
         bool taxSeparate  = vatCharged > 0;                       // tax lives in pro_vat, not in PriceAfterDiscount
         bool candelaStyle = taxSeparate || f > 1 || adjLine != 0; // anything the old web save never produced
-        // A line with no tax has nothing hidden in PriceAfterDiscount, so the customer discount can be taken off
-        // it whichever app wrote it; a taxed old-web line (tax inside PriceAfterDiscount) is left exactly as paid.
-        if (!candelaStyle && !(vatRaw == 0 && custRaw != 0)) return;
 
         double mktPerUnit = qty != 0 ? Num(row, "marketing_on_line") * f / qty : 0;
+
+        // The receipt (marketing) discount is not applied on a return, so a share that the sale folded into
+        // PriceAfterDiscount (shop IsSubtractMarketingDiscount on) is put back, like the customer discount below.
+        // Detected from the row itself: PriceAfterDiscount must equal price − unit disc − [customer disc]
+        // − marketing share [+ adjustment share]. When it does not match, the share was never in it and is left alone.
+        bool mktInPad = false;
+        if (mktPerUnit != 0)
+        {
+            double adjShare = qty != 0 ? adjLine * f / qty : 0;
+            foreach (double cust in new[] { custRaw, 0.0 })
+                foreach (double adj in new[] { 0.0, adjShare })
+                    if (Math.Abs(padRaw - (priceForDisc - unitDisc * f - cust - mktPerUnit + adj)) < Eps)
+                        mktInPad = true;
+        }
+        // Tax kept as VatFactor% of the stored base rises with the base; a fixed-amount VAT does not.
+        double mktTaxBack = mktInPad && vatPercent && Math.Abs(vatRaw - padRaw * vatFactor / 100.0) < 0.01
+            ? mktPerUnit * vatFactor / 100.0 : 0.0;
+
+        // A line with no tax has nothing hidden in PriceAfterDiscount, so the customer discount can be taken off
+        // it whichever app wrote it; a taxed old-web line (tax inside PriceAfterDiscount) is left exactly as paid.
+        if (!candelaStyle && !(vatRaw == 0 && custRaw != 0))
+        {
+            if (mktInPad)
+            {
+                row["price_after_discount"] = padRaw + mktPerUnit + mktTaxBack;
+                row["vat_value"]            = vatRaw + mktTaxBack;
+                row["marketing_on_line"]    = 0.0;
+            }
+            return;
+        }
 
         // Was the line's adjustment share folded into PriceAfterDiscount? Decided from the row itself.
         // PriceAfterDiscount is the VAT base, i.e. (price − unit disc − customer disc [− marketing share, when
@@ -92,6 +119,14 @@ internal static class SaleLineConvention
                 if (taxOnBase) tax = (padRaw + custRaw) * vatFactor / 100.0;
                 padNoAdj += custRaw;
             }
+        }
+
+        // No receipt discount on a return: add the marketing share back (and the tax on it) when it was in the price.
+        if (mktInPad)
+        {
+            padNoAdj += mktPerUnit;
+            tax      += mktTaxBack;
+            row["marketing_on_line"] = 0.0;
         }
 
         // Per single, tax included, adjustment excluded, no customer discount.

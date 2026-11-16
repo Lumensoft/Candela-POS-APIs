@@ -29,9 +29,12 @@ namespace CandelaPOS.Features.Sales
             [FromUri] string q         = null,
             [FromUri] string from      = null,
             [FromUri] string to        = null,
-            [FromUri] string invoice_no = null)
+            [FromUri] string invoice_no = null,
+            [FromUri] bool   all_pos   = false)
         {
             int shopId = (int)Request.Properties["shop_id"];
+            // SaleAndReturnDAL.SearchInvoices: only this POS's invoices unless "All POS" is ticked.
+            string posCode = all_pos ? null : (string)Request.Properties["pos_code"];
 
             if (page      < 1) page      = 1;
             if (page_size < 1 || page_size > 100) page_size = 20;
@@ -72,6 +75,12 @@ WHERE s.shop_id = @shopId";
                 var where  = new System.Text.StringBuilder(baseSql);
                 var cmd    = new SqlCommand();
                 cmd.Parameters.AddWithValue("@shopId", shopId);
+
+                if (!string.IsNullOrWhiteSpace(posCode))
+                {
+                    where.Append(" AND s.pos_code = @posCode");
+                    cmd.Parameters.AddWithValue("@posCode", posCode.Trim());
+                }
 
                 if (!string.IsNullOrWhiteSpace(invoice_no))
                 {

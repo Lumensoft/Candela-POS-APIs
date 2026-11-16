@@ -35,6 +35,12 @@ namespace CandelaPOS.Features.Quote
         [JsonProperty("apply_market_discount")]
         public bool ApplyMarketDiscount { get; set; } = true;
 
+        // Return mode: the receipt (marketing) discount applies only when the invoice-level discount running now
+        // is a Flat Discount (2) or Percentage (3); any other type — and ManualMarketingDiscount — is dropped.
+        // Overrides ApplyMarketDiscount, like the discount that applies to all sales.
+        [JsonProperty("return_mode")]
+        public bool ReturnMode { get; set; }
+
         // Cashier-entered invoice adjustment (signed; negative = discount), as typed on the checkout screen.
         // Candela spreads it over the lines (AdjValue) and, when IsSubtractAdjustmentDiscount is on, takes it
         // off the VAT base — so VAT depends on it and the quote needs it. net_total still EXCLUDES the
