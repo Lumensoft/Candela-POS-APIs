@@ -34,6 +34,12 @@ namespace CandelaPOS.Features.Quote
         // Defaults to true so existing calls (no field sent) preserve current behaviour.
         [JsonProperty("apply_market_discount")]
         public bool ApplyMarketDiscount { get; set; } = true;
+
+        // Return mode: the receipt (marketing) discount applies only when the invoice-level discount running now
+        // is a Flat Discount (2) or Percentage (3); any other type — and ManualMarketingDiscount — is dropped.
+        // Overrides ApplyMarketDiscount, like the discount that applies to all sales.
+        [JsonProperty("return_mode")]
+        public bool ReturnMode { get; set; }
     }
 
     public class QuoteItem

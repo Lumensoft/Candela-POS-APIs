@@ -12,7 +12,7 @@ namespace Candela.Modules.Sales.Invoices;
 /// </summary>
 public interface ISalesService
 {
-    Task<SaleSearchResponse> SearchAsync(int shopId, int page, int pageSize,
+    Task<SaleSearchResponse> SearchAsync(int shopId, string? posCode, int page, int pageSize,
         string? q, string? from, string? to, string? invoiceNo, CancellationToken ct);
 
     /// <summary>Null when the sale is not this shop's — the caller answers 404.</summary>

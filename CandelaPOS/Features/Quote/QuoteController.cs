@@ -501,6 +501,20 @@ namespace CandelaPOS.Features.Quote
                 // Kept before the toggle gate below so the client can still show/offer the
                 // toggle (and the amount it would apply) even while it's switched off — the
                 // toggle's own visibility must not depend on whether it's currently applied.
+                // Return mode: the live receipt discount (computed just above, exactly as Candela does) stands only when
+                // the invoice-level discount running now is a Flat Discount or a Percentage; any other type gives none.
+                if (req.ReturnMode)
+                {
+                    int runningType = GetActiveInvoiceDiscountType(shopId, now);
+                    if (runningType != 2 && runningType != 3) mktDisc = 0;
+                    // A flat figure is not sign-aware: on a return cart (negative gross) it must reduce the refund,
+                    // so it takes the gross's sign and can never exceed it. A percentage already carries the sign.
+                    else if (runningType == 2)
+                    {
+                        double retBase = absoluteTotal - preTotalCustDisc;
+                        if (retBase < 0) mktDisc = -Math.Min(Math.Abs(mktDisc), Math.Abs(retBase));
+                    }
+                }
                 double autoMktDiscAvailable = mktDisc;
 
                 // Gap 6: cashier-facing toggle on CheckoutScreen. Only honored when the discount
@@ -683,7 +697,7 @@ namespace CandelaPOS.Features.Quote
                 // !PIV OR PIV+!isShowTagPrice: VAT is an add-on.
                 //   !PIV:             adds totalVat + totalFormula1Tax  (formula1 baked via dblVatValue line 12991)
                 //   PIV+!isShowTagPrice: adds totalVat only             (Candela strips formula1 at line 13070)
-                double totalMktDisc = mktDisc + req.ManualMarketingDiscount;
+                double totalMktDisc = mktDisc + (req.ReturnMode ? 0 : req.ManualMarketingDiscount);
                 double netTotal = grossTotal - totalDiscount - totalCustDisc - totalMktDisc;
                 if (isSlabVAT)
                     netTotal += totalVat + totalAddSaleTax;
@@ -1724,6 +1738,36 @@ WHERE s.member_id      = @customerId
                 cmd.Parameters.AddWithValue("@endDate",      endDate.ToString("yyyy-MM-dd HH:mm:ss"));
                 var result = cmd.ExecuteScalar();
                 return result != null && result != DBNull.Value ? Safe(result) : 0;
+            }
+        }
+
+        // discount_type of the invoice-level (charged_to = 2) discount running for this shop at this moment — the row
+        // SaleAndReturnDAL.GetMarketingDiscountValue (DAL:1208-1212) reads — or 0 when none is running.
+        private int GetActiveInvoiceDiscountType(int shopId, DateTime when)
+        {
+            const string sql =
+                "SELECT TOP 1 d.discount_type " +
+                "FROM tblDefDiscounts D " +
+                "INNER JOIN tblDefDiscountShops DS ON D.discount_id = DS.discount_id " +
+                "WHERE (CONVERT(datetime, @dateStr, 107) " +
+                "       BETWEEN CONVERT(datetime, discount_start_date, 107) " +
+                "           AND CONVERT(datetime, discount_end_date,   107)) " +
+                "  AND (CONVERT(varchar, CONVERT(datetime, @timeStr), 108) " +
+                "       BETWEEN CONVERT(varchar, discount_start_time, 108) " +
+                "           AND CONVERT(varchar, discount_end_time,   108)) " +
+                "  AND Days_of_Weeks LIKE @dayPat " +
+                "  AND charged_to = '2' " +
+                "  AND DS.shop_id = @shopId";
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(sql, con);
+                cmd.Parameters.AddWithValue("@dateStr", when.ToString("dd-MMM-yyyy"));
+                cmd.Parameters.AddWithValue("@timeStr", when.ToString("HH:mm"));
+                cmd.Parameters.AddWithValue("@dayPat",  "%" + when.ToString("dddd") + "%");
+                cmd.Parameters.AddWithValue("@shopId",  shopId);
+                var result = cmd.ExecuteScalar();
+                return result != null && result != DBNull.Value ? Convert.ToInt32(result) : 0;
             }
         }
 

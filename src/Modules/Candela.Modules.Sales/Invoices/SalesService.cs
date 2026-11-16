@@ -9,9 +9,9 @@ namespace Candela.Modules.Sales.Invoices;
 /// </summary>
 public sealed class SalesService(ISalesRepository repo, ILegacyHostClient legacy) : ISalesService
 {
-    public Task<SaleSearchResponse> SearchAsync(int shopId, int page, int pageSize,
+    public Task<SaleSearchResponse> SearchAsync(int shopId, string? posCode, int page, int pageSize,
         string? q, string? from, string? to, string? invoiceNo, CancellationToken ct)
-        => repo.SearchAsync(shopId, page, pageSize, q, from, to, invoiceNo, ct);
+        => repo.SearchAsync(shopId, posCode, page, pageSize, q, from, to, invoiceNo, ct);
 
     public Task<SaleDetailResponse?> GetSaleAsync(int saleId, int shopId, CancellationToken ct)
         => repo.GetSaleAsync(saleId, shopId, ct);

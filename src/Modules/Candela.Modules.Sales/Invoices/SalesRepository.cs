@@ -12,7 +12,7 @@ namespace Candela.Modules.Sales.Invoices;
 /// </summary>
 public sealed class SalesRepository(IDb db) : ISalesRepository
 {
-    public async Task<SaleSearchResponse> SearchAsync(int shopId, int page, int pageSize,
+    public async Task<SaleSearchResponse> SearchAsync(int shopId, string? posCode, int page, int pageSize,
         string? q, string? from, string? to, string? invoiceNo, CancellationToken ct)
     {
         const string baseSql = @"
@@ -49,6 +49,14 @@ WHERE s.shop_id = @shopId";
         var where = new StringBuilder(baseSql);
         var p = new DynamicParameters();
         p.Add("@shopId", shopId);
+
+        // SaleAndReturnDAL.SearchInvoices (vb:9097): IIf(POSCode.Trim = "", "", " and pos_code = '<POS>'").
+        // frmSaleAndReturn passes the signed-in POS unless the "All POS" box is ticked, which sends "".
+        if (!string.IsNullOrWhiteSpace(posCode))
+        {
+            where.Append(" AND s.pos_code = @posCode");
+            p.Add("@posCode", posCode.Trim());
+        }
 
         if (!string.IsNullOrWhiteSpace(invoiceNo))
         {

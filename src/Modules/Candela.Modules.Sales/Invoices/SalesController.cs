@@ -27,7 +27,10 @@ namespace Candela.Modules.Sales.Invoices;
 [Route("api/sales")]
 public sealed class SalesController(ISalesService sales) : CandelaControllerBase
 {
-    /// <summary>GET /api/sales?page=&amp;page_size=&amp;q=&amp;from=&amp;to=&amp;invoice_no=</summary>
+    /// <summary>
+    /// GET /api/sales?page=&amp;page_size=&amp;q=&amp;from=&amp;to=&amp;invoice_no=&amp;all_pos=
+    /// Only the signed-in POS's invoices unless <c>all_pos=true</c> (the desktop's "All POS" box).
+    /// </summary>
     [HttpGet("")]
     public async Task<IActionResult> GetSales(
         [FromQuery] int page = 1,
@@ -36,12 +39,13 @@ public sealed class SalesController(ISalesService sales) : CandelaControllerBase
         [FromQuery] string? from = null,
         [FromQuery] string? to = null,
         [FromQuery] string? invoice_no = null,
+        [FromQuery] bool all_pos = false,
         CancellationToken ct = default)
     {
         if (page < 1) page = 1;
         if (page_size < 1 || page_size > 100) page_size = 20;
 
-        var result = await sales.SearchAsync(ShopId, page, page_size, q, from, to, invoice_no, ct);
+        var result = await sales.SearchAsync(ShopId, all_pos ? null : PosCode, page, page_size, q, from, to, invoice_no, ct);
         return new JsonResult(result);
     }
 
