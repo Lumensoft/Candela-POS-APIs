@@ -37,7 +37,7 @@ namespace CandelaPOS.Features.Quote
 
                 // ── tblShopConfiguration ──────────────────────────────────────────────
                 bool   isShopBasedVAT   = Eq(cfg, "isShopBasedVAT",   "True");
-                bool   priceIncludesVAT = Eq(cfg, "PriceIncludesVAT", "True");
+                bool   priceIncludesVAT = ResolvePriceIncludesVAT(cfg, rcmsCfg);
                 double configVatPct     = Dbl(cfg, "VATPercentage");
                 bool   taxOnCard        = Eq(cfg, "chkSaleTaxOnCard",  "True");
                 double cardTaxPct       = Dbl(cfg, "txtSaleTaxPercentOnCard");
@@ -1309,6 +1309,21 @@ WHERE m.member_id = @customerId";
         {
             if (val == null || val == DBNull.Value) return 0;
             return double.TryParse(val.ToString(), out double d) ? d : 0;
+        }
+
+        // Shop "PriceIncludesVAT" is a 3-way setting, not a flag — frmSaleAndReturn.vb:3242-3264:
+        //   "0" (or no row) -> follow the system setting isEnablePriceIncludesVAT
+        //   "1"             -> prices include VAT
+        //   anything else   -> prices exclude VAT (e.g. "2")
+        // 'True' text is still accepted as include (bit-backed values some shops carry).
+        private static bool ResolvePriceIncludesVAT(Dictionary<string, string> shopCfg, Dictionary<string, string> rcmsCfg)
+        {
+            string v = shopCfg.TryGetValue("PriceIncludesVAT", out var s) ? s?.Trim() : null;
+            if (string.IsNullOrEmpty(v) || v == "0")
+                return rcmsCfg != null
+                    && rcmsCfg.TryGetValue("isEnablePriceIncludesVAT", out var sys)
+                    && string.Equals(sys?.Trim(), "True", StringComparison.OrdinalIgnoreCase);
+            return v == "1" || string.Equals(v, "True", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool Eq(Dictionary<string, string> cfg, string key, string val)
