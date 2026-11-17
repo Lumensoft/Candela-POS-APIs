@@ -959,7 +959,7 @@ WHERE li.sale_id  = @saleId
             {
                 con.Open();
                 var cmd = new SqlCommand(
-                    "SELECT isnull(discount_duration,0) FROM tblDefDiscounts WHERE discount_id = @did", con);
+                    "SELECT isnull(discount_duration,0) FROM tblDefDiscounts WHERE discount_id = @did AND discount_type IN (8,9,10)", con);
                 cmd.Parameters.AddWithValue("@did", discountId);
                 var result = cmd.ExecuteScalar();
                 return result != null && result != DBNull.Value ? Convert.ToDouble(result) : 0;

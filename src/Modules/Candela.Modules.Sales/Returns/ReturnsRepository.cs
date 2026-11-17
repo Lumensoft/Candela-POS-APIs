@@ -156,8 +156,13 @@ WHERE li.sale_id  = @saleId
 
     public async Task<double> GetDiscountDurationAsync(int discountId, CancellationToken ct)
     {
+        // discount_duration is a buy-quantity threshold only for the Buy-X-Get-Y family (8 X/Y, 9 N, 10 M).
+        // For other types it holds something else — the Value of a "Quantity Discount Value" (7), the flat amount
+        // of a Flat Discount (2), the price floor of a Value Discount (5) — and must not be read as a quantity:
+        // that wiped the discount on a return (5 returned < Value 10 + 1). Those types keep the discount saved on
+        // the invoice line, like Candela's IsValidForReturn_WithDiscount does.
         var v = await db.ExecuteScalarAsync<object>(
-            "SELECT isnull(discount_duration,0) FROM tblDefDiscounts WHERE discount_id = @did",
+            "SELECT isnull(discount_duration,0) FROM tblDefDiscounts WHERE discount_id = @did AND discount_type IN (8,9,10)",
             new { did = discountId }, ct);
 
         return v is not null && v != DBNull.Value ? Convert.ToDouble(v) : 0;
