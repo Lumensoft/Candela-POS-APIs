@@ -587,6 +587,11 @@ namespace CandelaPOS.Features.Sales
                         ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
                 }
                 DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                // Candela's own business-rule stops (SaleAndReturnDAL.SalesValidations: "Operation is not allowed because
+                // physical audit exists after the sale date ...", i.e. a closed stock count on/after the sale date) must
+                // reach the cashier as that message — not as a generic 500 / network error.
+                if ((ex.Message ?? "").IndexOf("physical audit", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return HandleDalException(ex);
                 return ApiError.Internal(Request, ex, "SalesController.PostSale");
             }
         }
