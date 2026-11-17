@@ -218,6 +218,7 @@ namespace CandelaPOS.Features.Quote
                     string discCategory = "";
                     double loyaltyCashDisc = 0;
                     double custDiscUnit    = 0;
+                    double custDiscPctApplied = 0;   // member-type % that applies to this line (before priority blocking)
                     double loyaltyPct      = 0;
                     bool   isCouponLine    = false;
 
@@ -409,6 +410,7 @@ namespace CandelaPOS.Features.Quote
                              && p.NotForDiscount == 0)
                     {
                         // Employee / qty-limited discount. frmSaleAndReturn.vb:37350-37368.
+                        custDiscPctApplied = empDiscPct;
                         if (!blockCustDiscOnUnitDisc || unitDisc == 0)
                             custDiscUnit = Math.Round((unitRate - unitDisc) * (empDiscPct / 100.0), amountRound,
                                 MidpointRounding.AwayFromZero);
@@ -419,6 +421,7 @@ namespace CandelaPOS.Features.Quote
                     {
                         // Per-item customer discount (Multiple_Customer_Disc=True).
                         // Rounding: hardcoded 4 places. frmSaleAndReturn.vb:13491.
+                        custDiscPctApplied = itemDiscPct;
                         if (!blockCustDiscOnUnitDisc || unitDisc == 0)
                             custDiscUnit = Math.Round((unitRate - unitDisc) * (itemDiscPct / 100.0), 4,
                                 MidpointRounding.AwayFromZero);
@@ -427,6 +430,7 @@ namespace CandelaPOS.Features.Quote
                     {
                         // Flat customer type discount (Multiple_Customer_Disc=False).
                         // Rounding: hardcoded 4. frmSaleAndReturn.vb:13491.
+                        custDiscPctApplied = custDiscPct;
                         if (!blockCustDiscOnUnitDisc || unitDisc == 0)
                             custDiscUnit = Math.Round((unitRate - unitDisc) * (custDiscPct / 100.0), 4,
                                 MidpointRounding.AwayFromZero);
@@ -441,6 +445,7 @@ namespace CandelaPOS.Features.Quote
                         VatIsPercent    = vatIsPercent,
                         UnitDisc        = unitDisc,
                         CustDiscUnit    = custDiscUnit,
+                        CustDiscPct     = custDiscPctApplied,
                         LoyaltyCashDisc = loyaltyCashDisc,
                         LoyaltyPct      = loyaltyPct,
                         DiscountId      = discountId,
@@ -660,6 +665,7 @@ namespace CandelaPOS.Features.Quote
                         TaggedPrice                = unitRate,
                         UnitDiscount               = unitDisc,
                         CustomerDiscountPerUnit    = custDiscUnit,
+                        CustomerDiscountPercent    = s.CustDiscPct,
                         LoyaltyCashDiscountPerUnit = s.LoyaltyCashDisc,
                         VatValue                   = vatValue,
                         VatFactor                  = vatFactor,
@@ -1405,6 +1411,7 @@ WHERE m.member_id = @customerId";
             public bool         VatIsPercent    { get; set; }
             public double       UnitDisc        { get; set; }
             public double       CustDiscUnit    { get; set; }
+            public double       CustDiscPct     { get; set; }
             public double       LoyaltyCashDisc { get; set; }
             public double       LoyaltyPct      { get; set; }  // raw % from ReadLoyalityPointsPercentage — used for earned-points calc
             public int          DiscountId      { get; set; }
