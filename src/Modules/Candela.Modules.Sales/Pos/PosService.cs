@@ -84,6 +84,14 @@ public sealed class PosService(IPosRepository repo, ILegacyHostClient legacy) : 
             throw new BusinessRuleException("No open shift to close for this till.");
 
         var now = req.ClosingDate ?? DateTime.Now;
+
+        // The closing date becomes the next shift's starting point, so it can't be in the future
+        // (5 min allowed for client/server clock drift) nor before this shift was opened.
+        if (now > DateTime.Now.AddMinutes(5))
+            throw new BusinessRuleException("Closing date cannot be in the future.");
+        if (bd.OpeningTime.HasValue && now < bd.OpeningTime.Value.AddMinutes(-1))
+            throw new BusinessRuleException("Closing date cannot be before the shift was opened.");
+
         double cashSubmitted = req.CashSubmitted;
         double closingCash = req.CashCounted - cashSubmitted;
 
