@@ -126,6 +126,11 @@ namespace CandelaPOS.Features.Quote
         [JsonProperty("customer_discount_per_unit")]
         public double CustomerDiscountPerUnit { get; set; }
 
+        // Member-type discount % that applies to this line (0 when none) — before DiscountPriority blocking.
+        // Lets a return recompute the customer discount on the invoice's own rate, like Candela does.
+        [JsonProperty("customer_discount_percent")]
+        public double CustomerDiscountPercent { get; set; }
+
         // Populated when loyalty club is active and a loyalty % applies to this item.
         // This IS the customer_discount_per_unit (they occupy the same slot in the VAT base).
         [JsonProperty("loyalty_cash_discount_per_unit")]

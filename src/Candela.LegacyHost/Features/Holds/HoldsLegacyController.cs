@@ -47,7 +47,26 @@ namespace CandelaPOS.Features.Holds
                 var sale = BuildHoldModel(req, userId, shopId, posCode, userName);
 
                 var dal = new SaleAndReturnDAL();
-                bool ok = dal.AddToHold(sale, EnumActions.Save);
+
+                // Holding a recalled receipt again updates THAT hold (Candela: AddToHold(Update) when mintPkHoldingId > 0,
+                // frmSaleAndReturn.vb:22810/22881). With Save the DAL inserts a new hold. If the original no longer exists
+                // (discarded elsewhere) it is parked as a new one.
+                var action = EnumActions.Save;
+                if (req.HoldingSaleId > 0)
+                {
+                    using (var con = new System.Data.SqlClient.SqlConnection(CandelaPOS.Shared.Data.CandelaBootstrap.ConnectionString))
+                    {
+                        con.Open();
+                        var cmd = new System.Data.SqlClient.SqlCommand(
+                            "SELECT COUNT(1) FROM tblSalesHolding WHERE Sale_id = @id AND shop_id = @sid", con);
+                        cmd.Parameters.AddWithValue("@id",  req.HoldingSaleId);
+                        cmd.Parameters.AddWithValue("@sid", shopId);
+                        if (Convert.ToInt32(cmd.ExecuteScalar()) > 0) action = EnumActions.Update;
+                        else sale.HoldingSaleID = 0;
+                    }
+                }
+
+                bool ok = dal.AddToHold(sale, action);
 
                 if (!ok)
                     return Request.CreateResponse(HttpStatusCode.InternalServerError,
@@ -113,7 +132,8 @@ namespace CandelaPOS.Features.Holds
                 var line = new SaleAndReturnItems(0, item.ProductItemId, item.Quantity,
                                                   item.UnitRate, item.TaggedPrice);
                 line.ProductCode                = item.ProductCode ?? "";
-                line.ProductBatchNo             = "";
+                line.ProductBatchNo             = item.BatchNo ?? "";
+                line.Employee.ShopEmployeeID    = item.SalespersonId > 0 ? item.SalespersonId : req.SalespersonId;
                 line.VATValue                   = item.VatValue;
                 line.VatFactor                  = item.VatFactor;
                 line.VatType                    = item.VatType ?? "";
@@ -129,9 +149,12 @@ namespace CandelaPOS.Features.Holds
                 line.DiscountFromTagPrice       = false;
                 line.LoyalityEarnedPoints       = 0;
                 line.NestedItemId               = 0;
-                line.PackSize                   = 0;
-                line.Con_Factor                 = 1.0;
-                line.Con_Unit                   = "";
+                // Same unit columns as a sale line (PackSize = conversion factor, pro_weight only on Pack lines), so a recall
+                // can tell a Pack line from a Single one. Quantity and rates stay per single.
+                bool isPackLine = string.Equals(item.ConUnit, "Pack", StringComparison.OrdinalIgnoreCase) && item.ConFactor > 0;
+                line.PackSize                   = item.ConFactor > 0 ? item.ConFactor : 0.0;
+                line.Con_Factor                 = isPackLine ? item.ConFactor : 0.0;
+                line.Con_Unit                   = item.ConUnit ?? "Single";
                 line.AvgCost                    = 0.0;
                 line.VatChargedPerUnit          = 0.0;
                 line.VatOnRetailPrice           = 0.0;

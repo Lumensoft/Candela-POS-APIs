@@ -248,7 +248,7 @@ ORDER BY d.DetailDate";
             return await db.InTransactionAsync<bool>(async (con, tx) =>
             {
                 const string lookupSql = @"
-SELECT d.Amount, d.Type
+SELECT d.Amount, d.Type, CAST(m.IsClosed AS bit) AS IsClosed
 FROM tblPOSCashManagement m
 INNER JOIN tblPOSCashManagementDetail d
     ON d.POSCashManagementID = m.POSCashManagementID AND d.ShopId = m.ShopID
@@ -261,6 +261,10 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
 
                 if (entry is null)
                     throw new DetailNotFound();   // rolls the (empty) transaction back -> caller 404s
+
+                // POSCashManagmentDAL.CanDeleteDetail — an entry of a closed shift can't be deleted.
+                if (entry.IsClosed)
+                    throw new Candela.Shared.Exceptions.BusinessRuleException("POS Can't be deleted because it has been closed.");
 
                 await con.ExecuteAsync(new CommandDefinition(
                     "DELETE FROM tblPOSCashManagementDetail WHERE POSCashManagementDetailID = @detailId",
@@ -317,5 +321,6 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
     {
         public double Amount { get; set; }
         public string Type { get; set; } = "";
+        public bool IsClosed { get; set; }
     }
 }

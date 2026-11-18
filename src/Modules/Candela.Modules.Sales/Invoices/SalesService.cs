@@ -13,8 +13,8 @@ public sealed class SalesService(ISalesRepository repo, ILegacyHostClient legacy
         string? q, string? from, string? to, string? invoiceNo, CancellationToken ct)
         => repo.SearchAsync(shopId, posCode, page, pageSize, q, from, to, invoiceNo, ct);
 
-    public Task<SaleDetailResponse?> GetSaleAsync(int saleId, int shopId, CancellationToken ct)
-        => repo.GetSaleAsync(saleId, shopId, ct);
+    public Task<SaleDetailResponse?> GetSaleAsync(int saleId, int shopId, string posCode, CancellationToken ct)
+        => repo.GetSaleAsync(saleId, shopId, posCode, ct);
 
     public Task<LegacyRawResponse> ForwardPostAsync(string rawJsonBody, CancellationToken ct)
         => legacy.SendRawAsync(HttpMethod.Post, "sales", rawJsonBody, ct);

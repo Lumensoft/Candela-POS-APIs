@@ -120,6 +120,22 @@ namespace CandelaPOS.Features.Auth
                     }
                     hasBelowCostRight = grantedRights.Contains("BelowCostSales");
 
+                    // Step 1c — the POS Cash Management screen's control rights, stored in the same token
+                    // claim as "frmPOSCashManagement.<control>" so they never collide with Sale-screen names
+                    // (e.g. frmPOSCashManagement.btnUpdate gates deleting a Received/Skimmed entry).
+                    var cashMgmtCmd = new SqlCommand(
+                        "SELECT sfc.controlName " +
+                        "FROM tblSecurityControlRight scr " +
+                        "INNER JOIN tblSecurityFormControl sfc ON sfc.ControlId = scr.ControlId " +
+                        "INNER JOIN tblSecurityForm sf ON sf.FORM_ID = sfc.FormID " +
+                        "WHERE scr.GroupId = @gid AND sf.Form_Name_New = 'frmPOSCashManagement'", con);
+                    cashMgmtCmd.Parameters.AddWithValue("@gid", groupId);
+                    using (var rdr2 = cashMgmtCmd.ExecuteReader())
+                    {
+                        while (rdr2.Read())
+                            grantedRights.Add("frmPOSCashManagement." + rdr2["controlName"].ToString());
+                    }
+
                     // Step 2a — check if this device is already registered in tblComputerList
                     const string findSql =
                         "SELECT computer_id, computer_name, shop_id, POS_code, isTabActive," +

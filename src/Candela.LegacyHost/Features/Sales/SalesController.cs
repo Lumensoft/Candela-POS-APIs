@@ -279,6 +279,10 @@ ORDER BY sli.sale_line_item_id", con);
 
                 var model = BuildVoidModel(id, shopId, userId, posCode, "Void");
 
+                // Candela's form runs this before voiding (frmSaleAndReturn.vb:38814): the invoice date must be
+                // after the last POS closing and the last shop closing (CommonDAL.checkTransactionAllowedOrNot).
+                new SaleAndReturnDAL().IsValidateForDelete(model);
+
                 // VoidSale() requires a pre-opened transaction (SaleAndReturnDAL.vb:15240).
                 using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
                 {
@@ -326,6 +330,9 @@ ORDER BY sli.sale_line_item_id", con);
                 }
 
                 var model = BuildVoidModel(id, shopId, userId, posCode, "Delete");
+
+                // Same pre-check Candela's form runs before a delete/void (SaleAndReturnDAL.IsValidateForDelete).
+                new SaleAndReturnDAL().IsValidateForDelete(model);
 
                 // Add() overload at SaleAndReturnDAL.vb:3518 opens its own connection + transaction.
                 string auditMsg = "";
@@ -377,6 +384,10 @@ ORDER BY sli.sale_line_item_id", con);
                 // re-inserts the new set (strSaleItemIDs="0" → DELETE NOT IN (0) removes all).
                 var sale = BuildModel(req, userId, shopId, posCode, userName);
                 sale.SaleID = id;
+
+                // Candela's form runs IsValidateForUpdate before an edit (frmSaleAndReturn.vb:7778): both the
+                // saved invoice date and the new one must be after the last POS / shop closing.
+                new SaleAndReturnDAL().IsValidateForUpdate(sale);
                 sale.ActivityLog.ScreenTitle = "Update";
 
                 string auditMsg = "";
@@ -457,7 +468,9 @@ ORDER BY sli.sale_line_item_id", con);
             if (msg.IndexOf("physical audit",   StringComparison.OrdinalIgnoreCase) >= 0
              || msg.IndexOf("not allowed",       StringComparison.OrdinalIgnoreCase) >= 0
              || msg.IndexOf("customer closing",  StringComparison.OrdinalIgnoreCase) >= 0
-             || msg.IndexOf("period",            StringComparison.OrdinalIgnoreCase) >= 0)
+             || msg.IndexOf("period",            StringComparison.OrdinalIgnoreCase) >= 0
+             || msg.IndexOf("closed before",     StringComparison.OrdinalIgnoreCase) >= 0
+             || msg.IndexOf("last closing date", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 string userMsg = msg;
                 int idx = msg.IndexOf("Exception Msg ", StringComparison.OrdinalIgnoreCase);
@@ -809,6 +822,11 @@ ORDER BY sli.sale_line_item_id", con);
                         ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
                 }
                 DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                // Candela's own business-rule stops (SaleAndReturnDAL.SalesValidations: "Operation is not allowed because
+                // physical audit exists after the sale date ...", i.e. a closed stock count on/after the sale date) must
+                // reach the cashier as that message — not as a generic 500 / network error.
+                if ((ex.Message ?? "").IndexOf("physical audit", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return HandleDalException(ex);
                 return ApiError.Internal(Request, ex, "SalesController.PostSale");
             }
         }

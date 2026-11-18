@@ -513,6 +513,14 @@ ORDER BY d.DetailDate";
             int    shopId  = (int)   Request.Properties["shop_id"];
             string posCode = (string)Request.Properties["pos_code"];
 
+            // frmPOSCashManagement.vb:289 — deleting a detail row needs the screen's btnUpdate right,
+            // carried in the JWT prefixed with the form name.
+            var rights = Request.Properties.ContainsKey("scr_rights")
+                ? Request.Properties["scr_rights"] as HashSet<string> : null;
+            if (rights == null || !rights.Contains("frmPOSCashManagement.btnUpdate"))
+                return Request.CreateResponse(HttpStatusCode.Forbidden,
+                    new { error = "You do not have the right to delete cash entries." });
+
             try
             {
                 using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
@@ -522,14 +530,14 @@ ORDER BY d.DetailDate";
                     try
                     {
                         const string lookupSql = @"
-SELECT d.Amount, d.Type
+SELECT d.Amount, d.Type, CAST(m.IsClosed AS bit) AS IsClosed
 FROM tblPOSCashManagement m
 INNER JOIN tblPOSCashManagementDetail d
     ON d.POSCashManagementID = m.POSCashManagementID AND d.ShopId = m.ShopID
 WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @pos
       AND d.POSCashManagementDetailID = @detailId";
 
-                        double amount; string type;
+                        double amount; string type; bool isClosed;
                         using (var lookupCmd = new SqlCommand(lookupSql, con, trans))
                         {
                             lookupCmd.Parameters.AddWithValue("@closingId", closingId);
@@ -546,7 +554,16 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
                                 }
                                 amount = Convert.ToDouble(rdr["Amount"]);
                                 type   = rdr["Type"].ToString();
+                                isClosed = Convert.ToBoolean(rdr["IsClosed"]);
                             }
+                        }
+
+                        // POSCashManagmentDAL.CanDeleteDetail — an entry of a closed shift can't be deleted.
+                        if (isClosed)
+                        {
+                            trans.Rollback();
+                            return Request.CreateResponse((HttpStatusCode)422,
+                                new { error = "POS Can't be deleted because it has been closed." });
                         }
 
                         using (var delCmd = new SqlCommand(
@@ -771,6 +788,16 @@ WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @po
                         new { error = "No open shift to close for this till." });
 
                 var now           = req.ClosingDate ?? DateTime.Now;
+
+                // The closing date becomes the next shift's starting point, so it can't be in the future
+                // (5 min allowed for client/server clock drift) nor before this shift was opened.
+                if (now > DateTime.Now.AddMinutes(5))
+                    return Request.CreateResponse((HttpStatusCode)422,
+                        new { error = "Closing date cannot be in the future." });
+                if (bd.OpeningTime.HasValue && now < bd.OpeningTime.Value.AddMinutes(-1))
+                    return Request.CreateResponse((HttpStatusCode)422,
+                        new { error = "Closing date cannot be before the shift was opened." });
+
                 double cashSubmitted = req.CashSubmitted;
                 double closingCash   = req.CashCounted - cashSubmitted;
 

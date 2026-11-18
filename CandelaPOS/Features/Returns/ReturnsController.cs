@@ -369,7 +369,7 @@ namespace CandelaPOS.Features.Returns
                         ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
                 }
             }
-            catch (Exception)
+            catch (Exception dalEx)
             {
                 // dal.Add() can throw a secondary error (e.g., BuildSQLLog truncation or loyalty
                 // reversal) even after tblSales/tblSalesLineItems already committed. If SaleID
@@ -381,6 +381,15 @@ namespace CandelaPOS.Features.Returns
                         ApiResponse<object>.Ok(new { sale_id = sale.SaleID }));
                 }
                 DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                // A closed stock count on/after the return date stops the save in Candela's own DAL
+                // (SaleAndReturnDAL.SalesValidations); show that message instead of a generic 500.
+                string dalMsg = dalEx.Message ?? "";
+                if (dalMsg.IndexOf("physical audit", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    int msgIdx = dalMsg.IndexOf("Exception Msg ", StringComparison.OrdinalIgnoreCase);
+                    if (msgIdx >= 0) dalMsg = dalMsg.Substring(msgIdx + "Exception Msg ".Length).Trim();
+                    return Request.CreateResponse((HttpStatusCode)422, new { error = dalMsg });
+                }
                 return Request.CreateResponse(HttpStatusCode.InternalServerError,
                     new { error = "An error occurred processing the return." });
             }
@@ -959,7 +968,7 @@ WHERE li.sale_id  = @saleId
             {
                 con.Open();
                 var cmd = new SqlCommand(
-                    "SELECT isnull(discount_duration,0) FROM tblDefDiscounts WHERE discount_id = @did", con);
+                    "SELECT isnull(discount_duration,0) FROM tblDefDiscounts WHERE discount_id = @did AND discount_type IN (8,9,10)", con);
                 cmd.Parameters.AddWithValue("@did", discountId);
                 var result = cmd.ExecuteScalar();
                 return result != null && result != DBNull.Value ? Convert.ToDouble(result) : 0;

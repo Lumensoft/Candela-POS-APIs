@@ -101,7 +101,39 @@ WHERE s.shop_id = @shopId";
         };
     }
 
-    public async Task<SaleDetailResponse?> GetSaleAsync(int saleId, int shopId, CancellationToken ct)
+    /// <summary>
+    /// Early warning for the sale screen — CommonDAL.checkTransactionAllowedOrNot (CommonDAL.vb:74-135), which
+    /// SaleAndReturnDAL.IsValidateForDelete/IsValidateForUpdate run against the invoice's saved date: the date
+    /// must be after the last POS closing (tblPosOpeningBalance) and after the last shop closing
+    /// (tblDefShopOpenBalance), each defaulting to BUSINESS_START_DATE 11:59:59 PM when never closed.
+    /// The legacy host runs the real check again on save; this only lets the screen say so before the user starts.
+    /// </summary>
+    private async Task<string?> GetClosedPeriodMessageAsync(DateTime saleDate, int shopId, string posCode,
+        CancellationToken ct)
+    {
+        var businessStartRaw = await db.QueryFirstOrDefaultAsync<string>(
+            "SELECT config_value FROM tblRCMSConfiguration WHERE config_name = 'BUSINESS_START_DATE'", null, ct);
+        DateTime? businessStart = DateTime.TryParse(businessStartRaw, out var bs) ? bs.Date.AddHours(23).AddMinutes(59).AddSeconds(59) : null;
+
+        const string fmt = "dd-MMM-yyyy hh:mm:ss tt";
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+
+        var posClosing = await db.QueryFirstOrDefaultAsync<DateTime?>(
+            "SELECT MAX(transaction_time) FROM tblPosOpeningBalance WHERE Pos_name = @posCode AND Shop_ID = @shopId",
+            new { posCode, shopId }, ct) ?? businessStart;
+        if (posClosing.HasValue && saleDate <= posClosing.Value)
+            return $"This invoice can't be edited, voided or deleted because its shift was closed on {posClosing.Value.ToString(fmt, inv)}.";
+
+        var shopClosing = await db.QueryFirstOrDefaultAsync<DateTime?>(
+            "SELECT MAX(transaction_time) FROM tblDefShopOpenBalance WHERE shop_id = @shopId",
+            new { shopId }, ct) ?? businessStart;
+        if (shopClosing.HasValue && saleDate <= shopClosing.Value)
+            return $"This invoice can't be edited, voided or deleted because the shop was closed on {shopClosing.Value.ToString(fmt, inv)}.";
+
+        return null;
+    }
+
+    public async Task<SaleDetailResponse?> GetSaleAsync(int saleId, int shopId, string posCode, CancellationToken ct)
     {
         const string hdrSql = @"
 SELECT
@@ -149,6 +181,10 @@ WHERE sli.sale_id = @saleId
 ORDER BY sli.sale_line_item_id";
 
         var items = await db.QueryRowsAsync(liSql, new { saleId }, ct);
+
+        hdrRows[0]["closed_period_message"] = hdrRows[0]["sale_date"] is DateTime saleDate
+            ? await GetClosedPeriodMessageAsync(saleDate, shopId, posCode, ct)
+            : null;
 
         return new SaleDetailResponse
         {

@@ -16,7 +16,7 @@ public interface ISalesService
         string? q, string? from, string? to, string? invoiceNo, CancellationToken ct);
 
     /// <summary>Null when the sale is not this shop's — the caller answers 404.</summary>
-    Task<SaleDetailResponse?> GetSaleAsync(int saleId, int shopId, CancellationToken ct);
+    Task<SaleDetailResponse?> GetSaleAsync(int saleId, int shopId, string posCode, CancellationToken ct);
 
     /// <summary>POST /api/sales — forwarded to POST /legacy/sales.</summary>
     Task<LegacyRawResponse> ForwardPostAsync(string rawJsonBody, CancellationToken ct);

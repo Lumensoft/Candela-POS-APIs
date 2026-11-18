@@ -51,7 +51,12 @@ SELECT
     isnull(l.PriceAfterDiscount, 0)      AS price_after_discount,
     isnull(l.DiscountCategory, '')       AS disc_category,
     isnull(l.discount_id, 0)             AS discount_id,
-    isnull(l.Loyality_CashDiscount, 0)   AS loyalty_cash_discount
+    isnull(l.Loyality_CashDiscount, 0)   AS loyalty_cash_discount,
+    isnull(l.Product_code, '')           AS product_code,
+    isnull(l.Con_Unit, '')               AS con_unit,
+    isnull(l.PackSize, 0)                AS pack_size,
+    isnull(l.product_batch_no, '')       AS batch_no,
+    isnull(l.employee_id, 0)             AS salesperson_id
 FROM tblSalesLineItemsHolding l
 WHERE l.shop_id = @shopId";
 

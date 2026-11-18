@@ -37,7 +37,7 @@ namespace CandelaPOS.Features.Quote
 
                 // ── tblShopConfiguration ──────────────────────────────────────────────
                 bool   isShopBasedVAT   = Eq(cfg, "isShopBasedVAT",   "True");
-                bool   priceIncludesVAT = Eq(cfg, "PriceIncludesVAT", "True");
+                bool   priceIncludesVAT = ResolvePriceIncludesVAT(cfg, rcmsCfg);
                 double configVatPct     = Dbl(cfg, "VATPercentage");
                 bool   taxOnCard        = Eq(cfg, "chkSaleTaxOnCard",  "True");
                 double cardTaxPct       = Dbl(cfg, "txtSaleTaxPercentOnCard");
@@ -218,6 +218,7 @@ namespace CandelaPOS.Features.Quote
                     string discCategory = "";
                     double loyaltyCashDisc = 0;
                     double custDiscUnit    = 0;
+                    double custDiscPctApplied = 0;   // member-type % that applies to this line (before priority blocking)
                     double loyaltyPct      = 0;
                     bool   isCouponLine    = false;
 
@@ -409,6 +410,7 @@ namespace CandelaPOS.Features.Quote
                              && p.NotForDiscount == 0)
                     {
                         // Employee / qty-limited discount. frmSaleAndReturn.vb:37350-37368.
+                        custDiscPctApplied = empDiscPct;
                         if (!blockCustDiscOnUnitDisc || unitDisc == 0)
                             custDiscUnit = Math.Round((unitRate - unitDisc) * (empDiscPct / 100.0), amountRound,
                                 MidpointRounding.AwayFromZero);
@@ -419,6 +421,7 @@ namespace CandelaPOS.Features.Quote
                     {
                         // Per-item customer discount (Multiple_Customer_Disc=True).
                         // Rounding: hardcoded 4 places. frmSaleAndReturn.vb:13491.
+                        custDiscPctApplied = itemDiscPct;
                         if (!blockCustDiscOnUnitDisc || unitDisc == 0)
                             custDiscUnit = Math.Round((unitRate - unitDisc) * (itemDiscPct / 100.0), 4,
                                 MidpointRounding.AwayFromZero);
@@ -427,6 +430,7 @@ namespace CandelaPOS.Features.Quote
                     {
                         // Flat customer type discount (Multiple_Customer_Disc=False).
                         // Rounding: hardcoded 4. frmSaleAndReturn.vb:13491.
+                        custDiscPctApplied = custDiscPct;
                         if (!blockCustDiscOnUnitDisc || unitDisc == 0)
                             custDiscUnit = Math.Round((unitRate - unitDisc) * (custDiscPct / 100.0), 4,
                                 MidpointRounding.AwayFromZero);
@@ -441,6 +445,7 @@ namespace CandelaPOS.Features.Quote
                         VatIsPercent    = vatIsPercent,
                         UnitDisc        = unitDisc,
                         CustDiscUnit    = custDiscUnit,
+                        CustDiscPct     = custDiscPctApplied,
                         LoyaltyCashDisc = loyaltyCashDisc,
                         LoyaltyPct      = loyaltyPct,
                         DiscountId      = discountId,
@@ -458,12 +463,17 @@ namespace CandelaPOS.Features.Quote
                 // coupon applies only to X items (paid), never to Y (free) items.
                 ApplyXYDiscounts(states);
 
+                // Quantity-based product discount (discount_type 11, category "Q") — Apply_DiscountOnQty,
+                // frmSaleAndReturn.vb:36339. Rebuilds the Q lines' unit discount from the cart's total quantity of
+                // each discount, or (charged to invoice) yields a receipt discount that replaces the normal one.
+                ApplyQtyDiscounts(states, req.CustomerId > 0, out double qtyReceiptDisc, out bool qtyReceiptApplied);
+
                 // Re-block pass: ApplyXYDiscounts sets UnitDisc > 0 on N/Y items AFTER
                 // Pass 1 computed CustDiscUnit with unitDisc=0. Re-zero customer disc on
                 // any X/Y/N item where DiscountPriority=Product should block it.
                 if (blockCustDiscOnUnitDisc)
                     foreach (var s in states)
-                        if (s.IsBuyXGetY && s.UnitDisc > 0)
+                        if ((s.IsBuyXGetY || s.DiscCategory == "Q") && s.UnitDisc > 0)
                         {
                             s.CustDiscUnit    = 0;
                             s.LoyaltyCashDisc = 0;
@@ -497,6 +507,14 @@ namespace CandelaPOS.Features.Quote
                 bool   isApplicableOnAll = false;
                 double mktDisc = SaleAndReturnDAL.GetMarketingDiscountValue(
                     shopId, now, absoluteTotal - preTotalCustDisc, ref isApplicableOnAll);
+
+                // A quantity discount charged to the invoice stands in for the receipt discount and always applies
+                // (frmSaleAndReturn.vb:13039-13042).
+                if (qtyReceiptApplied)
+                {
+                    mktDisc           = qtyReceiptDisc;
+                    isApplicableOnAll = true;
+                }
 
                 // Kept before the toggle gate below so the client can still show/offer the
                 // toggle (and the amount it would apply) even while it's switched off — the
@@ -647,6 +665,7 @@ namespace CandelaPOS.Features.Quote
                         TaggedPrice                = unitRate,
                         UnitDiscount               = unitDisc,
                         CustomerDiscountPerUnit    = custDiscUnit,
+                        CustomerDiscountPercent    = s.CustDiscPct,
                         LoyaltyCashDiscountPerUnit = s.LoyaltyCashDisc,
                         VatValue                   = vatValue,
                         VatFactor                  = vatFactor,
@@ -760,6 +779,214 @@ namespace CandelaPOS.Features.Quote
             {
                 System.Diagnostics.Trace.TraceError("QuoteController.Quote error: {0}", ex);
                 return ApiError.Internal(Request, ex, "QuoteController.Quote");
+            }
+        }
+
+        // ── Quantity-based product discount ──────────────────────────────────────────
+        // Port of frmSaleAndReturn.Apply_DiscountOnQty (vb:36339-36542). tblDefDiscounts.QtyDiscountConfiguration holds
+        // up to three "qty-percent" tiers (e.g. "2-10,3-15,4-20"); the cart quantity of all Q lines of one discount is
+        // what the tiers are read against.
+        //   charged_to = 1 (product): units are dealt out in sets of the last tier's quantity — the first units of each
+        //     set pay full price, the rest take the tier-1/2/3 percent in turn — then averaged to a unit discount per line.
+        //   otherwise (invoice): one tier is picked by the total quantity and its percent becomes a receipt discount.
+        private static void ApplyQtyDiscounts(List<ItemState> states, bool hasCustomer,
+                                              out double receiptDisc, out bool receiptApplied)
+        {
+            receiptDisc    = 0;
+            receiptApplied = false;
+
+            var qLines = states.Where(s => s.DiscCategory == "Q" && s.Item.Quantity != 0 && s.Product.NotForDiscount == 0).ToList();
+            if (qLines.Count == 0) return;
+
+            foreach (var s in qLines) s.UnitDisc = 0;   // vb:36372-36376
+
+            foreach (int discountId in qLines.Where(s => s.DiscountId != 0).Select(s => s.DiscountId).Distinct().ToList())
+            {
+                var lines = qLines.Where(s => s.DiscountId == discountId)
+                                  .OrderByDescending(s => s.UnitRate).ToList();   // [Rate] Desc, vb:36392
+                double totalQty = Math.Abs(lines.Sum(s => s.Item.Quantity));
+
+                string config   = SaleAndReturnDAL.GetQtyDiscountConfiguration(discountId) ?? "";
+                int    chargedTo = SaleAndReturnDAL.GetQtyDiscountConfigChargedTo(discountId);
+
+                // Tiers: "qty-percent", only those whose quantity starts above 0, at most three (vb:36409-36419).
+                var tiers = new List<(double Qty, double Disc)>();
+                foreach (var part in config.Split(','))
+                {
+                    var bits = part.Trim().Split('-');
+                    if (bits.Length < 2) continue;
+                    if (!double.TryParse(bits[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double q)) continue;
+                    if (!double.TryParse(bits[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double d)) continue;
+                    if (q > 0 && tiers.Count < 3) tiers.Add((q, d));
+                }
+                if (tiers.Count == 0) continue;
+
+                int    cc         = tiers.Count;
+                double firstQty   = tiers[0].Qty, firstDisc  = tiers[0].Disc;
+                double secondQty  = cc > 1 ? tiers[1].Qty : 0, secondDisc = cc > 1 ? tiers[1].Disc : 0;
+                double thirdQty   = cc > 2 ? tiers[2].Qty : 0, thirdDisc  = cc > 2 ? tiers[2].Disc : 0;
+
+                if (chargedTo == 1)
+                {
+                    double lastTierQty = tiers[cc - 1].Qty;
+                    int    numberOfSets = (int)Math.Truncate(totalQty / lastTierQty);
+                    int    lastSetQty   = (int)Math.Round(totalQty % lastTierQty, MidpointRounding.ToEven);
+                    double discItems    = cc * numberOfSets;
+
+                    if (lastSetQty == firstQty)  discItems += 1;
+                    if (lastSetQty == secondQty) discItems += 2;
+                    double nonDiscItems = totalQty - discItems;
+
+                    int fCount = (int)Math.Truncate(discItems / cc) + (discItems % cc > 0 ? 1 : 0);
+                    int sCount = (int)Math.Truncate(discItems / cc) + (discItems % cc > 1 ? 1 : 0);
+                    int tCount = (int)Math.Truncate(discItems / cc);
+                    if (discItems <= cc) { fCount = 1; sCount = 1; tCount = 1; }
+
+                    int appliedCount = 0, nonAppliedCount = 0;
+                    var acc = lines.ToDictionary(s => s, s => 0.0);
+                    foreach (var s in lines)
+                    {
+                        double rowQty = s.Item.Quantity;
+                        for (int i = 1; i <= rowQty; i++)
+                        {
+                            if (nonAppliedCount < nonDiscItems)
+                            {
+                                nonAppliedCount++;
+                                acc[s] = 0;
+                            }
+                            else
+                            {
+                                double perc = 0;
+                                if (appliedCount < fCount)                    perc = firstDisc  / 100.0;
+                                else if (appliedCount < fCount + sCount)      perc = secondDisc / 100.0;
+                                else if (appliedCount < fCount + sCount + tCount) perc = thirdDisc / 100.0;
+                                appliedCount++;
+                                acc[s] += s.UnitRate * perc;
+                            }
+                        }
+                    }
+                    foreach (var s in lines) s.UnitDisc = acc[s] / s.Item.Quantity;   // vb:36504-36506
+                }
+                else
+                {
+                    double perc = 0;
+                    if (totalQty >= firstQty && firstQty != 0 && (totalQty < secondQty || secondQty == 0))
+                        perc = firstDisc / 100.0;
+                    else if (totalQty >= secondQty && secondQty != 0 && (totalQty < thirdQty || thirdQty == 0))
+                        perc = secondDisc / 100.0;
+                    else if (totalQty >= thirdQty && thirdQty != 0)
+                        perc = thirdDisc / 100.0;
+
+                    double disc = 0;
+                    foreach (var s in lines)
+                        disc += (s.UnitRate - (hasCustomer ? s.CustDiscUnit : 0)) * perc * s.Item.Quantity;
+                    receiptDisc    = disc;
+                    receiptApplied = true;
+                }
+            }
+        }
+
+        // ── Quantity-based product discount ──────────────────────────────────────────
+        // Port of frmSaleAndReturn.Apply_DiscountOnQty (vb:36339-36542). tblDefDiscounts.QtyDiscountConfiguration holds
+        // up to three "qty-percent" tiers (e.g. "2-10,3-15,4-20"); the cart quantity of all Q lines of one discount is
+        // what the tiers are read against.
+        //   charged_to = 1 (product): units are dealt out in sets of the last tier's quantity — the first units of each
+        //     set pay full price, the rest take the tier-1/2/3 percent in turn — then averaged to a unit discount per line.
+        //   otherwise (invoice): one tier is picked by the total quantity and its percent becomes a receipt discount.
+        private static void ApplyQtyDiscounts(List<ItemState> states, bool hasCustomer,
+                                              out double receiptDisc, out bool receiptApplied)
+        {
+            receiptDisc    = 0;
+            receiptApplied = false;
+
+            var qLines = states.Where(s => s.DiscCategory == "Q" && s.Item.Quantity != 0 && s.Product.NotForDiscount == 0).ToList();
+            if (qLines.Count == 0) return;
+
+            foreach (var s in qLines) s.UnitDisc = 0;   // vb:36372-36376
+
+            foreach (int discountId in qLines.Where(s => s.DiscountId != 0).Select(s => s.DiscountId).Distinct().ToList())
+            {
+                var lines = qLines.Where(s => s.DiscountId == discountId)
+                                  .OrderByDescending(s => s.UnitRate).ToList();   // [Rate] Desc, vb:36392
+                double totalQty = Math.Abs(lines.Sum(s => s.Item.Quantity));
+
+                string config    = SaleAndReturnDAL.GetQtyDiscountConfiguration(discountId) ?? "";
+                int    chargedTo = SaleAndReturnDAL.GetQtyDiscountConfigChargedTo(discountId);
+
+                // Tiers: "qty-percent", only those whose quantity starts above 0, at most three (vb:36409-36419).
+                var tiers = new List<(double Qty, double Disc)>();
+                foreach (var part in config.Split(','))
+                {
+                    var bits = part.Trim().Split('-');
+                    if (bits.Length < 2) continue;
+                    if (!double.TryParse(bits[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double q)) continue;
+                    if (!double.TryParse(bits[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double d)) continue;
+                    if (q > 0 && tiers.Count < 3) tiers.Add((q, d));
+                }
+                if (tiers.Count == 0) continue;
+
+                int    cc         = tiers.Count;
+                double firstQty   = tiers[0].Qty, firstDisc  = tiers[0].Disc;
+                double secondQty  = cc > 1 ? tiers[1].Qty : 0, secondDisc = cc > 1 ? tiers[1].Disc : 0;
+                double thirdQty   = cc > 2 ? tiers[2].Qty : 0, thirdDisc  = cc > 2 ? tiers[2].Disc : 0;
+
+                if (chargedTo == 1)
+                {
+                    double lastTierQty  = tiers[cc - 1].Qty;
+                    int    numberOfSets = (int)Math.Truncate(totalQty / lastTierQty);
+                    int    lastSetQty   = (int)Math.Round(totalQty % lastTierQty, MidpointRounding.ToEven);
+                    double discItems    = cc * numberOfSets;
+
+                    if (lastSetQty == firstQty)  discItems += 1;
+                    if (lastSetQty == secondQty) discItems += 2;
+                    double nonDiscItems = totalQty - discItems;
+
+                    int fCount = (int)Math.Truncate(discItems / cc) + (discItems % cc > 0 ? 1 : 0);
+                    int sCount = (int)Math.Truncate(discItems / cc) + (discItems % cc > 1 ? 1 : 0);
+                    int tCount = (int)Math.Truncate(discItems / cc);
+                    if (discItems <= cc) { fCount = 1; sCount = 1; tCount = 1; }
+
+                    int appliedCount = 0, nonAppliedCount = 0;
+                    var acc = lines.ToDictionary(s => s, s => 0.0);
+                    foreach (var s in lines)
+                    {
+                        double rowQty = s.Item.Quantity;
+                        for (int i = 1; i <= rowQty; i++)
+                        {
+                            if (nonAppliedCount < nonDiscItems)
+                            {
+                                nonAppliedCount++;
+                                acc[s] = 0;
+                            }
+                            else
+                            {
+                                double perc = 0;
+                                if (appliedCount < fCount)                         perc = firstDisc  / 100.0;
+                                else if (appliedCount < fCount + sCount)           perc = secondDisc / 100.0;
+                                else if (appliedCount < fCount + sCount + tCount)  perc = thirdDisc  / 100.0;
+                                appliedCount++;
+                                acc[s] += s.UnitRate * perc;
+                            }
+                        }
+                    }
+                    foreach (var s in lines) s.UnitDisc = acc[s] / s.Item.Quantity;   // vb:36504-36506
+                }
+                else
+                {
+                    double perc = 0;
+                    if (totalQty >= firstQty && firstQty != 0 && (totalQty < secondQty || secondQty == 0))
+                        perc = firstDisc / 100.0;
+                    else if (totalQty >= secondQty && secondQty != 0 && (totalQty < thirdQty || thirdQty == 0))
+                        perc = secondDisc / 100.0;
+                    else if (totalQty >= thirdQty && thirdQty != 0)
+                        perc = thirdDisc / 100.0;
+
+                    double disc = 0;
+                    foreach (var s in lines)
+                        disc += (s.UnitRate - (hasCustomer ? s.CustDiscUnit : 0)) * perc * s.Item.Quantity;
+                    receiptDisc    = disc;
+                    receiptApplied = true;
+                }
             }
         }
 
@@ -1084,6 +1311,21 @@ WHERE m.member_id = @customerId";
             return double.TryParse(val.ToString(), out double d) ? d : 0;
         }
 
+        // Shop "PriceIncludesVAT" is a 3-way setting, not a flag — frmSaleAndReturn.vb:3242-3264:
+        //   "0" (or no row) -> follow the system setting isEnablePriceIncludesVAT
+        //   "1"             -> prices include VAT
+        //   anything else   -> prices exclude VAT (e.g. "2")
+        // 'True' text is still accepted as include (bit-backed values some shops carry).
+        private static bool ResolvePriceIncludesVAT(Dictionary<string, string> shopCfg, Dictionary<string, string> rcmsCfg)
+        {
+            string v = shopCfg.TryGetValue("PriceIncludesVAT", out var s) ? s?.Trim() : null;
+            if (string.IsNullOrEmpty(v) || v == "0")
+                return rcmsCfg != null
+                    && rcmsCfg.TryGetValue("isEnablePriceIncludesVAT", out var sys)
+                    && string.Equals(sys?.Trim(), "True", StringComparison.OrdinalIgnoreCase);
+            return v == "1" || string.Equals(v, "True", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static bool Eq(Dictionary<string, string> cfg, string key, string val)
             => cfg.TryGetValue(key, out var v)
                && string.Equals(v, val, StringComparison.OrdinalIgnoreCase);
@@ -1184,6 +1426,7 @@ WHERE m.member_id = @customerId";
             public bool         VatIsPercent    { get; set; }
             public double       UnitDisc        { get; set; }
             public double       CustDiscUnit    { get; set; }
+            public double       CustDiscPct     { get; set; }
             public double       LoyaltyCashDisc { get; set; }
             public double       LoyaltyPct      { get; set; }  // raw % from ReadLoyalityPointsPercentage — used for earned-points calc
             public int          DiscountId      { get; set; }

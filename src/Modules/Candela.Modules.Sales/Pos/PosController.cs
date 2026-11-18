@@ -67,6 +67,11 @@ public sealed class PosController(IPosService pos) : CandelaControllerBase
     [HttpDelete("shifts/{closingId:int}/detail/{detailId:int}")]
     public async Task<IActionResult> DeleteShiftDetail(int closingId, int detailId, CancellationToken ct)
     {
+        // frmPOSCashManagement.vb:289 — the delete button on a detail row exists only for a group holding
+        // the screen's btnUpdate right. Those rights ride in the JWT, prefixed with the form name.
+        if (!ControlRights.Contains("frmPOSCashManagement.btnUpdate"))
+            return Fail(StatusCodes.Status403Forbidden, "You do not have the right to delete cash entries.");
+
         var deleted = await pos.DeleteShiftDetailAsync(closingId, detailId, ShopId, PosCode, ct);
         if (!deleted)
             return Fail(StatusCodes.Status404NotFound, "Entry not found.");
