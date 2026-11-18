@@ -365,7 +365,7 @@ WHERE  config_name IN ('FonePayEnabled', 'AlifPayEnabled',
         return db.QueryRowsAsync(sql, null, ct);
     }
 
-    public Task<IReadOnlyList<Dictionary<string, object?>>> GetConfigAsync(int shopId,
+    public async Task<IReadOnlyList<Dictionary<string, object?>>> GetConfigAsync(int shopId,
         CancellationToken ct)
     {
         // Merges tblShopConfiguration (shop-specific) and tblRCMSConfiguration (global).
@@ -383,7 +383,26 @@ UNION ALL
 SELECT config_name AS config_key, config_value, 'rcms' AS source
 FROM   tblRCMSConfiguration";
 
-        return db.QueryRowsAsync(sql, new { shopId }, ct);
+        var rows = new List<Dictionary<string, object?>>(await db.QueryRowsAsync(sql, new { shopId }, ct));
+
+        // The "Version" row is stored encrypted, so the browser cannot read it. frmSaleAndReturn.isTillOpened
+        // (CR #7648) needs it (Version = 1 → the "Till is not opened" icon applies to every user, otherwise only
+        // to shop users), so send the decrypted answer as a derived flag. Unreadable → "False".
+        var basic = false;
+        try
+        {
+            var raw = rows.FirstOrDefault(r => string.Equals(r["config_key"] as string, "Version",
+                StringComparison.OrdinalIgnoreCase))?["config_value"] as string;
+            basic = !string.IsNullOrWhiteSpace(raw) && Candela.Platform.Security.SymmetricEncryption.Decrypt(raw, "f") == "1";
+        }
+        catch { /* leave false */ }
+        rows.Add(new Dictionary<string, object?>
+        {
+            ["config_key"] = "IsBasicEdition",
+            ["config_value"] = basic ? "True" : "False",
+            ["source"] = "derived",
+        });
+        return rows;
     }
 
     public Task<IReadOnlyList<Dictionary<string, object?>>> GetLineItemsAsync(CancellationToken ct)

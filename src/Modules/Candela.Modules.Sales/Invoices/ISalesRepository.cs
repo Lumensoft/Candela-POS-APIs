@@ -20,7 +20,9 @@ public interface ISalesRepository
 
     /// <summary>
     /// Invoice header + line items for the detail panel, or null when the sale is not
-    /// this shop's — the caller turns null into the net48 404.
+    /// this shop's — the caller turns null into the net48 404. The header also carries
+    /// <c>closed_period_message</c>: why Candela would refuse to void/delete/edit this invoice because its date
+    /// is on or before the last POS / shop closing (null when it may be changed).
     /// </summary>
-    Task<SaleDetailResponse?> GetSaleAsync(int saleId, int shopId, CancellationToken ct);
+    Task<SaleDetailResponse?> GetSaleAsync(int saleId, int shopId, string posCode, CancellationToken ct);
 }

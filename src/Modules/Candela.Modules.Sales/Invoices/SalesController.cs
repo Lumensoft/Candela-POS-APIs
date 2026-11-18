@@ -53,7 +53,7 @@ public sealed class SalesController(ISalesService sales) : CandelaControllerBase
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetSale(int id, CancellationToken ct)
     {
-        var result = await sales.GetSaleAsync(id, ShopId, ct);
+        var result = await sales.GetSaleAsync(id, ShopId, PosCode, ct);
         if (result is null)
             return Fail(StatusCodes.Status404NotFound, "Sale not found");
 
