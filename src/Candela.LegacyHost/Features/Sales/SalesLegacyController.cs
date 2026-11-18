@@ -929,7 +929,10 @@ namespace CandelaPOS.Features.Sales
             // NetTotal = Cash - Balance (line ~9094), i.e. Balance = Cash - NetTotal. Clamped
             // to >= 0 since card/credit/split tenders never carry an overpayment here (those
             // branches always send CashAmount <= NetTotal).
-            sale.BalanceAmount       = Math.Max(0, req.CashAmount - req.NetTotal);
+            // Candela's change is everything tendered minus the bill — cash + credit + card + GIFT CARD − bill
+            // (frmPaymetOptions TextBox1/TextBox8, vb:1274-1281). Counting only cash showed no change when a gift card
+            // covered part of the bill and the rest was paid with more cash than needed (1,200 bill, 1,000 card + 1,000 cash).
+            sale.BalanceAmount       = Math.Max(0, req.CashAmount + req.CardAmount + req.CreditAmount + req.GiftCardAmount - req.NetTotal);
 
             // Customer
             if (req.CustomerId > 0)
