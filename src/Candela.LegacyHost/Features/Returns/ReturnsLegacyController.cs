@@ -364,8 +364,235 @@ namespace CandelaPOS.Features.Returns
             }
         }
 
+        // PUT /legacy/returns/{id}
+        // Updates a SAVED return the way Candela's form does: through SaleAndReturnDAL.Add(Update), exactly what the sale
+        // edit uses, but with the model built as a RETURN — and with the link to the original invoice
+        // (SaleReturningNo / SaleReturnShopID) taken from the saved invoice, never from the request. Candela keeps that link
+        // in the form while a return is edited (txtReturnNo, frmSaleAndReturn.vb:14431 / 9076); the web's sale-edit path
+        // used to rewrite it as an ordinary sale and reset the link to 0.
+        [HttpPut, Route("{id:int}")]
+        public HttpResponseMessage UpdateReturn(int id, [FromBody] ReturnRequest req)
+        {
+            if (req == null)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "Request body is required" });
+            if (req.Items == null || req.Items.Count == 0)
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { error = "items cannot be empty" });
+
+            int    userId   = (int)   Request.Properties["user_id"];
+            int    shopId   = (int)   Request.Properties["shop_id"];
+            string posCode  = (string)Request.Properties["pos_code"];
+            string userName = (string)Request.Properties["user_name"];
+
+            try
+            {
+                // The saved return: its link to the original invoice lives here.
+                int  savedReturningNo = 0, savedSourceShop = 0;
+                bool isVoided = false;
+                double savedNet = 0;
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT isnull(SaleReturningNo,0), isnull(SaleReturnShopID,0), isnull(IsVoided,0), isnull(NT_amount,0) " +
+                        "FROM tblSales WHERE sale_id = @sid AND shop_id = @shid", con);
+                    cmd.Parameters.AddWithValue("@sid",  id);
+                    cmd.Parameters.AddWithValue("@shid", shopId);
+                    using (var rd = cmd.ExecuteReader())
+                    {
+                        if (!rd.Read())
+                            return Request.CreateResponse(HttpStatusCode.NotFound, new { error = "Return not found." });
+                        savedReturningNo = Convert.ToInt32(rd[0]);
+                        savedSourceShop  = Convert.ToInt32(rd[1]);
+                        isVoided         = Convert.ToBoolean(rd[2]);
+                        savedNet         = Convert.ToDouble(rd[3]);
+                    }
+                }
+                if (isVoided)
+                    return Request.CreateResponse(HttpStatusCode.NotFound, new { error = "Sale not found or already voided." });
+                if (savedReturningNo == 0 && savedNet >= 0)
+                    return Request.CreateResponse((HttpStatusCode)422, new { error = "This invoice is not a return." });
+
+                // The link is the saved one — whatever the request says.
+                int sourceShopId = savedReturningNo > 0 ? (savedSourceShop > 0 ? savedSourceShop : shopId) : shopId;
+                req.ReturningInvoiceNo = savedReturningNo;
+                req.SourceShopId       = savedReturningNo > 0 ? sourceShopId : 0;
+
+                var rulesError = ValidateReturnUpdateRules(req, shopId, sourceShopId);
+                if (rulesError != null) return rulesError;
+
+                var dal  = new SaleAndReturnDAL();
+                var gate = savedReturningNo > 0 ? _invoiceLocks.GetOrAdd(savedReturningNo, _ => new object()) : new object();
+                lock (gate)
+                {
+                    if (savedReturningNo > 0)
+                    {
+                        string overReturnError = ValidateReturnQuantities(sourceShopId, savedReturningNo, req.Items, id);
+                        if (overReturnError != null)
+                            return Request.CreateResponse((HttpStatusCode)422, new { error = overReturnError });
+                    }
+
+                    var sale = BuildReturnModel(req, userId, shopId, posCode, userName);
+                    sale.SaleID = id;
+
+                    // Candela's form runs IsValidateForUpdate before an edit: the saved invoice date (and the new one) must be
+                    // after the last POS / shop closing. It also loads the saved date back into the model.
+                    dal.IsValidateForUpdate(sale);
+                    sale.ActivityLog.ScreenTitle = "Update";
+
+                    string auditMsg = "";
+                    bool ok = dal.Add(sale, EnumActions.Update, ref auditMsg);
+                    if (!ok)
+                        return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                            new { error = "SaleAndReturnDAL.Add(Update) returned false. " + auditMsg });
+
+                    return Request.CreateResponse(HttpStatusCode.OK,
+                        ApiResponse<object>.Ok(new { sale_id = id, updated = true,
+                            message = string.IsNullOrWhiteSpace(auditMsg) ? null : auditMsg }));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Candela's own business stops (closed period, physical audit, ...) must reach the cashier as that message.
+                string msg = ex.Message ?? "";
+                if (msg.IndexOf("physical audit",   StringComparison.OrdinalIgnoreCase) >= 0
+                 || msg.IndexOf("not allowed",       StringComparison.OrdinalIgnoreCase) >= 0
+                 || msg.IndexOf("closed before",     StringComparison.OrdinalIgnoreCase) >= 0
+                 || msg.IndexOf("last closing date", StringComparison.OrdinalIgnoreCase) >= 0
+                 || msg.IndexOf("period",            StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    int idx = msg.IndexOf("Exception Msg ", StringComparison.OrdinalIgnoreCase);
+                    return Request.CreateResponse((HttpStatusCode)422,
+                        new { error = idx >= 0 ? msg.Substring(idx + "Exception Msg ".Length).Trim() : msg });
+                }
+                return Request.CreateResponse(HttpStatusCode.InternalServerError,
+                    new { error = "An error occurred updating the return." });
+            }
+        }
+
+        // The checks a new return runs (PostReturn, sections C1/C-credit/C4/C3/C5), for an edited one. Not the
+        // "return period" check (C2): Candela applies EnterReturnDays to a NEW return only (frmSaleAndReturn.vb:8378-8390).
+        // Returns null when everything passes, otherwise the 422 to send back.
+        private HttpResponseMessage ValidateReturnUpdateRules(ReturnRequest req, int shopId, int sourceShopId)
+        {
+            var cCfg = CandelaBootstrap.GetRCMSConfig();
+            string payType = (req.PaymentType ?? "").ToLower();
+
+            // C1: EnforceSaleReturnReason — every non-exchange line needs a reason.
+            if (CfgIs(cCfg, "EnforceSaleReturnReason", "True")
+                && req.Items.Any(i => !i.IsExchangeItem && (i.ReturnReasonId == null || i.ReturnReasonId == 0)))
+                return Request.CreateResponse((HttpStatusCode)422,
+                    new { error = "A return reason is required for all returned items." });
+
+            // Credit refund: needs a customer who is enabled for credit.
+            if (payType == "credit" && req.CustomerId == 0)
+                return Request.CreateResponse((HttpStatusCode)422,
+                    new { error = "A customer must be selected to process a credit return." });
+
+            if (payType == "credit" && req.CustomerId > 0)
+            {
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT TOP 1 isnull(allow_credit,0) FROM tblMemberInfo WHERE shop_id = @sid AND member_id = @mid", con);
+                    cmd.Parameters.AddWithValue("@sid", shopId);
+                    cmd.Parameters.AddWithValue("@mid", req.CustomerId);
+                    var r = cmd.ExecuteScalar();
+                    if (!(r != null && r != DBNull.Value && Convert.ToBoolean(r)))
+                        return Request.CreateResponse((HttpStatusCode)422,
+                            new { error = "This customer is not enabled for credit transactions." });
+                }
+            }
+
+            // C4: SaleReturnLimit of the cashier's security group.
+            {
+                string grpName = Request.Properties.ContainsKey("group_name") ? (string)Request.Properties["group_name"] : "";
+                int    grpType = Request.Properties.ContainsKey("group_type") ? (int)   Request.Properties["group_type"] : 0;
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT isnull(SaleReturnLimit, 0) FROM tblSecurityGroup WHERE GROUP_TYPE = @gt AND GROUP_NAME = @gn", con);
+                    cmd.Parameters.AddWithValue("@gt", grpType);
+                    cmd.Parameters.AddWithValue("@gn", grpName);
+                    var limitObj = cmd.ExecuteScalar();
+                    if (limitObj != null && limitObj != DBNull.Value)
+                    {
+                        decimal limit = Convert.ToDecimal(limitObj);
+                        if (limit != 0 && Math.Abs((decimal)req.NetTotal) > limit)
+                            return Request.CreateResponse((HttpStatusCode)422,
+                                new { error = "You are not allowed to return more than the defined return limit." });
+                    }
+                }
+            }
+
+            if (req.ReturningInvoiceNo <= 0) return null;   // free return: nothing below applies
+
+            // C3: Apply_Disc_on_Return — the original invoice's customer must be the return's customer.
+            if (CfgIs(cCfg, "Apply_Disc_on_Return", "True"))
+            {
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT isnull(member_id,0), isnull(membershopID,0) FROM tblSales WHERE sale_id = @sid AND shop_id = @shid", con);
+                    cmd.Parameters.AddWithValue("@sid",  req.ReturningInvoiceNo);
+                    cmd.Parameters.AddWithValue("@shid", sourceShopId);
+                    using (var rd = cmd.ExecuteReader())
+                    {
+                        if (rd.Read())
+                        {
+                            int origMemberId = Convert.ToInt32(rd[0]), origMemberShopId = Convert.ToInt32(rd[1]);
+                            if (origMemberId > 0 && origMemberShopId > 0)
+                            {
+                                if (req.CustomerId == 0)
+                                    return Request.CreateResponse((HttpStatusCode)422,
+                                        new { error = "The original invoice was sold to a customer. Please select the same customer to process this return." });
+                                if (req.CustomerId != origMemberId)
+                                    return Request.CreateResponse((HttpStatusCode)422,
+                                        new { error = "Customer mismatch. The return must be processed for the same customer as the original invoice." });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // C5: IgnoreReturnInvoicePaymentMode off — the refund tender must match the original invoice's.
+            if (!CfgIs(cCfg, "IgnoreReturnInvoicePaymentMode", "True"))
+            {
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT isnull(iscreditsale,0), isnull(credit_card_id,0) FROM tblSales WHERE sale_id = @sid AND shop_id = @shid", con);
+                    cmd.Parameters.AddWithValue("@sid",  req.ReturningInvoiceNo);
+                    cmd.Parameters.AddWithValue("@shid", sourceShopId);
+                    using (var rd = cmd.ExecuteReader())
+                    {
+                        if (rd.Read())
+                        {
+                            bool isCreditSale = Convert.ToBoolean(rd[0]);
+                            int  creditCardId = Convert.ToInt32(rd[1]);
+                            if (isCreditSale && req.CreditAmount <= 0)
+                                return Request.CreateResponse((HttpStatusCode)422,
+                                    new { error = "The original invoice was a credit sale. The return must be processed as credit." });
+                            if (!isCreditSale && creditCardId == 0 && req.CashAmount <= 0)
+                                return Request.CreateResponse((HttpStatusCode)422,
+                                    new { error = "The original invoice was a cash sale. The return must be refunded as cash." });
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
         // Validates that no return line exceeds the returnable quantity for its product.
-        private string ValidateReturnQuantities(int sourceShopId, int invoiceNo, List<SaleLineItem> items)
+        // excludeReturnId: the return being edited — its own quantities are not "already returned" (Candela's
+        // IsValidForReturn takes InvoiceForUpdate and leaves that invoice out, SaleAndReturnDAL.vb:376).
+        private string ValidateReturnQuantities(int sourceShopId, int invoiceNo, List<SaleLineItem> items, int excludeReturnId = 0)
         {
             var originalQty = new Dictionary<int, double>();
             var returnedQty = new Dictionary<int, double>();
@@ -396,9 +623,11 @@ namespace CandelaPOS.Features.Returns
                     "FROM tblSalesLineItems li " +
                     "JOIN tblSales s ON s.sale_id = li.sale_id " +
                     "WHERE s.SaleReturningNo = @invoiceNo " +
+                    "  AND s.sale_id <> @excludeReturnId " +
                     "  AND ISNULL(li.is_return_item, 0) = 1 " +
                     "GROUP BY li.Product_Item_ID", con);
                 retCmd.Parameters.AddWithValue("@invoiceNo", invoiceNo);
+                retCmd.Parameters.AddWithValue("@excludeReturnId", excludeReturnId);
                 using (var rdr = retCmd.ExecuteReader())
                 {
                     while (rdr.Read())
@@ -499,33 +728,61 @@ namespace CandelaPOS.Features.Returns
 
                 var line = new SaleAndReturnItems(0, item.ProductItemId, qty,
                                                   item.UnitRate, item.TaggedPrice);
+                // A return is saved the way Candela's own form saves it — the same line-column convention as a sale
+                // line (see SalesLegacyController.BuildModel), just with negative quantities. The request is in SINGLE
+                // units; a Pack line is priced per PACK, so every per-unit money column is scaled by f. The scaling and
+                // the VAT columns apply only to lines the screen described in that convention (price_after_discount
+                // supplied); price-includes-VAT lines and older clients keep the previous per-single mapping.
+                bool   isPackLine = string.Equals(item.ConUnit, "Pack", StringComparison.OrdinalIgnoreCase)
+                                    && item.ConFactor > 0;
+                bool   candelaLine = item.PriceAfterDiscount.HasValue;
+                double f          = (isPackLine && candelaLine) ? item.ConFactor : 1.0;
+                double absQty     = Math.Abs(item.Quantity);
+
                 line.ProductCode                = item.ProductCode ?? "";
                 line.ProductBatchNo             = item.BatchNo ?? "";
                 line.ReasonID                   = item.ReturnReasonId         ?? 0;
                 line.ReasonDescription          = item.ReturnReasonDescription ?? "";
-                line.VATValue                   = item.VatValue;
+                line.VATValue                   = item.VatValue * f;                    // pro_vat: tax per selling unit
                 line.VatFactor                  = item.VatFactor;
                 line.VatType                    = item.VatType ?? "";
                 line.PriceIncludeVat            = item.PriceIncludeVat;
-                line.ProductUnitDiscount        = item.UnitDiscount;
+                line.ProductUnitDiscount        = item.UnitDiscount;                    // per single
                 line.ProductDiscountID          = item.DiscountId;
-                line.CustomerDiscountPerUnit     = item.CustomerDiscountPerUnit;
-                line.MarketingDiscountOnProduct  = item.MarketingDiscount;
-                line.LoyalityCashDiscount       = item.LoyaltyCashDiscount;
+                line.CustomerDiscountPerUnit     = item.CustomerDiscountPerUnit * f;    // mem_discount_amount: per selling unit
+                line.CustomerDiscount            = item.CustomerDiscountPerUnit;        // CustomerDiscount: per single
+                // product_mkt_Discount is a LINE TOTAL in Candela; the screen gives it per single.
+                line.MarketingDiscountOnProduct  = item.MarketingDiscount * absQty;
+                line.LoyalityCashDiscount       = item.LoyaltyCashDiscount * f;
                 line.AdditionalTaxpercent       = item.AdditionalTaxPercent;
-                line.AdditionalTax              = item.AdditionalTax;
+                line.AdditionalTax              = item.AdditionalTax * f;
                 line.DiscCategory               = item.DiscCategory ?? "";
                 line.DiscountFromTagPrice       = item.DiscountFromTagPrice;
                 line.LoyalityEarnedPoints       = 0;
                 line.NestedItemId               = item.NestedItemId;
-                line.PackSize                   = item.PackSize;
-                line.Con_Factor                 = item.ConFactor > 0 ? item.ConFactor : 1.0;
-                line.Con_Unit                   = "";
+                // Candela writes the product's conversion factor on every line (PackSize) and pro_weight only on Pack lines.
+                line.PackSize                   = item.ConFactor > 0 ? item.ConFactor : 0.0;
+                line.Con_Factor                 = isPackLine ? item.ConFactor : 0.0;
+                line.Con_Unit                   = item.ConUnit ?? "Single";
                 line.AvgCost                    = 0.0;
-                line.VatChargedPerUnit          = 0.0;
-                line.VatOnRetailPrice           = 0.0;
-                line.PriceForDiscount           = item.UnitRate;
-                line.PriceAfterDiscount         = item.NetAmount / (item.Quantity == 0 ? 1 : item.Quantity);
+                line.PriceForDiscount           = item.UnitRate * f;
+                if (candelaLine)
+                {
+                    // PriceAfterDiscount is the VAT base without tax; the tax sits in pro_vat / VatChargedPerUnit.
+                    // VatOnRetailPrice = VAT% × retail price (percentage VAT only), as the quote computes it.
+                    line.PriceAfterDiscount     = item.PriceAfterDiscount.Value * f;
+                    line.VatChargedPerUnit      = item.VatValue * f;
+                    line.VatOnRetailPrice       = item.VatOnRetailPrice
+                        ?? ((!item.PriceIncludeVat && string.Equals(item.VatType, "Percentage", StringComparison.OrdinalIgnoreCase))
+                            ? item.UnitRate * item.VatFactor / 100.0 : 0.0);
+                }
+                else
+                {
+                    // Price-includes-VAT lines (and older clients) keep the previous mapping.
+                    line.PriceAfterDiscount     = item.NetAmount / (item.Quantity == 0 ? 1 : item.Quantity);
+                    line.VatChargedPerUnit      = 0.0;
+                    line.VatOnRetailPrice       = 0.0;
+                }
                 line.Employee.Shop.ShopID       = shopId;
                 sale.ListOfSaleItems.Add(line);
             }

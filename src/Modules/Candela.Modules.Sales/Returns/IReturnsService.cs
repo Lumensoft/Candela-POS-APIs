@@ -35,4 +35,17 @@ public interface IReturnsService
     /// host produced them.
     /// </summary>
     Task<LegacyRawResponse> ForwardPostReturnAsync(string rawJsonBody, CancellationToken ct);
+
+    /// <summary>
+    /// GET /api/returns/{id} — a saved return with its lines and (when linked) the original invoice, for the return
+    /// screen's edit mode. Null when the invoice is not this shop's. Throws BusinessRuleException (422) when it is
+    /// voided or is not a return.
+    /// </summary>
+    Task<ReturnEditResponse?> GetReturnForEditAsync(int returnId, int shopId, CancellationToken ct);
+
+    /// <summary>
+    /// PUT /api/returns/{id} — forwarded to PUT /legacy/returns/{id}, which updates the saved return through
+    /// SaleAndReturnDAL.Add(Update) and keeps its link to the original invoice.
+    /// </summary>
+    Task<LegacyRawResponse> ForwardUpdateReturnAsync(int returnId, string rawJsonBody, CancellationToken ct);
 }

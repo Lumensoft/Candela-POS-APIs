@@ -102,4 +102,57 @@ public sealed class ReturnsService(IReturnsRepository repo, ILegacyHostClient le
 
     public Task<LegacyRawResponse> ForwardPostReturnAsync(string rawJsonBody, CancellationToken ct)
         => legacy.SendRawAsync(HttpMethod.Post, "returns", rawJsonBody, ct);
+
+    public Task<LegacyRawResponse> ForwardUpdateReturnAsync(int returnId, string rawJsonBody, CancellationToken ct)
+        => legacy.SendRawAsync(HttpMethod.Put, $"returns/{returnId}", rawJsonBody, ct);
+
+    public async Task<ReturnEditResponse?> GetReturnForEditAsync(int returnId, int shopId, CancellationToken ct)
+    {
+        var header = await repo.QueryReturnHeaderAsync(shopId, returnId, ct);
+        if (header is null) return null;
+
+        if (Convert.ToBoolean(header["is_voided"]))
+            throw new BusinessRuleException("Sale not found or already voided.");
+
+        int    originalId = Convert.ToInt32(header["returning_invoice_no"]);
+        double netTotal   = Convert.ToDouble(header["net_total"]);
+        if (originalId == 0 && netTotal >= 0)   // not linked to an invoice and not a refund: an ordinary sale
+            throw new BusinessRuleException("This invoice is not a return.");
+
+        var response = new ReturnEditResponse
+        {
+            Return = header,
+            Lines = await repo.QueryReturnLinesAsync(shopId, returnId, ct),
+        };
+
+        // A free return has no original invoice — the screen prices it from the live quote.
+        if (originalId <= 0) return response;
+
+        int sourceShopId = Convert.ToInt32(header["source_shop_id"]);
+        if (sourceShopId <= 0) sourceShopId = shopId;
+        header["source_shop_id"] = sourceShopId;
+
+        response.Sale = await repo.QuerySaleHeaderAsync(sourceShopId, originalId, ct);
+
+        var items = await repo.QuerySaleItemsAsync(sourceShopId, originalId, ct);
+        foreach (var item in items)
+            SaleLineConvention.ToPerSingle(item);
+
+        // How many units may still be returned = original quantity − returned by the OTHER returns.
+        var returnedByOthers = await repo.GetReturnedQtyExcludingAsync(originalId, returnId, ct);
+        var originalQty = new Dictionary<int, double>();
+        foreach (var item in items)
+        {
+            int pid = Convert.ToInt32(item["product_item_id"]);
+            originalQty[pid] = originalQty.GetValueOrDefault(pid) + Math.Abs(Convert.ToDouble(item["quantity"]));
+        }
+        foreach (var item in items)
+        {
+            int pid = Convert.ToInt32(item["product_item_id"]);
+            item["max_qty"] = Math.Max(0, originalQty[pid] - returnedByOthers.GetValueOrDefault(pid));
+        }
+
+        response.Items = items;
+        return response;
+    }
 }

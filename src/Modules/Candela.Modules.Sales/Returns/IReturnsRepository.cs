@@ -36,4 +36,19 @@ public interface IReturnsRepository
 
     /// <summary>tblDefDiscounts.discount_duration for a discount, or 0.</summary>
     Task<double> GetDiscountDurationAsync(int discountId, CancellationToken ct);
+
+    /// <summary>
+    /// A saved invoice's header as the return-edit screen needs it — the link to the original invoice
+    /// (SaleReturningNo / SaleReturnShopID), customer, tender and comments — or null when it is not this shop's.
+    /// </summary>
+    Task<Dictionary<string, object?>?> QueryReturnHeaderAsync(int shopId, int returnId, CancellationToken ct);
+
+    /// <summary>The saved lines of a return: product, signed quantity, return reason.</summary>
+    Task<IReadOnlyList<Dictionary<string, object?>>> QueryReturnLinesAsync(int shopId, int returnId, CancellationToken ct);
+
+    /// <summary>
+    /// Quantity already returned per product against an invoice by every return EXCEPT <paramref name="excludeReturnId"/>
+    /// — the same count the save uses (SaleAndReturnDAL.IsValidForReturn leaves the invoice being updated out).
+    /// </summary>
+    Task<IReadOnlyDictionary<int, double>> GetReturnedQtyExcludingAsync(int invoiceNo, int excludeReturnId, CancellationToken ct);
 }

@@ -47,6 +47,40 @@ public sealed class ReturnsController(IReturnsService returns) : CandelaControll
     }
 
     /// <summary>
+    /// GET /api/returns/{id} — a saved return (header, lines, and the original invoice it belongs to) for the return
+    /// screen's edit mode. 404 when it is not this shop's.
+    /// </summary>
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> GetReturnForEdit(int id, CancellationToken ct)
+    {
+        var result = await returns.GetReturnForEditAsync(id, ShopId, ct);
+        if (result is null)
+            return Fail(StatusCodes.Status404NotFound, "Return not found");
+
+        return new JsonResult(result);
+    }
+
+    /// <summary>
+    /// PUT /api/returns/{id} — update a saved return. Forwarded to /legacy/returns/{id} as-is (the link to the original
+    /// invoice is read from the saved return there, never taken from the request); its answer is passed straight back.
+    /// </summary>
+    [HttpPut("{id:int}")]
+    public async Task<IActionResult> UpdateReturn(int id, CancellationToken ct)
+    {
+        using var reader = new StreamReader(Request.Body);
+        var rawBody = await reader.ReadToEndAsync(ct);
+
+        var reply = await returns.ForwardUpdateReturnAsync(id, rawBody, ct);
+
+        return new ContentResult
+        {
+            StatusCode = reply.StatusCode,
+            Content = reply.Body,
+            ContentType = reply.ContentType,
+        };
+    }
+
+    /// <summary>
     /// POST /api/returns — the request body is forwarded to /legacy/returns as-is, and
     /// its answer (200 success envelope, 409 duplicate, 422 business rule, 500 DAL
     /// failure) is passed straight back with the same status and body.

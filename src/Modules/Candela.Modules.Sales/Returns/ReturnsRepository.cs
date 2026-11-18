@@ -66,6 +66,69 @@ WHERE s.sale_id = @invoiceNo AND s.shop_id = @shopId";
         return rows.Count == 0 ? null : rows[0];
     }
 
+    public async Task<Dictionary<string, object?>?> QueryReturnHeaderAsync(int shopId, int returnId, CancellationToken ct)
+    {
+        const string sql = @"
+SELECT
+    s.sale_id,
+    isnull(s.SaleReturningNo, 0)      AS returning_invoice_no,
+    isnull(s.SaleReturnShopID, 0)     AS source_shop_id,
+    isnull(s.member_id, 0)            AS customer_id,
+    isnull(s.memberShopID, 0)         AS customer_shop_id,
+    isnull(s.IsVoided, 0)             AS is_voided,
+    isnull(s.NT_amount, 0)            AS net_total,
+    isnull(s.iscreditsale, 0)         AS is_credit_sale,
+    isnull(s.credit_card_id, 0)       AS credit_card_id,
+    isnull(s.Cash_amt, 0)             AS cash_amt,
+    isnull(s.Card_amt, 0)             AS card_amt,
+    isnull(s.CreditAmount, 0)         AS credit_amt,
+    isnull(s.adjustment_amount, 0)    AS adjustment_amount,
+    isnull(s.Adjustment_comments, '') AS comments,
+    isnull(s.Additional_Comments, '') AS additional_comments
+FROM tblSales s
+WHERE s.sale_id = @returnId AND s.shop_id = @shopId";
+
+        var rows = await db.QueryRowsAsync(sql, new { returnId, shopId }, ct);
+        return rows.Count == 0 ? null : rows[0];
+    }
+
+    public Task<IReadOnlyList<Dictionary<string, object?>>> QueryReturnLinesAsync(int shopId, int returnId, CancellationToken ct)
+    {
+        const string sql = @"
+SELECT
+    li.sale_line_item_id,
+    li.Product_Item_ID                AS product_item_id,
+    li.qty                            AS quantity,
+    isnull(li.is_return_item, 0)      AS is_return_item,
+    isnull(li.ReasonID, 0)            AS return_reason_id,
+    isnull(li.ReturnReason, '')       AS return_reason_description
+FROM tblSalesLineItems li
+WHERE li.sale_id = @returnId AND li.shop_id = @shopId
+ORDER BY li.sale_line_item_id";
+
+        return db.QueryRowsAsync(sql, new { returnId, shopId }, ct);
+    }
+
+    public async Task<IReadOnlyDictionary<int, double>> GetReturnedQtyExcludingAsync(int invoiceNo, int excludeReturnId,
+        CancellationToken ct)
+    {
+        // Same count as the save's ValidateReturnQuantities (legacy host), minus the return being edited.
+        const string sql = @"
+SELECT li.Product_Item_ID AS product_item_id, SUM(ABS(li.qty)) AS qty
+FROM tblSalesLineItems li
+JOIN tblSales s ON s.sale_id = li.sale_id
+WHERE s.SaleReturningNo = @invoiceNo
+  AND s.sale_id <> @excludeReturnId
+  AND ISNULL(li.is_return_item, 0) = 1
+GROUP BY li.Product_Item_ID";
+
+        var rows = await db.QueryRowsAsync(sql, new { invoiceNo, excludeReturnId }, ct);
+        var map = new Dictionary<int, double>();
+        foreach (var r in rows)
+            map[Convert.ToInt32(r["product_item_id"])] = Convert.ToDouble(r["qty"]);
+        return map;
+    }
+
     public Task<IReadOnlyList<Dictionary<string, object?>>> QuerySaleItemsAsync(int shopId,
         int invoiceNo, CancellationToken ct)
     {

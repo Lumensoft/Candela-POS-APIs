@@ -154,6 +154,18 @@ namespace CandelaPOS.Features.Sales
                     chkCmd.Parameters.AddWithValue("@shid", shopId);
                     if (Convert.ToInt32(chkCmd.ExecuteScalar()) == 0)
                         return Request.CreateResponse(HttpStatusCode.NotFound, new { error = "Sale not found or already voided." });
+
+                    // This path rebuilds the invoice as a SALE: it would reset SaleReturningNo / SaleReturnShopID (the link to
+                    // the original invoice) and rewrite the lines in the sale mapping. A saved return is edited through
+                    // PUT /api/returns/{id}, which keeps the link — never through here.
+                    var retCmd = new SqlCommand(
+                        "SELECT COUNT(1) FROM tblSales WHERE sale_id = @sid AND shop_id = @shid " +
+                        "AND (isnull(SaleReturningNo,0) > 0 OR isnull(NT_amount,0) < 0)", chkCon);
+                    retCmd.Parameters.AddWithValue("@sid",  id);
+                    retCmd.Parameters.AddWithValue("@shid", shopId);
+                    if (Convert.ToInt32(retCmd.ExecuteScalar()) > 0)
+                        return Request.CreateResponse((HttpStatusCode)422,
+                            new { error = "A return invoice has to be edited as a return." });
                 }
 
                 // Build the full model just like a new sale, then set SaleID so the DAL
