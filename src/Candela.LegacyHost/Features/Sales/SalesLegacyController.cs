@@ -166,6 +166,13 @@ namespace CandelaPOS.Features.Sales
                 // Candela's form runs IsValidateForUpdate before an edit (frmSaleAndReturn.vb:7778): both the
                 // saved invoice date and the new one must be after the last POS / shop closing.
                 new SaleAndReturnDAL().IsValidateForUpdate(sale);
+
+                // Candela's IsValidate runs these on an edit just as on a new invoice (credit facility / limit, Enforce_Mobile,
+                // zero retail price, below cost, adjustment limit). The invoice's own credit amount is left out of the
+                // customer's outstanding.
+                var ruleError = ValidateSaleRules(req, sale, userId, shopId, id);
+                if (ruleError != null) return ruleError;
+
                 sale.ActivityLog.ScreenTitle = "Update";
 
                 string auditMsg = "";
@@ -307,8 +314,19 @@ namespace CandelaPOS.Features.Sales
                 // The model sets GiftCardAmount/GiftCardNo for the sale header, but the
                 // DAL iterates this list (VB:4559) to actually deduct the balance — an
                 // empty list means no ledger row and the balance is never decremented.
-                if (req.GiftCardAmount > 0 && !string.IsNullOrWhiteSpace(req.GiftCardNo))
+                if (req.GiftCardAmount > 0)
                 {
+                    // Candela's payment screen (frmPaymetOptions.vb:1587) refuses a gift card amount above the balance
+                    // of the cards actually loaded, with gmsgInvalidGftCardAmt. The screen is a client-side step, so
+                    // it is repeated here: an amount with no card number, an unknown card, or a balance that doesn't
+                    // cover it never reaches the ledger (where it would otherwise be counted as paid / go negative).
+                    const string invalidGiftCardAmount = "Invalid Gift Card amount.";
+                    if (string.IsNullOrWhiteSpace(req.GiftCardNo))
+                    {
+                        DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                        return Request.CreateResponse((HttpStatusCode)422, new { error = invalidGiftCardAmount });
+                    }
+
                     string gcRaw = req.GiftCardNo.Trim();
                     string gcNumeric = gcRaw;
                     var gcParts = gcRaw.Split('-');
@@ -325,31 +343,47 @@ namespace CandelaPOS.Features.Sales
                             gcCon);
                         gcCmd.Parameters.AddWithValue("@cn",    gcRaw);
                         gcCmd.Parameters.AddWithValue("@cnNum", gcNumeric);
+                        int gcId = 0, gcNo = 0;
                         using (var gcRdr = gcCmd.ExecuteReader())
                         {
                             if (gcRdr.Read())
                             {
-                                sale.ListOfGftcardPaymentDetails.Add(new gftCardPaymentDetail
-                                {
-                                    gftCardID  = Convert.ToInt32(gcRdr["id"]),
-                                    GftCardNo  = Convert.ToInt32(gcRdr["Card_no"]),
-                                    gftCardAmt = (decimal)req.GiftCardAmount,
-                                });
+                                gcId = Convert.ToInt32(gcRdr["id"]);
+                                gcNo = Convert.ToInt32(gcRdr["Card_no"]);
                             }
                         }
+
+                        // Same balance rule as GET gift-cards/{q}/balance and POST gift-cards/validate: top-ups minus
+                        // redemptions, ignoring ledger rows whose expiry has passed.
+                        double gcBalance = 0;
+                        if (gcId > 0)
+                        {
+                            var gcBalCmd = new SqlCommand(
+                                "SELECT isnull(SUM(l.Top_up_Amt), 0) FROM tblGiftCardLedger l " +
+                                "WHERE l.cardid = @cid AND isnull(l.CardExpiryDate, GETDATE()) >= GETDATE()", gcCon);
+                            gcBalCmd.Parameters.AddWithValue("@cid", gcId);
+                            gcBalance = Convert.ToDouble(gcBalCmd.ExecuteScalar());
+                        }
+
+                        if (gcId == 0 || req.GiftCardAmount > gcBalance + 0.005)
+                        {
+                            DeleteIdempotencySlot(req.ClientTxnGuid, shopId);
+                            return Request.CreateResponse((HttpStatusCode)422, new { error = invalidGiftCardAmount });
+                        }
+
+                        sale.ListOfGftcardPaymentDetails.Add(new gftCardPaymentDetail
+                        {
+                            gftCardID  = gcId,
+                            GftCardNo  = gcNo,
+                            gftCardAmt = (decimal)req.GiftCardAmount,
+                        });
                     }
                 }
 
-                // Credit sale validation: check allow_credit flag and credit limit headroom.
-                // In Candela this is a UI check in IsValidate() before dal.Add().
-                // frmSaleAndReturn.vb:14365-14370, 6344-6356
-                if (req.CustomerId > 0 && (req.PaymentType ?? "").ToLower() == "credit")
-                {
-                    string creditError = ValidateCreditSale(req.CustomerId, shopId,
-                        req.CreditAmount > 0 ? req.CreditAmount : req.NetTotal);
-                    if (creditError != null)
-                        return Request.CreateResponse((HttpStatusCode)422, new { error = creditError });
-                }
+                // Credit facility / limit, Enforce_Mobile, zero retail price, below cost and the adjustment limit —
+                // Candela's IsValidate rules, shared with UpdateSale (see ValidateSaleRules).
+                var ruleError = ValidateSaleRules(req, sale, userId, shopId, 0);
+                if (ruleError != null) return ruleError;
 
                 // Gap 6: mark coupon Used before finalising the sale.
                 // CheckCouponStatus() opens its own transaction and sets Status='Used'.
@@ -378,23 +412,7 @@ namespace CandelaPOS.Features.Sales
                             new { error = $"A customer is required for sales above {enforceCI:F2}." });
                     }
 
-                    // A3: Enforce_Mobile — walk-in sale must have a mobile number
-                    // frmSaleAndReturn.vb:2789
-                    if (req.CustomerId == 0
-                        && CfgIs(rcmsCfg, "Enforce_Mobile", "True")
-                        && string.IsNullOrWhiteSpace(req.WalkInPhone))
-                    {
-                        return Request.CreateResponse((HttpStatusCode)422,
-                            new { error = "A mobile number is required for walk-in sales." });
-                    }
-
-                    // A5: BlockSalesHavingZeroRetailPrice — frmSaleAndReturn.vb:5451
-                    if (CfgIs(rcmsCfg, "BlockSalesHavingZeroRetailPrice", "True")
-                        && req.Items != null && req.Items.Any(i => i.UnitRate == 0))
-                    {
-                        return Request.CreateResponse((HttpStatusCode)422,
-                            new { error = "Items with a zero retail price cannot be sold." });
-                    }
+                    // Enforce_Mobile and BlockSalesHavingZeroRetailPrice: see ValidateSaleRules above.
                 }
                 // ── end A-section validations ─────────────────────────────────────────────
 
@@ -402,135 +420,13 @@ namespace CandelaPOS.Features.Sales
                 {
                     var bCfg = CandelaBootstrap.GetRCMSConfig();
 
-                    // B1/B2: BelowCostSales group right / EnablePrdWiseBelowCost / product Allow_Below_Cost.
-                    // No BelowCostSales right -> no check at all, no popup, sale always allowed.
-                    // Has the right -> EnablePrdWiseBelowCost=False blocks any below-cost item outright;
-                    // =True allows a specific item through only when its own Allow_Below_Cost is set.
-                    // Always a hard block (422) when the right is present — no bypassable warning tier.
-                    {
-                        // BelowCostSales right — resolved at login and carried in the JWT
-                        bool hasBelowCostRight = Request.Properties.ContainsKey("below_cost_right")
-                            && (bool)Request.Properties["below_cost_right"];
-
-                        if (hasBelowCostRight && req.Items != null && req.Items.Count > 0)
-                        {
-                            bool prdWise   = CfgIs(bCfg, "EnablePrdWiseBelowCost", "True");
-                            var itemIds    = req.Items.Select(i => i.ProductItemId).Distinct().ToList();
-                            var avgCosts   = new Dictionary<int, double>();
-                            var allowBelow = new Dictionary<int, bool>();
-
-                            if (itemIds.Count > 0)
-                            {
-                                var paramNames = string.Join(",", Enumerable.Range(0, itemIds.Count).Select(i => "@cid" + i));
-                                using (var costCon = new SqlConnection(CandelaBootstrap.ConnectionString))
-                                {
-                                    costCon.Open();
-                                    var costCmd = new SqlCommand(
-                                        "SELECT pi.Product_Item_ID, ISNULL(p.Average_cost,0), ISNULL(p.allow_below_cost,0) " +
-                                        "FROM tblProductItem pi JOIN tblDefProducts p ON p.Product_ID = pi.Product_ID " +
-                                        "WHERE pi.Product_Item_ID IN (" + paramNames + ")", costCon);
-                                    for (int i = 0; i < itemIds.Count; i++)
-                                        costCmd.Parameters.AddWithValue("@cid" + i, itemIds[i]);
-                                    using (var rd = costCmd.ExecuteReader())
-                                    {
-                                        while (rd.Read())
-                                        {
-                                            int pid = Convert.ToInt32(rd[0]);
-                                            avgCosts[pid]   = Convert.ToDouble(rd[1]);
-                                            allowBelow[pid] = Convert.ToBoolean(rd[2]);
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Backfill AvgCost before the gate — needed for inventory recording regardless
-                            // of whether this line ends up blocking the sale below.
-                            if (sale?.ListOfSaleItems != null)
-                            {
-                                foreach (var ln in sale.ListOfSaleItems)
-                                {
-                                    double avgC;
-                                    if (avgCosts.TryGetValue(ln.ProductItemID, out avgC))
-                                        ln.AvgCost = avgC;
-                                }
-                            }
-
-                            // No bypass field honored here — the right present means a hard block,
-                            // full stop, not a warning a client flag can wave through.
-                            bool belowCostFound = false;
-                            foreach (var item in req.Items)
-                            {
-                                double avg;
-                                if (!avgCosts.TryGetValue(item.ProductItemId, out avg) || avg <= 0) continue;
-                                if (prdWise && allowBelow.TryGetValue(item.ProductItemId, out bool ab) && ab) continue;
-                                double unitPrice = item.UnitRate;
-                                if (unitPrice >= avg) continue;
-                                belowCostFound = true;
-                                break;
-                            }
-
-                            if (belowCostFound)
-                                return Request.CreateResponse((HttpStatusCode)422,
-                                    new { error = "One or more items are priced below cost. Selling below average cost is not allowed." });
-                        }
-                    }
+                    // Below cost (BelowCostSales right) and the adjustment limit: see ValidateSaleRules above.
 
                     // E5: AutoRounding — bypass AdjustmentLimit and ShowAdjustmentReason when AutoRounding is
                     // configured (Candela auto-fills txtAdjustment without supervisor approval — vb:13374).
                     bCfg.TryGetValue("AutoRounding", out var autoRndVal);
                     bool autoRoundingActive = !string.IsNullOrWhiteSpace(autoRndVal)
                         && !autoRndVal.Equals("None", StringComparison.OrdinalIgnoreCase);
-
-                    // B3: AdjustmentLimit / AdjustmentLimitType — frmSaleAndReturn.vb:15885-15907
-                    if (req.AdjustmentAmount != 0 && !autoRoundingActive)
-                    {
-                        string adjLimitStr;
-                        double adjLimit = 0;
-                        if (bCfg.TryGetValue("AdjustmentLimit", out adjLimitStr))
-                            double.TryParse(adjLimitStr, out adjLimit);
-
-                        if (adjLimit > 0)
-                        {
-                            // ApplyAdjustment / ApplyOpenAdjustment are bit columns on TblSecurityUser
-                            // (per-user flags, not group control rights) — frmSaleAndReturn.vb:3126
-                            bool hasOpenAdj = false, hasAdj = false;
-                            using (var rightsCon = new SqlConnection(CandelaBootstrap.ConnectionString))
-                            {
-                                rightsCon.Open();
-                                var adjRightCmd = new SqlCommand(
-                                    "SELECT isnull(ApplyAdjustment, 0)    AS ApplyAdjustment," +
-                                    "       isnull(ApplyOpenAdjustment, 0) AS ApplyOpenAdjustment" +
-                                    " FROM TblSecurityUser WHERE user_id = @uid", rightsCon);
-                                adjRightCmd.Parameters.AddWithValue("@uid", userId);
-                                using (var rdr = adjRightCmd.ExecuteReader())
-                                {
-                                    if (rdr.Read())
-                                    {
-                                        hasAdj     = Convert.ToBoolean(rdr["ApplyAdjustment"]);
-                                        hasOpenAdj = Convert.ToBoolean(rdr["ApplyOpenAdjustment"]);
-                                    }
-                                }
-                            }
-
-                            if (!hasOpenAdj)
-                            {
-                                if (!hasAdj)
-                                    return Request.CreateResponse((HttpStatusCode)422,
-                                        new { error = "You do not have permission to apply an invoice adjustment." });
-
-                                string adjLimitType;
-                                if (!bCfg.TryGetValue("AdjustmentLimitType", out adjLimitType))
-                                    adjLimitType = "VALUE";
-                                double absAdj = Math.Abs(req.AdjustmentAmount);
-                                bool exceeded = adjLimitType.Equals("PERCENTAGE", StringComparison.OrdinalIgnoreCase)
-                                    ? req.NetTotal > 0 && (absAdj / req.NetTotal * 100) > adjLimit
-                                    : absAdj > adjLimit;
-                                if (exceeded)
-                                    return Request.CreateResponse((HttpStatusCode)422,
-                                        new { error = "Adjustment of " + req.AdjustmentAmount.ToString("F2") + " exceeds the allowed limit." });
-                            }
-                        }
-                    }
 
                     // B4: ShowAdjustmentReason — frmSaleAndReturn.vb:7662/7774
                     // When adjustment is entered and ShowAdjustmentReason=True, a reason ID is mandatory
@@ -606,6 +502,171 @@ namespace CandelaPOS.Features.Sales
                 if ((ex.Message ?? "").IndexOf("physical audit", StringComparison.OrdinalIgnoreCase) >= 0)
                     return HandleDalException(ex);
                 return ApiError.Internal(Request, ex, "SalesController.PostSale");
+            }
+        }
+
+        // The validations Candela's IsValidate runs for BOTH a new invoice and an edited one — the `Mode = New Or Mode = Edit`
+        // block of frmSaleAndReturn.vb:5761 (credit facility / credit limit :6372-6463, zero retail price :5546, below cost
+        // :6151, adjustment limit isValidAdjustment :6622) and the Enforce_Mobile check at :8393, which has no mode condition.
+        // PostSale and UpdateSale share this so an edit can't skip what a new sale enforces. editingSaleId is 0 for a new
+        // sale. Returns null when everything passes, otherwise the 422 to send back. Messages are Candela's own
+        // (tblLanguageBasedControls) except where Candela has no equivalent.
+        private HttpResponseMessage ValidateSaleRules(SaleRequest req, SaleAndReturn sale, int userId, int shopId, int editingSaleId)
+        {
+            var cfg = CandelaBootstrap.GetRCMSConfig();
+
+            // Credit facility + credit limit. An edited invoice's own credit amount is not counted against the headroom.
+            if (req.CustomerId > 0 && (req.PaymentType ?? "").ToLower() == "credit")
+            {
+                string creditError = ValidateCreditSale(req.CustomerId, shopId,
+                    req.CreditAmount > 0 ? req.CreditAmount : req.NetTotal, editingSaleId);
+                if (creditError != null)
+                    return Request.CreateResponse((HttpStatusCode)422, new { error = creditError });
+            }
+
+            // Enforce_Mobile — a walk-in invoice needs a mobile number (gMsgEnforceMobile). When editing, the number already
+            // saved on the invoice counts (Candela reloads it from the saved invoice).
+            if (req.CustomerId == 0
+                && CfgIs(cfg, "Enforce_Mobile", "True")
+                && string.IsNullOrWhiteSpace(req.WalkInPhone)
+                && !SavedSaleHasMobile(editingSaleId, shopId))
+            {
+                return Request.CreateResponse((HttpStatusCode)422,
+                    new { error = "Please enter customer's mobile no." });
+            }
+
+            // BlockSalesHavingZeroRetailPrice (gMsgZeroRetailPrice)
+            if (CfgIs(cfg, "BlockSalesHavingZeroRetailPrice", "True")
+                && req.Items != null && req.Items.Any(i => i.UnitRate == 0))
+            {
+                return Request.CreateResponse((HttpStatusCode)422,
+                    new { error = "Retail price of some products is zero. Kindly enter the correct retail price and then try" });
+            }
+
+            // Below cost: BelowCostSales group right / EnablePrdWiseBelowCost / product Allow_Below_Cost. No right -> no check.
+            // With the right, EnablePrdWiseBelowCost=False blocks any below-cost item; =True lets an item through only when
+            // its own Allow_Below_Cost is set. Always a hard block (no bypassable warning tier).
+            bool hasBelowCostRight = Request.Properties.ContainsKey("below_cost_right")
+                && (bool)Request.Properties["below_cost_right"];
+
+            if (hasBelowCostRight && req.Items != null && req.Items.Count > 0)
+            {
+                bool prdWise   = CfgIs(cfg, "EnablePrdWiseBelowCost", "True");
+                var itemIds    = req.Items.Select(i => i.ProductItemId).Distinct().ToList();
+                var avgCosts   = new Dictionary<int, double>();
+                var allowBelow = new Dictionary<int, bool>();
+
+                var paramNames = string.Join(",", Enumerable.Range(0, itemIds.Count).Select(i => "@cid" + i));
+                using (var costCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    costCon.Open();
+                    var costCmd = new SqlCommand(
+                        "SELECT pi.Product_Item_ID, ISNULL(p.Average_cost,0), ISNULL(p.allow_below_cost,0) " +
+                        "FROM tblProductItem pi JOIN tblDefProducts p ON p.Product_ID = pi.Product_ID " +
+                        "WHERE pi.Product_Item_ID IN (" + paramNames + ")", costCon);
+                    for (int i = 0; i < itemIds.Count; i++)
+                        costCmd.Parameters.AddWithValue("@cid" + i, itemIds[i]);
+                    using (var rd = costCmd.ExecuteReader())
+                    {
+                        while (rd.Read())
+                        {
+                            int pid = Convert.ToInt32(rd[0]);
+                            avgCosts[pid]   = Convert.ToDouble(rd[1]);
+                            allowBelow[pid] = Convert.ToBoolean(rd[2]);
+                        }
+                    }
+                }
+
+                // Backfill AvgCost before the gate — needed for inventory recording whether or not a line blocks the sale.
+                if (sale?.ListOfSaleItems != null)
+                {
+                    foreach (var ln in sale.ListOfSaleItems)
+                    {
+                        double avgC;
+                        if (avgCosts.TryGetValue(ln.ProductItemID, out avgC))
+                            ln.AvgCost = avgC;
+                    }
+                }
+
+                foreach (var item in req.Items)
+                {
+                    double avg;
+                    if (!avgCosts.TryGetValue(item.ProductItemId, out avg) || avg <= 0) continue;
+                    if (prdWise && allowBelow.TryGetValue(item.ProductItemId, out bool ab) && ab) continue;
+                    if (item.UnitRate >= avg) continue;
+                    return Request.CreateResponse((HttpStatusCode)422,
+                        new { error = "You are not allowed to sell below cost. Please check selected product" });   // gMsgRestrictCostSingle
+                }
+            }
+
+            // AdjustmentLimit / AdjustmentLimitType (isValidAdjustment). AutoRounding bypasses it — Candela fills the
+            // adjustment itself without supervisor approval (vb:13374).
+            cfg.TryGetValue("AutoRounding", out var autoRndVal);
+            bool autoRoundingActive = !string.IsNullOrWhiteSpace(autoRndVal)
+                && !autoRndVal.Equals("None", StringComparison.OrdinalIgnoreCase);
+
+            if (req.AdjustmentAmount != 0 && !autoRoundingActive)
+            {
+                double adjLimit = 0;
+                if (cfg.TryGetValue("AdjustmentLimit", out string adjLimitStr))
+                    double.TryParse(adjLimitStr, out adjLimit);
+
+                if (adjLimit > 0)
+                {
+                    // ApplyAdjustment / ApplyOpenAdjustment are bit columns on TblSecurityUser (per-user flags) — vb:3126
+                    bool hasOpenAdj = false, hasAdj = false;
+                    using (var rightsCon = new SqlConnection(CandelaBootstrap.ConnectionString))
+                    {
+                        rightsCon.Open();
+                        var adjRightCmd = new SqlCommand(
+                            "SELECT isnull(ApplyAdjustment, 0) AS ApplyAdjustment," +
+                            "       isnull(ApplyOpenAdjustment, 0) AS ApplyOpenAdjustment" +
+                            " FROM TblSecurityUser WHERE user_id = @uid", rightsCon);
+                        adjRightCmd.Parameters.AddWithValue("@uid", userId);
+                        using (var rdr = adjRightCmd.ExecuteReader())
+                        {
+                            if (rdr.Read())
+                            {
+                                hasAdj     = Convert.ToBoolean(rdr["ApplyAdjustment"]);
+                                hasOpenAdj = Convert.ToBoolean(rdr["ApplyOpenAdjustment"]);
+                            }
+                        }
+                    }
+
+                    if (!hasOpenAdj)
+                    {
+                        if (!hasAdj)
+                            return Request.CreateResponse((HttpStatusCode)422,
+                                new { error = "You do not have permission to apply an invoice adjustment." });
+
+                        if (!cfg.TryGetValue("AdjustmentLimitType", out string adjLimitType))
+                            adjLimitType = "VALUE";
+                        double absAdj = Math.Abs(req.AdjustmentAmount);
+                        bool exceeded = adjLimitType.Equals("PERCENTAGE", StringComparison.OrdinalIgnoreCase)
+                            ? req.NetTotal > 0 && (absAdj / req.NetTotal * 100) > adjLimit
+                            : absAdj > adjLimit;
+                        if (exceeded)
+                            return Request.CreateResponse((HttpStatusCode)422,
+                                new { error = "Current user is allowed for limited adjustment." });
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        // True when the saved invoice already carries a mobile number (tblSales.MobileNumber).
+        private bool SavedSaleHasMobile(int saleId, int shopId)
+        {
+            if (saleId <= 0) return false;
+            using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+            {
+                con.Open();
+                var cmd = new SqlCommand(
+                    "SELECT isnull(MobileNumber, '') FROM tblSales WHERE sale_id = @sid AND shop_id = @shid", con);
+                cmd.Parameters.AddWithValue("@sid",  saleId);
+                cmd.Parameters.AddWithValue("@shid", shopId);
+                return !string.IsNullOrWhiteSpace(Convert.ToString(cmd.ExecuteScalar()));
             }
         }
 
@@ -747,7 +808,9 @@ namespace CandelaPOS.Features.Sales
         // Returns an error message if the credit sale should be rejected, null if OK.
         // Mirrors frmSaleAndReturn.vb:6344-6356 and 14365-14370.
         // outstanding = total credit sales billed - total receipts received
-        private string ValidateCreditSale(int customerId, int shopId, double creditAmount)
+        // excludeSaleId: the invoice being edited — its own credit amount is already in the customer's outstanding, so
+        // it is left out (Candela's AvailableCreditLimit for BackEndUpdateValidation, frmSaleAndReturn.vb:6447-6463).
+        private string ValidateCreditSale(int customerId, int shopId, double creditAmount, int excludeSaleId = 0)
         {
             using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
             {
@@ -773,12 +836,12 @@ namespace CandelaPOS.Features.Sales
                     else
                     {
                         // Customer not found in member info — treat as credit not allowed
-                        return "Customer does not have credit facility.";
+                        return "Customer is not allowed for credit sale.";   // gstrCustomernotallowedcreditsale
                     }
                 }
 
                 if (!allowCredit)
-                    return "Customer does not have credit facility.";
+                    return "Customer is not allowed for credit sale.";       // gstrCustomernotallowedcreditsale
 
                 // Outstanding balance = credit sales billed - receipts received
                 // (CustomerReceiptDAL.vb:754 confirms tblMemberReceipts.amount column)
@@ -787,21 +850,19 @@ namespace CandelaPOS.Features.Sales
                 var balCmd = new SqlCommand(
                     "SELECT " +
                     "  ISNULL((SELECT SUM(NT_amount) FROM tblSales " +
-                    "           WHERE member_id = @mid AND isCreditSale = 1 AND shop_id = @sid), 0) " +
+                    "           WHERE member_id = @mid AND isCreditSale = 1 AND shop_id = @sid AND sale_id <> @ex), 0) " +
                     "- ISNULL((SELECT SUM(amount) FROM tblMemberReceipts " +
                     "           WHERE member_id = @mid AND shop_id = @sid), 0) " +
                     "AS outstanding", con);
                 balCmd.Parameters.AddWithValue("@mid", customerId);
                 balCmd.Parameters.AddWithValue("@sid", shopId);
+                balCmd.Parameters.AddWithValue("@ex",  excludeSaleId);
 
                 decimal outstanding = Convert.ToDecimal(balCmd.ExecuteScalar());
                 decimal newTotal    = outstanding + (decimal)creditAmount;
 
                 if (newTotal > creditLimit)
-                    return $"Credit limit exceeded. Limit: {creditLimit:F2}, " +
-                           $"Outstanding: {outstanding:F2}, " +
-                           $"This sale: {creditAmount:F2}, " +
-                           $"Would total: {newTotal:F2}.";
+                    return "You are not allowed to sell more than the credit limit of customer";   // gMsgStrCreditLimitNotAllowed
             }
             return null;
         }
