@@ -188,20 +188,63 @@ namespace CandelaPOS.Features.Pos
                     ActivityLog         = new ActivityLog { ScreenTitle = "POS Till Open", ShopID = shopId, UserID = userId }
                 };
 
+                bool openedByAnotherRequest = false;
                 using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
                 {
                     con.Open();
                     var trans = con.BeginTransaction();
                     try
                     {
-                        dal.CloseShift(model, trans);
-                        trans.Commit();
+                        // Two simultaneous requests both pass the IsPOSOpened() check above, and the DAL's own
+                        // "is one already open" check runs before either has inserted — so both could create a
+                        // shift (or collide on the id). Serialize opens per shop with a transaction-scoped
+                        // lock, then look again: the second request waits here until the first has committed
+                        // and then finds its shift.
+                        using (var lockCmd = new SqlCommand(
+                            "DECLARE @r INT; EXEC @r = sp_getapplock @Resource = @res, @LockMode = 'Exclusive', " +
+                            "@LockOwner = 'Transaction', @LockTimeout = 15000; SELECT @r;", con, trans))
+                        {
+                            lockCmd.Parameters.AddWithValue("@res", "shift-open:" + shopId);
+                            if (Convert.ToInt32(lockCmd.ExecuteScalar()) < 0)
+                                throw new InvalidOperationException("The till is being opened by another request. Please try again.");
+                        }
+
+                        using (var chkCmd = new SqlCommand(
+                            "SELECT COUNT(*) FROM tblPOSCashManagement WHERE IsClosed = 0 AND POSCode = @pos AND ShopID = @sid",
+                            con, trans))
+                        {
+                            chkCmd.Parameters.AddWithValue("@pos", posCode);
+                            chkCmd.Parameters.AddWithValue("@sid", shopId);
+                            openedByAnotherRequest = Convert.ToInt32(chkCmd.ExecuteScalar()) > 0;
+                        }
+
+                        if (openedByAnotherRequest)
+                        {
+                            trans.Rollback();
+                        }
+                        else
+                        {
+                            dal.CloseShift(model, trans);
+                            trans.Commit();
+                        }
                     }
                     catch
                     {
                         trans.Rollback();
                         throw;
                     }
+                }
+
+                if (openedByAnotherRequest)
+                {
+                    return Request.CreateResponse(HttpStatusCode.OK, new
+                    {
+                        success      = true,
+                        already_open = true,
+                        opening      = dal.GetPOSOpeningCash(posCode, shopId),
+                        pos_code     = posCode,
+                        shop_id      = shopId
+                    });
                 }
 
                 return Request.CreateResponse(HttpStatusCode.OK, new

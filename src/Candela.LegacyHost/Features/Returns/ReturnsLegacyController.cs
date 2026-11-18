@@ -472,7 +472,7 @@ namespace CandelaPOS.Features.Returns
 
             sale.CreditCard.CreditCardID = req.CreditCardId;
             int retTenderCount = (req.CashAmount   > 0 ? 1 : 0)
-                               + (req.CardAmount   > 0 ? 1 : 0)
+                               + (req.CardAmount   != 0 ? 1 : 0)   // a card refund is negative, like NetTotal
                                + (req.CreditAmount > 0 ? 1 : 0)
                                + (req.CreditNoteGiftCardId > 0 ? 1 : 0);
             sale.IsMultiplePyaments      = (req.PaymentType ?? "").ToLower() == "split" || retTenderCount > 1;
