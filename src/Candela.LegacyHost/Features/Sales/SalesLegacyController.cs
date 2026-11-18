@@ -389,7 +389,12 @@ namespace CandelaPOS.Features.Sales
                 // CheckCouponStatus() opens its own transaction and sets Status='Used'.
                 // Returns false when coupon is not ACTIVE (already used or not found).
                 // frmSaleAndReturn.vb:10623, SaleAndReturnDAL.vb:14715
-                if (!string.IsNullOrWhiteSpace(req.CouponNo))
+                // Like Candela (frmSaleAndReturn.vb:10076, CR #7693) a coupon only counts when the invoice really carries
+                // a coupon discount: coupon lines are tagged disc_category "C". A code that was typed but not applied
+                // (or applied to nothing) is not marked Used.
+                bool couponDiscountOnInvoice = req.Items != null && req.Items.Any(i =>
+                    string.Equals(i.DiscCategory, "C", StringComparison.OrdinalIgnoreCase) && i.UnitDiscount > 0);
+                if (!string.IsNullOrWhiteSpace(req.CouponNo) && couponDiscountOnInvoice)
                 {
                     bool couponOk = new SaleAndReturnDAL().CheckCouponStatus(req.CouponNo, shopId);
                     if (!couponOk)
