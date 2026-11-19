@@ -517,7 +517,7 @@ ORDER BY d.DetailDate";
             // carried in the JWT prefixed with the form name.
             var rights = Request.Properties.ContainsKey("scr_rights")
                 ? Request.Properties["scr_rights"] as HashSet<string> : null;
-            if (rights == null || !rights.Contains("frmPOSCashManagement.btnUpdate"))
+            if (rights == null || !rights.Contains("frmPOSCashFlow.btnUpdate"))
                 return Request.CreateResponse(HttpStatusCode.Forbidden,
                     new { error = "You do not have the right to delete cash entries." });
 

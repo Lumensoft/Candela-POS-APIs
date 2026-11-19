@@ -47,9 +47,9 @@ public sealed class AuthService(IAuthRepository repo, AuthOptions options) : IAu
         bool hasBelowCostRight = grantedRights.Contains("BelowCostSales");
 
         // Step 1c — the POS Cash Management screen's rights, prefixed with the form name so they never
-        // collide with Sale-screen names (frmPOSCashManagement.btnUpdate gates deleting a cash entry).
-        foreach (var r in await repo.GetFormControlRightsAsync(user.GROUP_ID, "frmPOSCashManagement", ct))
-            grantedRights.Add("frmPOSCashManagement." + r);
+        // collide with Sale-screen names (frmPOSCashFlow.btnUpdate gates deleting a cash entry).
+        foreach (var r in await repo.GetFormControlRightsAsync(user.GROUP_ID, "frmPOSCashFlow", ct))
+            grantedRights.Add("frmPOSCashFlow." + r);
 
         // Step 2a — is this device already registered?
         int shopId = 0;
@@ -150,8 +150,8 @@ public sealed class AuthService(IAuthRepository repo, AuthOptions options) : IAu
 
         bool hasBelowCostRight = grantedRights.Contains("BelowCostSales");
 
-        foreach (var r in await repo.GetFormControlRightsAsync(user.GROUP_ID, "frmPOSCashManagement", ct))
-            grantedRights.Add("frmPOSCashManagement." + r);
+        foreach (var r in await repo.GetFormControlRightsAsync(user.GROUP_ID, "frmPOSCashFlow", ct))
+            grantedRights.Add("frmPOSCashFlow." + r);
 
         // Same device-seat binding as the tablet: is this browser's device_id already
         // registered, and if not, claim a free pre-allocated slot for it.
