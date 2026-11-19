@@ -607,6 +607,12 @@ namespace CandelaPOS.Features.Quote
                 // ── Pass 3: compute VAT, amounts, and totals ──────────────────────────
                 var    lines           = new List<QuoteLineResult>();
                 double grossTotal      = 0;
+                // SalesGridRounding (frmSaleAndReturn.vb:2884, 12951): when on, every line's GrossTotal —
+                // (price − unit discount) × qty — is cut to 2 decimals (Convert(x*100, Int32)/100, which rounds half to
+                // even) before the lines are added up, so the invoice totals are sums of whole-paisa lines.
+                var gridCfg = CandelaBootstrap.GetRCMSConfig();
+                gridCfg.TryGetValue("SalesGridRounding", out var gridRoundVal);
+                bool roundGridValues = string.Equals((gridRoundVal ?? "").Trim(), "True", StringComparison.OrdinalIgnoreCase);
                 double totalDiscount   = 0;
                 double totalCustDisc   = 0;
                 double totalVat        = 0;
@@ -771,6 +777,11 @@ namespace CandelaPOS.Features.Quote
                     });
 
                     grossTotal        += taggedPrice   * item.Quantity;
+                    if (roundGridValues)
+                    {
+                        double rawLineGross = (taggedPrice - unitDisc) * item.Quantity;
+                        grossTotal += Math.Round(rawLineGross * 100, MidpointRounding.ToEven) / 100.0 - rawLineGross;
+                    }
                     totalDiscount     += unitDisc      * item.Quantity;
                     totalCustDisc     += custDiscUnit  * item.Quantity;
                     totalVat          += vatValue      * item.Quantity;

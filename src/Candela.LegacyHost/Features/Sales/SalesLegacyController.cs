@@ -560,13 +560,21 @@ namespace CandelaPOS.Features.Sales
                     new { error = "Retail price of some products is zero. Kindly enter the correct retail price and then try" });
             }
 
-            // Below cost: BelowCostSales group right / EnablePrdWiseBelowCost / product Allow_Below_Cost. No right -> no check.
-            // With the right, EnablePrdWiseBelowCost=False blocks any below-cost item; =True lets an item through only when
-            // its own Allow_Below_Cost is set. Always a hard block (no bypassable warning tier).
+            // Below cost (frmSaleAndReturn.vb:5404-5560). The check runs when the group holds the BelowCostSales right OR the
+            // system setting RestrictBelowCostSales is on.
+            //   With the right: a line sold below its average cost is refused (gMsgRestrictCostSingle) - unless
+            //     EnablePrdWiseBelowCost is on and that product has Allow_Below_Cost; with RestrictBelowCostSales also on, an
+            //     invoice whose total cost is more than its net total is refused too (gMsgRestrictCostTotal, skipped when
+            //     EnablePrdWiseBelowCost is on).
+            //   Without the right (setting on): the same lines / total only ask for a confirmation, answered by sending the
+            //     sale again with bypass_below_cost_warning (409 warn_below_cost).
+            // Candela's "rate" for a line is Rate - Unit Discount; return lines (negative quantity) are not checked, they
+            // are netted off the total instead.
             bool hasBelowCostRight = Request.Properties.ContainsKey("below_cost_right")
                 && (bool)Request.Properties["below_cost_right"];
+            bool restrictBelowCostCfg = CfgIs(cfg, "RestrictBelowCostSales", "True");
 
-            if (hasBelowCostRight && req.Items != null && req.Items.Count > 0)
+            if ((hasBelowCostRight || restrictBelowCostCfg) && req.Items != null && req.Items.Count > 0)
             {
                 bool prdWise   = CfgIs(cfg, "EnablePrdWiseBelowCost", "True");
                 var itemIds    = req.Items.Select(i => i.ProductItemId).Distinct().ToList();
@@ -594,7 +602,7 @@ namespace CandelaPOS.Features.Sales
                     }
                 }
 
-                // Backfill AvgCost before the gate — needed for inventory recording whether or not a line blocks the sale.
+                // Backfill AvgCost before the gate - needed for inventory recording whether or not a line blocks the sale.
                 if (sale?.ListOfSaleItems != null)
                 {
                     foreach (var ln in sale.ListOfSaleItems)
@@ -605,14 +613,73 @@ namespace CandelaPOS.Features.Sales
                     }
                 }
 
+                double totalCost = 0, returnTotal = 0;
                 foreach (var item in req.Items)
                 {
                     double avg;
-                    if (!avgCosts.TryGetValue(item.ProductItemId, out avg) || avg <= 0) continue;
-                    if (prdWise && allowBelow.TryGetValue(item.ProductItemId, out bool ab) && ab) continue;
-                    if (item.UnitRate >= avg) continue;
-                    return Request.CreateResponse((HttpStatusCode)422,
-                        new { error = "You are not allowed to sell below cost. Please check selected product" });   // gMsgRestrictCostSingle
+                    if (!avgCosts.TryGetValue(item.ProductItemId, out avg)) continue;
+
+                    if (item.Quantity < 0)
+                    {
+                        // vb:5431-5447 - what a return line gives back: its total, less its customer discount and its share of
+                        // the marketing discount, plus its VAT when the price does not already include it.
+                        double qtyAbs  = Math.Abs(item.Quantity);
+                        double lineTot = Math.Abs((item.UnitRate - item.UnitDiscount) * qtyAbs);
+                        double rowVal  = lineTot - Math.Abs(item.CustomerDiscountPerUnit * qtyAbs);
+                        if (req.GrossTotal > 0) rowVal -= (req.MarketingDiscount / req.GrossTotal) * lineTot;
+                        if (!item.PriceIncludeVat) rowVal += Math.Abs(item.VatValue * qtyAbs);
+                        returnTotal += rowVal;
+                        continue;
+                    }
+
+                    if (avg > 0 && (item.UnitRate - item.UnitDiscount) < avg)
+                    {
+                        if (hasBelowCostRight)
+                        {
+                            if (!(prdWise && allowBelow.TryGetValue(item.ProductItemId, out bool ab) && ab))
+                                return Request.CreateResponse((HttpStatusCode)422,
+                                    new { error = "You are not allowed to sell below cost. Please check selected product" });   // gMsgRestrictCostSingle
+                        }
+                        else if (!req.BypassBelowCostWarning)
+                        {
+                            return Request.CreateResponse((HttpStatusCode)409, new
+                            {
+                                error           = "{ " + item.ProductCode + " } Product is selling below cost, do you want to proceed?",   // gMsgWarnCostSingle
+                                warn_below_cost = true
+                            });
+                        }
+                    }
+
+                    totalCost += avg * Math.Abs(item.Quantity);
+                }
+
+                if (restrictBelowCostCfg)
+                {
+                    int amountRound = 0;
+                    if (cfg.TryGetValue("isEnableDecimalPoint", out var amtRoundStr)) int.TryParse(amtRoundStr, out amountRound);
+
+                    // vb:5521-5528 - an automatic adjustment (0.25, 0.65 ...) is added to the return side so both sides compare equal.
+                    if (returnTotal > 0) returnTotal += Math.Abs(req.AdjustmentAmount);
+
+                    if (Math.Round(totalCost, amountRound, MidpointRounding.AwayFromZero)
+                        > Math.Round(req.NetTotal + Math.Round(returnTotal, amountRound, MidpointRounding.AwayFromZero),
+                                     amountRound, MidpointRounding.AwayFromZero))
+                    {
+                        if (hasBelowCostRight)
+                        {
+                            if (!prdWise)
+                                return Request.CreateResponse((HttpStatusCode)422,
+                                    new { error = "You are not allowed to sell below cost. The cost of this invoice is more than its total." });   // gMsgRestrictCostTotal
+                        }
+                        else if (!req.BypassBelowCostWarning)
+                        {
+                            return Request.CreateResponse((HttpStatusCode)409, new
+                            {
+                                error           = "The invoice is selling below cost, do you want to proceed?",   // gMsgWarnCostTotal
+                                warn_below_cost = true
+                            });
+                        }
+                    }
                 }
             }
 
