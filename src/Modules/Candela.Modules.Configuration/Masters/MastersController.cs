@@ -62,6 +62,20 @@ public sealed class MastersController(IMastersRepository masters) : CandelaContr
         [FromQuery] string? q, CancellationToken ct) =>
         Rows(await masters.GetCustomersAsync(ShopId, ParseSince(since), q, ct));
 
+    /// <summary>
+    /// GET /api/masters/customers/by-code?code=X[&amp;security=true] — the customer box's code entry: a customer no., a
+    /// scanned card code or an alternate card no. Returns zero or one row.
+    /// </summary>
+    [HttpGet("customers/by-code")]
+    public async Task<IActionResult> FindCustomerByCode([FromQuery] string? code,
+        [FromQuery] bool security, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+            return Fail(StatusCodes.Status400BadRequest, "code is required");
+
+        return Rows(await masters.FindCustomerByCodeAsync(ShopId, code, security, ct));
+    }
+
     /// <summary>GET /api/masters/employees[?since=…] — salespeople for this shop.</summary>
     [HttpGet("employees")]
     public async Task<IActionResult> GetEmployees([FromQuery] string? since, CancellationToken ct) =>

@@ -219,32 +219,7 @@ WHERE isnull(pd.status, 1) = 1
         // customer's balance comes back as whatever they happened to transact at this shop (often 0).
         bool isSearch = !string.IsNullOrWhiteSpace(q);
 
-        string sql = @"
-SELECT" + (isSearch ? " TOP 50" : "") + @"
-    m.member_id,
-    m.member_name,
-    m.shop_id,
-    isnull(m.phone_Res,    '')  AS phone,
-    isnull(m.phone_Mobile, '')  AS mobile,
-    isnull(m.email,        '')  AS email,
-    isnull(m.cust_Address, '')  AS address,
-    isnull(m.nic_no,       '')  AS cnic,
-    isnull(m.InvoiceNo,    '')  AS ntn,
-    isnull(m.credit_limit, 0)  AS credit_limit,
-    isnull(m.allow_credit, 0)  AS allow_credit,
-    isnull(m.comments,     '')  AS comments,
-    isnull(m.member_type_id, 0) AS member_type_id,
-    isnull(mt.discount_percentage, 0)  AS discount_pct,
-    m.end_date,
-    m.entereddate,
-    m.editeddate,
-    isnull((SELECT SUM(s.NT_amount) FROM tblSales s
-            WHERE s.member_id = m.member_id AND s.isCreditSale = 1 AND s.memberShopID = m.shop_id), 0)
-    - isnull((SELECT SUM(r.amount) FROM tblMemberReceipts r
-              WHERE r.member_id = m.member_id AND r.MemberShop_id = m.shop_id), 0)
-    AS credit_outstanding
-FROM tblMemberInfo m
-LEFT JOIN tblDefMemberTypes mt ON mt.member_type_id = m.member_type_id
+        string sql = "SELECT" + (isSearch ? " TOP 50" : "") + CustomerColumnsAndFrom + @"
 WHERE (isnull(mt.IsVisibleOnAllShops, 0) = 1 OR mt.IsVisibleOnAllShops IS NULL OR m.shop_id = @shopId)
   AND NOT (isnull(mt.IsSecurityOn, 0) = 1 AND isnull(mt.IsVisibleOnAllShops, 0) = 1)";
 
@@ -264,6 +239,79 @@ WHERE (isnull(mt.IsVisibleOnAllShops, 0) = 1 OR mt.IsVisibleOnAllShops IS NULL O
             q = isSearch ? "%" + q!.Trim() + "%" : null
         }, ct);
     }
+
+    // Candela's alternate-card postfix for a "red card" (uiCtrlCustomerCode.strRedCardPostfix).
+    private const string RedCardPostfix = "-R0E0D?";
+
+    /// <summary>
+    /// Candela's customer-code lookup (uiCtrlCustomerCode.txtCustomerCode_Validating). The code is tried in the same
+    /// order: a 13-character customer number (only while IsMembershipSecurity is off — and then only for member types
+    /// that are not security-protected, like the general list); a 15-character customer number + security code (the
+    /// scanned card, any member type); then the alternate card number (a "-R0E0D?" red-card code is matched through
+    /// its encrypted form). Same visibility rule as the general list, and the same row shape as GetCustomersAsync.
+    /// </summary>
+    public async Task<IReadOnlyList<Dictionary<string, object?>>> FindCustomerByCodeAsync(int shopId,
+        string code, bool membershipSecurity, CancellationToken ct)
+    {
+        code = code.Trim();
+
+        const string visible = @"
+WHERE (isnull(mt.IsVisibleOnAllShops, 0) = 1 OR mt.IsVisibleOnAllShops IS NULL OR m.shop_id = @shopId)";
+
+        const string customerNo = @"RIGHT('000' + sh.ShopMembershipCode, 3) + '-' + RIGHT('000000' + CONVERT(varchar(6), m.member_no), 6)
+        + '-' + RIGHT('0' + CONVERT(varchar(2), m.card_duplicate_no), 2)";
+
+        async Task<IReadOnlyList<Dictionary<string, object?>>> Run(string where, object args) =>
+            await db.QueryRowsAsync("SELECT TOP 1" + CustomerColumnsAndFrom + visible + where, args, ct);
+
+        IReadOnlyList<Dictionary<string, object?>> rows = [];
+
+        if (code.Length == 13 && !membershipSecurity)
+            rows = await Run($" AND NOT (isnull(mt.IsSecurityOn, 0) = 1 AND isnull(mt.IsVisibleOnAllShops, 0) = 1) AND ({customerNo}) = @code",
+                new { shopId, code });
+        else if (code.Length == 15)
+            rows = await Run($" AND ({customerNo}) + m.Member_Security_Code = @code", new { shopId, code });
+
+        if (rows.Count == 0)
+        {
+            var alt = code.EndsWith(RedCardPostfix, StringComparison.OrdinalIgnoreCase)
+                ? Candela.Platform.Security.SymmetricEncryption.Encrypt(
+                      code.ToUpperInvariant().Replace(RedCardPostfix, ""), "f") + RedCardPostfix
+                : code;
+            rows = await Run(" AND isnull(m.Alternate_card_No, '') = @alt", new { shopId, alt });
+        }
+
+        return rows;
+    }
+
+    // The columns every customer read returns, and the tables behind them.
+    private const string CustomerColumnsAndFrom = @"
+    m.member_id,
+    m.member_name,
+    m.shop_id,
+    isnull(m.phone_Res,    '')  AS phone,
+    isnull(m.phone_Mobile, '')  AS mobile,
+    isnull(m.email,        '')  AS email,
+    isnull(m.cust_Address, '')  AS address,
+    isnull(m.nic_no,       '')  AS cnic,
+    isnull(m.InvoiceNo,    '')  AS ntn,
+    isnull(m.credit_limit, 0)  AS credit_limit,
+    isnull(m.allow_credit, 0)  AS allow_credit,
+    isnull(m.comments,     '')  AS comments,
+    isnull(m.member_type_id, 0) AS member_type_id,
+    isnull(mt.discount_percentage, 0)  AS discount_pct,
+    m.end_date,
+    m.expiry_date,
+    m.entereddate,
+    m.editeddate,
+    isnull((SELECT SUM(s.NT_amount) FROM tblSales s
+            WHERE s.member_id = m.member_id AND s.isCreditSale = 1 AND s.memberShopID = m.shop_id), 0)
+    - isnull((SELECT SUM(r.amount) FROM tblMemberReceipts r
+              WHERE r.member_id = m.member_id AND r.MemberShop_id = m.shop_id), 0)
+    AS credit_outstanding
+FROM tblMemberInfo m
+LEFT JOIN tblDefMemberTypes mt ON mt.member_type_id = m.member_type_id
+LEFT JOIN tblDefShops sh ON sh.shop_id = m.shop_id";
 
     public Task<IReadOnlyList<Dictionary<string, object?>>> GetEmployeesAsync(int shopId,
         DateTime? since, CancellationToken ct)

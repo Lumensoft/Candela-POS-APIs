@@ -26,6 +26,9 @@ public interface IMastersRepository
     /// <summary>Customers visible to this shop, with live credit outstanding. q= switches to search mode.</summary>
     Task<IReadOnlyList<Dictionary<string, object?>>> GetCustomersAsync(int shopId, DateTime? since, string? q, CancellationToken ct);
 
+    /// <summary>One customer by customer no. / scanned card code / alternate card no. (Candela's code lookup).</summary>
+    Task<IReadOnlyList<Dictionary<string, object?>>> FindCustomerByCodeAsync(int shopId, string code, bool membershipSecurity, CancellationToken ct);
+
     /// <summary>Salespeople for the salesperson-assign modal.</summary>
     Task<IReadOnlyList<Dictionary<string, object?>>> GetEmployeesAsync(int shopId, DateTime? since, CancellationToken ct);
 
