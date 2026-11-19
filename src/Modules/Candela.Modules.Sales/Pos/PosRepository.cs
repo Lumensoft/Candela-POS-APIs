@@ -131,7 +131,8 @@ ORDER BY POSDate DESC";
         };
     }
 
-    public async Task<ShiftSearchResponse> SearchShiftsAsync(int shopId, string posCode,
+    // posCode null = every till of the shop (the POS filter's "All" entry); otherwise that one till.
+    public async Task<ShiftSearchResponse> SearchShiftsAsync(int shopId, string? posCode,
         string? from, string? to, int page, int pageSize, CancellationToken ct)
     {
         const string baseSql = @"
@@ -152,12 +153,16 @@ SELECT
     isnull(u.User_name, '')    AS user_name
 FROM tblPOSCashManagement m
 LEFT JOIN tblSecurityUser u ON u.user_id = m.UserID
-WHERE m.ShopID = @sid AND m.POSCode = @pos";
+WHERE m.ShopID = @sid";
 
         var where = new StringBuilder(baseSql);
         var p = new DynamicParameters();
         p.Add("@sid", shopId);
-        p.Add("@pos", posCode);
+        if (!string.IsNullOrEmpty(posCode))
+        {
+            where.Append(" AND m.POSCode = @pos");
+            p.Add("@pos", posCode);
+        }
 
         if (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out DateTime fromDt))
         {
@@ -215,11 +220,13 @@ SELECT d.POSCashManagementDetailID, d.Amount, d.DetailDate, d.Notes, d.Type
 FROM tblPOSCashManagement m
 INNER JOIN tblPOSCashManagementDetail d
     ON d.POSCashManagementID = m.POSCashManagementID AND d.ShopId = m.ShopID
-WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid AND m.POSCode = @pos
+WHERE m.POSCashManagementID = @closingId AND m.ShopID = @sid
 ORDER BY d.DetailDate";
 
-        var rows = await db.QueryAsync<DetailRow>(sql,
-            new { closingId, sid = shopId, pos = posCode }, ct);
+        // Any till of this shop: the search can list other tills' closings (frmPOSCashManagement.vb:575-580 lets a
+        // shop user view them), and opening one shows its Received / Skimmed entries. Changing entries stays
+        // limited to this till — see DeleteShiftDetailAsync.
+        var rows = await db.QueryAsync<DetailRow>(sql, new { closingId, sid = shopId }, ct);
 
         var result = new ShiftDetailResponse { ClosingId = closingId };
 
@@ -238,6 +245,17 @@ ORDER BY d.DetailDate";
         }
 
         return result;
+    }
+
+    public async Task<IReadOnlyList<string>> GetShopPosCodesAsync(int shopId, CancellationToken ct)
+    {
+        // tblComputerList is the register of the shop's tills (frmPOSCashManagement.FillCombos fills its POS filter
+        // from the same list).
+        var codes = await db.QueryAsync<string>(
+            "SELECT DISTINCT POS_code FROM tblComputerList " +
+            "WHERE shop_id = @sid AND POS_code IS NOT NULL AND POS_code <> '' ORDER BY POS_code",
+            new { sid = shopId }, ct);
+        return codes;
     }
 
     public async Task<bool> DeleteShiftDetailAsync(int closingId, int detailId, int shopId,

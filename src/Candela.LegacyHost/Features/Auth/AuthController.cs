@@ -136,6 +136,19 @@ namespace CandelaPOS.Features.Auth
                             grantedRights.Add("frmPOSCashFlow." + rdr2["controlName"].ToString());
                     }
 
+                    // DataViewLimitation is granted on the Security User form — a group holding it cannot search
+                    // further back than the DataViewLimitation config's N days (frmPOSCashManagement.vb:957-966).
+                    var dvlCmd = new SqlCommand(
+                        "SELECT COUNT(*) " +
+                        "FROM tblSecurityControlRight scr " +
+                        "INNER JOIN tblSecurityFormControl sfc ON sfc.ControlId = scr.ControlId " +
+                        "INNER JOIN tblSecurityForm sf ON sf.FORM_ID = sfc.FormID " +
+                        "WHERE scr.GroupId = @gid AND sf.Form_Name_New = 'frmDefSecurityUser' " +
+                        "AND sfc.controlName = 'DataViewLimitation'", con);
+                    dvlCmd.Parameters.AddWithValue("@gid", groupId);
+                    if (Convert.ToInt32(dvlCmd.ExecuteScalar()) > 0)
+                        grantedRights.Add("frmDefSecurityUser.DataViewLimitation");
+
                     // Step 2a — check if this device is already registered in tblComputerList
                     const string findSql =
                         "SELECT computer_id, computer_name, shop_id, POS_code, isTabActive," +

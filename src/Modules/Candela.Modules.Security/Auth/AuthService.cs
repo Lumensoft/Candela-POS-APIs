@@ -51,6 +51,13 @@ public sealed class AuthService(IAuthRepository repo, AuthOptions options) : IAu
         foreach (var r in await repo.GetFormControlRightsAsync(user.GROUP_ID, "frmPOSCashFlow", ct))
             grantedRights.Add("frmPOSCashFlow." + r);
 
+        // DataViewLimitation is granted on the Security User form (frmPOSCashManagement.vb:957-966): a group holding
+        // it cannot search further back than the DataViewLimitation config's N days. Only that one right is carried,
+        // not the rest of that form's controls.
+        if ((await repo.GetFormControlRightsAsync(user.GROUP_ID, "frmDefSecurityUser", ct))
+                .Contains("DataViewLimitation", StringComparer.OrdinalIgnoreCase))
+            grantedRights.Add("frmDefSecurityUser.DataViewLimitation");
+
         // Step 2a — is this device already registered?
         int shopId = 0;
         string posCode = "", computerName = "", invoicePrinterName = "";
@@ -152,6 +159,11 @@ public sealed class AuthService(IAuthRepository repo, AuthOptions options) : IAu
 
         foreach (var r in await repo.GetFormControlRightsAsync(user.GROUP_ID, "frmPOSCashFlow", ct))
             grantedRights.Add("frmPOSCashFlow." + r);
+
+        // Same DataViewLimitation right as the till login above (see the note there).
+        if ((await repo.GetFormControlRightsAsync(user.GROUP_ID, "frmDefSecurityUser", ct))
+                .Contains("DataViewLimitation", StringComparer.OrdinalIgnoreCase))
+            grantedRights.Add("frmDefSecurityUser.DataViewLimitation");
 
         // Same device-seat binding as the tablet: is this browser's device_id already
         // registered, and if not, claim a free pre-allocated slot for it.

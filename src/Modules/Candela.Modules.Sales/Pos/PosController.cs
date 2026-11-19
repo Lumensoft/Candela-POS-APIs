@@ -37,13 +37,15 @@ public sealed class PosController(IPosService pos) : CandelaControllerBase
         => new JsonResult(await pos.GetShiftStatusAsync(ShopId, PosCode, ct));
 
     /// <summary>
-    /// GET /api/pos/shifts?from=&amp;to=&amp;page=&amp;page_size= — this till's closings.
-    /// page defaults to 1, page_size to 20 (1-200), matching the net48 clamps.
+    /// GET /api/pos/shifts?from=&amp;to=&amp;pos=&amp;page=&amp;page_size= — closings of this shop.
+    /// <c>pos</c> is the POS filter: absent = this till (unchanged behaviour), a POS code = that till, "*" = every
+    /// till of the shop. page defaults to 1, page_size to 20 (1-200), matching the net48 clamps.
     /// </summary>
     [HttpGet("shifts")]
     public async Task<IActionResult> SearchShifts(
         [FromQuery] string? from = null,
         [FromQuery] string? to = null,
+        [FromQuery(Name = "pos")] string? posFilterParam = null,
         [FromQuery] int page = 1,
         [FromQuery] int page_size = 20,
         CancellationToken ct = default)
@@ -51,9 +53,19 @@ public sealed class PosController(IPosService pos) : CandelaControllerBase
         if (page < 1) page = 1;
         if (page_size < 1 || page_size > 200) page_size = 20;
 
-        var result = await pos.GetShiftsAsync(ShopId, PosCode, from, to, page, page_size, ct);
+        // The shop always comes from the token, so another shop's tills can never be reached from here.
+        var posFilter = string.IsNullOrWhiteSpace(posFilterParam) ? PosCode
+                      : posFilterParam == "*" ? null
+                      : posFilterParam.Trim();
+
+        var result = await pos.GetShiftsAsync(ShopId, posFilter, from, to, page, page_size, ct);
         return new JsonResult(result);
     }
+
+    /// <summary>GET /api/pos/shift-pos-codes — the shop's POS codes, for the shift search's POS filter.</summary>
+    [HttpGet("shift-pos-codes")]
+    public async Task<IActionResult> GetShiftPosCodes(CancellationToken ct)
+        => new JsonResult(new { success = true, data = await pos.GetShopPosCodesAsync(ShopId, ct) });
 
     /// <summary>GET /api/pos/shifts/{closingId}/detail — the entries behind one closing's totals.</summary>
     [HttpGet("shifts/{closingId:int}/detail")]

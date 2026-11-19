@@ -19,9 +19,12 @@ public interface IPosService
     /// <summary>GET /api/pos/shift-status — the same breakdown, plus <c>net_sales</c>.</summary>
     Task<ShiftStatusResponse> GetShiftStatusAsync(int shopId, string posCode, CancellationToken ct);
 
-    /// <summary>GET /api/pos/shifts — a page of this till's closings, plus filtered totals.</summary>
-    Task<ShiftSearchResponse> GetShiftsAsync(int shopId, string posCode,
+    /// <summary>GET /api/pos/shifts — a page of closings (one till, or all tills when posCode is null), plus filtered totals.</summary>
+    Task<ShiftSearchResponse> GetShiftsAsync(int shopId, string? posCode,
         string? from, string? to, int page, int pageSize, CancellationToken ct);
+
+    /// <summary>GET /api/pos/shift-pos-codes — the shop's POS codes, for the shift search's POS filter.</summary>
+    Task<IReadOnlyList<string>> GetShopPosCodesAsync(int shopId, CancellationToken ct);
 
     /// <summary>GET /api/pos/shifts/{closingId}/detail — the Received / Skimmed entries under a closing.</summary>
     Task<ShiftDetailResponse> GetShiftDetailAsync(int closingId, int shopId, string posCode,

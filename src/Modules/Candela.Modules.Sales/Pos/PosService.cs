@@ -49,9 +49,12 @@ public sealed class PosService(IPosRepository repo, ILegacyHostClient legacy) : 
 
     // Pure reads and the DELETE pass straight through to the repository — no rules, but
     // kept on the service so the controller has one Pos dependency, not two.
-    public Task<ShiftSearchResponse> GetShiftsAsync(int shopId, string posCode,
+    public Task<ShiftSearchResponse> GetShiftsAsync(int shopId, string? posCode,
         string? from, string? to, int page, int pageSize, CancellationToken ct)
         => repo.SearchShiftsAsync(shopId, posCode, from, to, page, pageSize, ct);
+
+    public Task<IReadOnlyList<string>> GetShopPosCodesAsync(int shopId, CancellationToken ct)
+        => repo.GetShopPosCodesAsync(shopId, ct);
 
     public Task<ShiftDetailResponse> GetShiftDetailAsync(int closingId, int shopId, string posCode,
         CancellationToken ct)

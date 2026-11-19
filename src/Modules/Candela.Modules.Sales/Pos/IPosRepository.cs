@@ -23,9 +23,15 @@ public interface IPosRepository
     /// <summary>The most recently closed shift's summary for this till, or null when there is none.</summary>
     Task<LastClosedShift?> GetLastClosedShiftSummaryAsync(int shopId, string posCode, CancellationToken ct);
 
-    /// <summary>One page of shift closings for this till, plus totals over the whole filtered set.</summary>
-    Task<ShiftSearchResponse> SearchShiftsAsync(int shopId, string posCode,
+    /// <summary>
+    /// One page of shift closings plus totals over the whole filtered set — for one till, or for every till of the
+    /// shop when <paramref name="posCode"/> is null (the POS filter's "All").
+    /// </summary>
+    Task<ShiftSearchResponse> SearchShiftsAsync(int shopId, string? posCode,
         string? from, string? to, int page, int pageSize, CancellationToken ct);
+
+    /// <summary>The POS codes registered for this shop — the shift search's POS filter list.</summary>
+    Task<IReadOnlyList<string>> GetShopPosCodesAsync(int shopId, CancellationToken ct);
 
     /// <summary>The Cash Received / Cash Skimmed entries under one shift closing.</summary>
     Task<ShiftDetailResponse> GetShiftDetailAsync(int closingId, int shopId, string posCode,
