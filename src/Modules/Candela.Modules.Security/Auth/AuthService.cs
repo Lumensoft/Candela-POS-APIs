@@ -304,6 +304,36 @@ public sealed class AuthService(IAuthRepository repo, AuthOptions options) : IAu
         };
     }
 
+    // frmOverRidePinCode.btn_Ok_Click: FindValidUser(login, password), then the user's group must hold OverridePinCode
+    // (tblSecurityControlRight on frmSaleAndReturn's control of that name); otherwise "You do not have rights to
+    // override pin code." The desktop's extra step for replicated shops (sending the customer a new PIN through the
+    // HO web service) is not part of this.
+    public async Task<SupervisorResponse> OverridePinCodeAsync(SupervisorRequest req, int cashierUserId,
+        int cashierShopId, CancellationToken ct)
+    {
+        const string BadCredentials = "Invalid username or password.";
+
+        var manager = await repo.FindUserAsync(req.Username!, ct);
+        if (manager is null || string.IsNullOrEmpty(manager.User_log_password))
+            throw new ForbiddenException(BadCredentials);
+
+        string decrypted;
+        try { decrypted = SymmetricEncryption.Decrypt(manager.User_log_password, "f"); }
+        catch { throw new ForbiddenException(BadCredentials); }
+
+        if (!req.Password!.Equals(decrypted, StringComparison.Ordinal))
+            throw new ForbiddenException(BadCredentials);
+
+        var rights = await repo.GetControlRightsAsync(manager.GROUP_ID, ct);
+        if (!rights.Contains("OverridePinCode", StringComparer.OrdinalIgnoreCase))
+            throw new ForbiddenException("You do not have rights to override pin code.");
+
+        AppLog.Info("Customer PIN override approved: manager {0} for user {1} at shop {2}",
+            manager.user_id, cashierUserId, cashierShopId);
+
+        return new SupervisorResponse { SupervisorId = manager.user_id, SupervisorName = manager.User_name ?? "" };
+    }
+
     public async Task BlocklistTokenAsync(string rawToken, CancellationToken ct)
     {
         var sig = JwtHelper.ExtractSignature(rawToken);

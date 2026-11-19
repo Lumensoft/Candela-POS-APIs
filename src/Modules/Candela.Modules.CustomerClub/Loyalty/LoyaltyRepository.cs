@@ -86,10 +86,19 @@ GROUP BY E.Member_Id, R.REDEEMED_POINTS, R.REDEEMED_VAL, P.One_point_equal,
             "SELECT card_pin_code FROM tblMemberInfo WHERE member_id = @memberId AND shop_id = @shopId",
             new { memberId, shopId = memberShopId }, ct);
 
+        // A fixed-width column pads the value with spaces, which would make the hex undecryptable.
+        raw = raw?.Trim();
         if (string.IsNullOrEmpty(raw)) return null;
 
         try { return Candela.Platform.Security.SymmetricEncryption.Decrypt(raw, "f"); }
-        catch { return raw; }   // a PIN that was saved in the clear still compares correctly
+        catch (Exception ex)
+        {
+            // Not something Candela's cipher can read — compare it as plain text (a PIN typed straight into the table).
+            Candela.Shared.Logging.AppLog.Warn(
+                "Customer PIN for member {0} (shop {1}) could not be decrypted ({2}); comparing it as plain text.",
+                memberId, memberShopId, ex.Message);
+            return raw;
+        }
     }
 
     // Column names match the SELECT aliases so Dapper binds by name without mapping.

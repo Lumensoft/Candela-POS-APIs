@@ -46,7 +46,9 @@ public sealed class LoyaltyController(ILoyaltyRepository loyalty) : CandelaContr
         if (string.IsNullOrEmpty(stored))
             return new JsonResult(new { success = true, data = new VerifyPinResponse { PinRequired = false, Valid = true } });
 
-        var valid = string.Equals(req?.Pin ?? string.Empty, stored, StringComparison.Ordinal);
+        // The typed PIN is compared with the DECRYPTED stored PIN — Candela's own frmInputRedemptionPassword.GetPinCode
+        // decrypts card_pin_code with key "f" and compares it with what was keyed in.
+        var valid = string.Equals((req?.Pin ?? string.Empty).Trim(), stored.Trim(), StringComparison.Ordinal);
         return new JsonResult(new { success = true, data = new VerifyPinResponse { PinRequired = true, Valid = valid } });
     }
 }

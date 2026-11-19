@@ -41,6 +41,14 @@ public interface IAuthService
     Task<SupervisorResponse> SupervisorAsync(SupervisorRequest req, int cashierUserId,
         int cashierShopId, int cashierGroupType, CancellationToken ct);
 
+    /// <summary>
+    /// Approves a customer-PIN override (frmOverRidePinCode): a manager signs in and their group must hold the
+    /// frmSaleAndReturn right OverridePinCode. Throws ForbiddenException (403, never 401 — a 401 would sign the
+    /// cashier out of the till) for bad credentials or a missing right.
+    /// </summary>
+    Task<SupervisorResponse> OverridePinCodeAsync(SupervisorRequest req, int cashierUserId, int cashierShopId,
+        CancellationToken ct);
+
     /// <summary>Revokes a token by recording its signature until that token's own expiry.</summary>
     Task BlocklistTokenAsync(string rawToken, CancellationToken ct);
 }

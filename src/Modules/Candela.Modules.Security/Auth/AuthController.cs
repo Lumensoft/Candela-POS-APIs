@@ -102,6 +102,21 @@ public sealed class AuthController(IAuthService auth, IAuthRepository repo) : Ca
     }
 
     /// <summary>
+    /// POST /api/auth/override-pin-code — a manager approves bypassing a customer's PIN at point redemption. Their
+    /// group must hold the OverridePinCode right. Answers 403 (not 401) for bad credentials or a missing right.
+    /// </summary>
+    [HttpPost("override-pin-code")]
+    public async Task<IActionResult> OverridePinCode([FromBody] SupervisorRequest? req, CancellationToken ct)
+    {
+        if (req == null || string.IsNullOrEmpty(req.Username) || string.IsNullOrEmpty(req.Password))
+            return Fail(StatusCodes.Status400BadRequest, "username and password are required");
+
+        var data = await auth.OverridePinCodeAsync(req, UserId, ShopId, ct);
+
+        return new JsonResult(ApiResponse<SupervisorResponse>.Ok(data));
+    }
+
+    /// <summary>
     /// GET /api/auth/adjustment-rights — the per-user flags on TblSecurityUser, not group
     /// control rights. The config gate (AdjustmentLimit &gt; 0) is checked by the tablet
     /// from IndexedDB before it calls this.
