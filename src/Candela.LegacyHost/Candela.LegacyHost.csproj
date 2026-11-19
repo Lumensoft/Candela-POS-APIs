@@ -145,6 +145,7 @@
     <Compile Include="Features\Hardware\RawPrinterHelper.cs" />
     <Compile Include="Features\Holds\HoldsController.cs" />
     <Compile Include="Features\Holds\HoldsLegacyController.cs" />
+    <Compile Include="Features\MissedSales\MissedSalesLegacyController.cs" />
     <Compile Include="Features\Loyalty\LoyaltyController.cs" />
     <Compile Include="Features\Masters\MastersController.cs" />
     <Compile Include="Features\Pos\PosController.cs" />
