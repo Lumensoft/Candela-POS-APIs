@@ -13,4 +13,10 @@ public interface ILoyaltyRepository
     /// member has no earnings row there yet.
     /// </summary>
     Task<LoyaltyPointsResponse?> GetPointsAsync(int memberId, int shopId, CancellationToken ct);
+
+    /// <summary>
+    /// The customer's card PIN (tblMemberInfo.card_pin_code, stored encrypted with key "f" — see
+    /// MemberConfigurationDAL.GetPinCode), decrypted; null/empty when the customer has none.
+    /// </summary>
+    Task<string?> GetCardPinAsync(int memberId, int memberShopId, CancellationToken ct);
 }

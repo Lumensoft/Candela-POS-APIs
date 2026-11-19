@@ -30,4 +30,23 @@ public sealed class LoyaltyController(ILoyaltyRepository loyalty) : CandelaContr
         var data = await loyalty.GetPointsAsync(memberId, ShopId, ct) ?? LoyaltyPointsResponse.Zero;
         return new JsonResult(new { success = true, data });
     }
+
+    /// <summary>
+    /// POST /api/customers/{memberId}/verify-pin — { pin, shop_id }. Candela asks the cashier for the customer's PIN
+    /// before point redemption (frmInputRedemptionPassword: the typed text must equal the customer's card_pin_code).
+    /// The comparison happens here so the PIN is never sent to the browser. A customer with no PIN on file answers
+    /// pin_required:false, valid:true — nothing to ask.
+    /// </summary>
+    [HttpPost("{memberId:int}/verify-pin")]
+    public async Task<IActionResult> VerifyPin(int memberId, [FromBody] VerifyPinRequest? req, CancellationToken ct)
+    {
+        var memberShopId = req is { ShopId: > 0 } ? req.ShopId : ShopId;
+        var stored = await loyalty.GetCardPinAsync(memberId, memberShopId, ct);
+
+        if (string.IsNullOrEmpty(stored))
+            return new JsonResult(new { success = true, data = new VerifyPinResponse { PinRequired = false, Valid = true } });
+
+        var valid = string.Equals(req?.Pin ?? string.Empty, stored, StringComparison.Ordinal);
+        return new JsonResult(new { success = true, data = new VerifyPinResponse { PinRequired = true, Valid = valid } });
+    }
 }

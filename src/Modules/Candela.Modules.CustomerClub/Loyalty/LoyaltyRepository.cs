@@ -78,6 +78,20 @@ GROUP BY E.Member_Id, R.REDEEMED_POINTS, R.REDEEMED_VAL, P.One_point_equal,
         };
     }
 
+    // MemberConfigurationDAL.GetPinCode (DAL:971-990): the PIN sits encrypted (key "f") in tblMemberInfo.card_pin_code,
+    // keyed by the customer's own member_id + shop_id.
+    public async Task<string?> GetCardPinAsync(int memberId, int memberShopId, CancellationToken ct)
+    {
+        var raw = await db.ExecuteScalarAsync<string?>(
+            "SELECT card_pin_code FROM tblMemberInfo WHERE member_id = @memberId AND shop_id = @shopId",
+            new { memberId, shopId = memberShopId }, ct);
+
+        if (string.IsNullOrEmpty(raw)) return null;
+
+        try { return Candela.Platform.Security.SymmetricEncryption.Decrypt(raw, "f"); }
+        catch { return raw; }   // a PIN that was saved in the clear still compares correctly
+    }
+
     // Column names match the SELECT aliases so Dapper binds by name without mapping.
     private sealed class Row
     {
