@@ -11,6 +11,7 @@ namespace Candela.Modules.Sales.Pos;
 ///   GET    shift-status                           same, plus net_sales and open/closed history
 ///   GET    shifts                                 paginated shift-closing search + totals
 ///   GET    shifts/{closingId}/detail              the Received / Skimmed entries under one closing
+///   DELETE shifts/{closingId}                     delete a whole shift closing -> legacy DAL
 ///   DELETE shifts/{closingId}/detail/{detailId}   remove one entry, roll its amount back out
 ///   POST   cash-skim                              record a mid-shift removal   -> legacy DAL
 ///   POST   cash-receive                           record a mid-shift top-up    -> legacy DAL
@@ -60,6 +61,15 @@ public sealed class PosController(IPosService pos) : CandelaControllerBase
         => new JsonResult(await pos.GetShiftDetailAsync(closingId, ShopId, PosCode, ct));
 
     /// <summary>
+    /// DELETE /api/pos/shifts/{closingId} — delete a whole shift closing (frmPOSCashManagement btnDelete).
+    /// 422 with Candela's wording when it is not this till's latest shift or the shop day is closed.
+    /// The btnDelete right is checked on the screen, as with the other shift rights.
+    /// </summary>
+    [HttpDelete("shifts/{closingId:int}")]
+    public async Task<IActionResult> DeleteShift(int closingId, CancellationToken ct)
+        => new JsonResult(await pos.DeleteShiftAsync(closingId, ct));
+
+    /// <summary>
     /// DELETE /api/pos/shifts/{closingId}/detail/{detailId} — remove one Received/Skimmed
     /// entry and subtract its amount from the shift's running total. 404 when the entry is
     /// not this till's.
@@ -69,7 +79,7 @@ public sealed class PosController(IPosService pos) : CandelaControllerBase
     {
         // frmPOSCashManagement.vb:289 — the delete button on a detail row exists only for a group holding
         // the screen's btnUpdate right. Those rights ride in the JWT, prefixed with the form name.
-        if (!ControlRights.Contains("frmPOSCashManagement.btnUpdate"))
+        if (!ControlRights.Contains("frmPOSCashFlow.btnUpdate"))
             return Fail(StatusCodes.Status403Forbidden, "You do not have the right to delete cash entries.");
 
         var deleted = await pos.DeleteShiftDetailAsync(closingId, detailId, ShopId, PosCode, ct);

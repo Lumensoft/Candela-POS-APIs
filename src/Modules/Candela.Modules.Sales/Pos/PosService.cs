@@ -61,6 +61,11 @@ public sealed class PosService(IPosRepository repo, ILegacyHostClient legacy) : 
         CancellationToken ct)
         => repo.DeleteShiftDetailAsync(closingId, detailId, shopId, posCode, ct);
 
+    public Task<ShiftDeleteResponse> DeleteShiftAsync(int closingId, CancellationToken ct)
+        // CanDelete + DeleteShift run on the legacy host (DAL); it also scopes the closing to this till
+        // from the X-Ctx-* headers, so a closing that is not this till's is refused there.
+        => legacy.DeleteAsync<ShiftDeleteResponse>($"pos/shifts/{closingId}", ct);
+
     public Task<CashMovementResponse> CashSkimAsync(CashMovementRequest req, CancellationToken ct)
         => legacy.PostAsync<CashMovementResponse>("pos/cash-skim", req, ct);
 

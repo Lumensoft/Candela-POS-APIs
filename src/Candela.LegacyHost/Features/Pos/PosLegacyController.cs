@@ -19,6 +19,7 @@ namespace CandelaPOS.Features.Pos
     ///   POST /legacy/pos/cash-receive  ReceiveSkimCash(Type = Received)
     ///   POST /legacy/pos/shift-open    IsPOSOpened / GetPOSOpeningCash / CloseShift
     ///   POST /legacy/pos/shift-close   UpdateShiftClosing (+ tblPOSShiftCashCount insert)
+    ///   DELETE /legacy/pos/shifts/{id} CanDelete / DeleteShift (+ tblPOSShiftCashCount cleanup)
     ///
     /// The model-building is copied verbatim from PosController. shop_id / user_id /
     /// pos_code come from Request.Properties, which LegacyContextHandler fills from the
@@ -326,6 +327,83 @@ namespace CandelaPOS.Features.Pos
             catch (Exception ex)
             {
                 return ApiError.Internal(Request, ex, "PosController.CloseShift");
+            }
+        }
+
+        // DELETE /legacy/pos/shifts/{closingId}
+        // frmPOSCashManagement.Delete (vb:504-560): POSCashManagmentDAL.CanDelete guards it — only this till's latest
+        // shift can go, and not once the shop day is closed — then POSCashManagmentDAL.DeleteShift removes the
+        // detail rows, the opening-balance row and the closing itself, with the SQL log and activity log.
+        [HttpDelete, Route("shifts/{closingId:int}")]
+        public HttpResponseMessage DeleteShift(int closingId)
+        {
+            int    shopId  = (int)   Request.Properties["shop_id"];
+            string posCode = (string)Request.Properties["pos_code"];
+
+            try
+            {
+                DateTime posDate;
+                int      shopClosingId;
+
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT POSDate, isnull(ShopClosingID, 0) FROM tblPOSCashManagement " +
+                        "WHERE POSCashManagementID = @id AND ShopID = @sid AND POSCode = @pos", con);
+                    cmd.Parameters.AddWithValue("@id",  closingId);
+                    cmd.Parameters.AddWithValue("@sid", shopId);
+                    cmd.Parameters.AddWithValue("@pos", posCode);
+
+                    using (var rdr = cmd.ExecuteReader())
+                    {
+                        // Not this till's (or not there). Candela.Api's legacy client turns a 404 from this host into
+                        // a generic 502, so the refusal goes back as a 422 with a message the cashier can read.
+                        if (!rdr.Read())
+                            return Request.CreateResponse((HttpStatusCode)422,
+                                new { error = "Shift closing not found for this till." });
+
+                        posDate       = Convert.ToDateTime(rdr[0]);
+                        shopClosingId = Convert.ToInt32(rdr[1]);
+                    }
+                }
+
+                var dal = new POSCashManagmentDAL();
+
+                // CanDelete reports its refusals by throwing — "Only latest POS can be deleted." /
+                // "POS Can't be deleted because shop has been closed." Those are Candela's own wording for the
+                // cashier, so they go back as a 422; anything else is a real failure.
+                try
+                {
+                    dal.CanDelete(posCode, shopId, shopClosingId, posDate);
+                }
+                catch (Exception ex) when (ex.Message.StartsWith("Only latest POS", StringComparison.OrdinalIgnoreCase)
+                                        || ex.Message.StartsWith("POS Can't be deleted", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Request.CreateResponse((HttpStatusCode)422, new { error = ex.Message });
+                }
+
+                dal.DeleteShift(closingId, shopId);
+
+                // The denomination count is this app's own audit table (the DAL does not know it), so it goes
+                // with the closing it described.
+                using (var con = new SqlConnection(CandelaBootstrap.ConnectionString))
+                {
+                    con.Open();
+                    var cmd = new SqlCommand(
+                        "IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'tblPOSShiftCashCount') " +
+                        "DELETE FROM tblPOSShiftCashCount WHERE POSCashManagementID = @id AND ShopID = @sid", con);
+                    cmd.Parameters.AddWithValue("@id",  closingId);
+                    cmd.Parameters.AddWithValue("@sid", shopId);
+                    cmd.ExecuteNonQuery();
+                }
+
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    new { success = true, closing_id = closingId, pos_code = posCode, shop_id = shopId });
+            }
+            catch (Exception ex)
+            {
+                return ApiError.Internal(Request, ex, "PosController.DeleteShift");
             }
         }
 

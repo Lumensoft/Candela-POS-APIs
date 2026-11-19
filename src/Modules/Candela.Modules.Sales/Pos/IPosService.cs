@@ -46,4 +46,11 @@ public interface IPosService
     /// </summary>
     Task<ShiftCloseResponse> CloseShiftAsync(ShiftCloseRequest req, int shopId, string posCode,
         CancellationToken ct);
+
+    /// <summary>
+    /// DELETE /api/pos/shifts/{closingId} — removes a whole shift closing (DAL, via the legacy host).
+    /// Candela's own refusals ("Only latest POS can be deleted.", "POS Can't be deleted because shop has
+    /// been closed.") come back as BusinessRuleException (422); a closing that is not this till's is a 404.
+    /// </summary>
+    Task<ShiftDeleteResponse> DeleteShiftAsync(int closingId, CancellationToken ct);
 }
